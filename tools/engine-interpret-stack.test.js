@@ -85,6 +85,11 @@ module.exports = kit.guard('engine interpret (stack)', async ({ check }) => {
   const listed = await interpret('List my suppliers', { before: SUPPLIERS });
   const TIMBER = ((body(listed).result.parties || []).find((p) => p.name === 'Timber Supplies') || {}).id;
   check(/^\d{4}-\d{2}-\d{2}$/.test(todayOf) && Number.isInteger(TIMBER), 'set-up: the clock and the supplier record are read from the engine');
+  check(/person if the name is a person's name/.test(sys) && /JSON boolean true/.test(sys) && /never a date/.test(sys), 'the prompt tells the model how to give a kind (a person\'s name is a person), that invoiceHeld is a JSON boolean, and that "when" is a word and never a date (found necessary by the first real model run)');
+  const dbgR = await interpret('garbled reply', { ai: [{ match: /./, reply: () => 'I think you probably mean something about money' }] });
+  check(status(dbgR) === 422 && body(dbgR).debug && /something about money/.test(body(dbgR).debug.modelReply), 'in a REHEARSAL (staging) a sentence that is not understood also shows what the model replied, so a real run can be diagnosed');
+  const prodNU = await kit.route({ env: { BUSINESS_ID: 'eng-b' }, seed: kit.asEngineBusiness((db) => db.prepare("INSERT INTO eng_config (key, value_json) VALUES ('available', ?)").run(JSON.stringify(['receivables.query', 'parties.find']))), ai: [{ match: /./, reply: () => 'nonsense from the model' }], method: 'POST', path: '/engine/interpret', role: 'accountant', body: { text: 'hello' } });
+  check(status(prodNU) === 422 && body(prodNU).error === 'not_understood' && body(prodNU).debug === undefined && !/nonsense/.test(JSON.stringify(body(prodNU))), 'but outside a rehearsal (a real business) the model\'s reply is NEVER shown');
   // ---- reads ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   r = await interpret('Who is Patel?');
   check(status(r) === 200 && body(r).status === 'ok' && body(r).understood.capability === 'parties.find' && (body(r).result.parties || []).length === 1 && body(r).result.parties[0].name === 'Patel Builders' && tables(r).length === 0, '"Who is Patel?" is answered by the engine (Patel Builders), labelled as understood by a model, and writes nothing');

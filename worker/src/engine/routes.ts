@@ -72,8 +72,9 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
     const r = await interpretSentence(env, member, body.text, new Date().toISOString().slice(0, 10));
     if (r.kind === "held") return Response.json({ status: "held", actionId: r.actionId, message: r.message, understood: r.understood });
     if (r.kind === "read") return r.outcome.status === "ok" ? Response.json({ status: "ok", result: r.outcome.result, understood: r.understood }) : r.outcome.status === "ambiguous" ? Response.json({ status: "ambiguous", candidates: r.outcome.candidates, understood: r.understood }) : Response.json({ error: r.outcome.code, message: r.outcome.message }, { status: statusFor(r.outcome.code) });
-    if (r.kind === "refused") return Response.json({ error: r.code, message: r.message }, { status: statusFor(r.code) });
-    if (r.kind === "not_understood") return Response.json({ error: "not_understood", message: r.message }, { status: 422 });
+    const rehearsal = (env as unknown as { ENGINE_REHEARSAL?: string }).ENGINE_REHEARSAL === "1";                       // the model's own reply is shown ONLY in a rehearsal, never to a business
+    if (r.kind === "refused") return Response.json({ error: r.code, message: r.message, ...(rehearsal && r.debug ? { debug: { modelReply: r.debug } } : {}) }, { status: statusFor(r.code) });
+    if (r.kind === "not_understood") return Response.json({ error: "not_understood", message: r.message, ...(rehearsal && r.debug ? { debug: { modelReply: r.debug } } : {}) }, { status: 422 });
     return Response.json({ error: "model_unavailable", message: r.message }, { status: 503 });
   }
   return Response.json({ error: "not_found", message: "There is no such engine route." }, { status: 404 });

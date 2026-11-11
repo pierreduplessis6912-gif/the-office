@@ -265,6 +265,7 @@ const MUTATIONS = [
   { name: 'interpreter: accept a category that is not on the list', suite: INTERP, file: E('interpret.ts'), find: 'if (!isName(args.description) || typeof args.category !== "string" || !(EXPENSE_CATEGORIES as readonly string[]).includes(args.category))', replace: 'if (!isName(args.description) || typeof args.category !== "string")' },
   { name: 'interpreter: a new party defaults to a person', suite: INTERP, file: E('interpret.ts'), find: 'kind: (args.kind as string) ?? "organisation"', replace: 'kind: (args.kind as string) ?? "person"' },
   { name: 'interpreter: the prompt no longer says never to assume VAT', suite: INTERP, file: E('interpret.ts'), find: 'Never assume VAT: say whether', replace: 'Be helpful: say whether' },
+  { name: 'interpreter: the model\'s raw reply is shown outside a rehearsal', suite: INTERP, file: E('routes.ts'), find: '(env as unknown as { ENGINE_REHEARSAL?: string }).ENGINE_REHEARSAL === "1";', replace: 'true;' },
 ];
 
 let opts;

@@ -26,10 +26,10 @@ function catalogue(): Entry[] {
     { id: "payment.record", describes: "Record a payment a customer has made (it is only proposed; a person approves it).", arguments: { customer: "the customer's name, as the person said it", amountCents: "the amount as a whole number of cents; R500 is 50000" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "payment.record")?.permissions ?? [] },
       // ---- added with the stack: the model supplies WORDS (a name, an amount in cents, whether VAT was stated, a category), never an id, a tax rate or a date: the engine resolves the names and works the tax and the dates out ----
     { id: "parties.find", describes: "Look up customers or suppliers by name.", arguments: { name: "part of the name, only if the person gave one", role: "customer or supplier, only if the person said which" }, permissions: READS.find((r) => r.id === "parties.find")?.permissions ?? [] },
-    { id: "party.create", describes: "Add a new customer or supplier (it is only proposed; a person approves it).", arguments: { name: "the name as the person said it", role: "customer or supplier", kind: "person or organisation, only if the person said which", email: "only if the person gave one", phone: "only if the person gave one" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "party.create")?.permissions ?? [] },
+    { id: "party.create", describes: "Add a new customer or supplier (it is only proposed; a person approves it).", arguments: { name: "the name as the person said it", role: "customer or supplier", kind: "person if the name is a person's name (a first and last name), organisation if it is a business; leave it out if unsure", email: "only if the person gave one", phone: "only if the person gave one" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "party.create")?.permissions ?? [] },
     { id: "quotations.find", describes: "Look up the quotations made for a customer, or all of them.", arguments: { customer: "the customer's name, only if the person gave one" }, permissions: READS.find((r) => r.id === "quotations.find")?.permissions ?? [] },
     { id: "expenses.find", describes: "Look up expenses the business has recorded.", arguments: { category: `one of ${EXPENSE_CATEGORIES.join(", ")}, only if the person said`, period: "this_month or last_month, only if the person said" }, permissions: READS.find((r) => r.id === "expenses.find")?.permissions ?? [] },
-    { id: "expense.record", describes: "Record something the business bought and has already paid for (it is only proposed; a person approves it).", arguments: { supplier: "the supplier's name, as the person said it", amountCents: "the amount paid as a whole number of cents", vat: "plus_vat if the amount is before VAT, incl_vat if it includes VAT, no_vat if there is no VAT: ONLY if the sentence says so, otherwise leave it out", description: "what was bought, in a few words", category: `one of ${EXPENSE_CATEGORIES.join(", ")}`, method: `how it was paid: one of ${EXPENSE_METHODS.join(", ")}`, invoiceHeld: "true only if the person said they have the tax invoice", when: "today or yesterday, only if the person said" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "expense.record")?.permissions ?? [] },
+    { id: "expense.record", describes: "Record something the business bought and has already paid for (it is only proposed; a person approves it).", arguments: { supplier: "the supplier's name, as the person said it", amountCents: "the amount paid as a whole number of cents", vat: "plus_vat if the amount is before VAT, incl_vat if it includes VAT, no_vat if there is no VAT: ONLY if the sentence says so, otherwise leave it out", description: "what was bought, in a few words", category: `one of ${EXPENSE_CATEGORIES.join(", ")}`, method: `how it was paid: one of ${EXPENSE_METHODS.join(", ")}`, invoiceHeld: "the JSON boolean true, only if the person said they have the tax invoice; otherwise leave it out", when: "the word today or yesterday, never a date; leave it out unless the person said" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "expense.record")?.permissions ?? [] },
     { id: "vat.summary", describes: "The VAT position for a month.", arguments: { period: "this_month or last_month: required" }, permissions: READS.find((r) => r.id === "vat.summary")?.permissions ?? [] },
   ];
 }
@@ -122,7 +122,15 @@ async function notUnderstood(env: Env, member: Member, text: string): Promise<In
   return { kind: "not_understood", message: NOT_UNDERSTOOD };
 }
 
-export async function interpretSentence(env: Env, member: Member, rawText: unknown, today: string): Promise<InterpretOutcome> {
+export type InterpretResult = InterpretOutcome & { debug: string | null };
+/** What the real model said, for staging rehearsals only (the route shows it only when ENGINE_REHEARSAL is set): a run judged against a written pass rule needs to see WHY a sentence was not understood. */
+export async function interpretSentence(env: Env, member: Member, rawText: unknown, today: string): Promise<InterpretResult> {
+  const trace: { raw: string | null } = { raw: null };
+  const out = await interpretCore(env, member, rawText, today, trace);
+  return { ...out, debug: trace.raw === null ? null : trace.raw.slice(0, 400) } as InterpretResult;
+}
+
+async function interpretCore(env: Env, member: Member, rawText: unknown, today: string, trace: { raw: string | null }): Promise<InterpretOutcome> {
   if (typeof rawText !== "string" || !rawText.trim() || rawText.length > MAX_TEXT) return { kind: "refused", code: "invalid_payload", message: `text must be a sentence of up to ${MAX_TEXT} characters.` };
   const text = rawText.trim();
   const entries = await usable(env, member);
@@ -133,6 +141,7 @@ export async function interpretSentence(env: Env, member: Member, rawText: unkno
   }
   const content = await askModel(env, entries, text);
   if (content === null) return { kind: "model_unavailable", message: "I could not read that just now, so nothing was done. Please try again." };
+  trace.raw = content;
   const call = parseCall(content);
   const chosen = call && typeof call.capability === "string" ? entries.find((e) => e.id === call.capability) : undefined;
   if (!call || !chosen || !isObject(call.arguments)) return notUnderstood(env, member, text);
