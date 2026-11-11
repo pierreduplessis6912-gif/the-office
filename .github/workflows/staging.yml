@@ -679,8 +679,8 @@ jobs:
           # read back from the object (the sample's amounts are not assumed); it approves only the actions it proposes itself. Staging only; never production.
           set +e
           export BASE="https://${SLUG}.websitehub.co.za"
-          export BIZ=staging-stack
           export RUN="${{ github.run_id }}"
+          export BIZ="staging-stack-${RUN}"   # a FRESH business every run: the proof is not re-runnable on a used one (credit totals accumulate and the tax lock only moves forward; found by run 4, 2026-11-10)
           mkdir -p "$RESULTS"
           cat > "$RESULTS/mkcookie.py" <<'PY'
           import os, json, hmac, hashlib, base64, time
@@ -690,9 +690,9 @@ jobs:
           s = b(hmac.new(os.environ["STAGING_SESSION_SECRET"].encode(), p.encode(), hashlib.sha256).digest())
           print("office_session=" + p + "." + s)
           PY
-          export OWNER_C=$(EMAIL="staging-stack-owner@example.com" python3 "$RESULTS/mkcookie.py")
-          export ACCT_C=$(EMAIL="staging-stack-accountant@example.com" python3 "$RESULTS/mkcookie.py")
-          export INST_C=$(EMAIL="staging-stack-installer@example.com" python3 "$RESULTS/mkcookie.py")
+          export OWNER_C=$(EMAIL="staging-stack-owner-${RUN}@example.com" python3 "$RESULTS/mkcookie.py")
+          export ACCT_C=$(EMAIL="staging-stack-accountant-${RUN}@example.com" python3 "$RESULTS/mkcookie.py")
+          export INST_C=$(EMAIL="staging-stack-installer-${RUN}@example.com" python3 "$RESULTS/mkcookie.py")
           echo "::add-mask::$OWNER_C"; echo "::add-mask::$ACCT_C"; echo "::add-mask::$INST_C"
           python3 - <<'PY' > "$RESULTS/stack-proof.json"
           import os, json, urllib.request, urllib.error, datetime
@@ -733,7 +733,7 @@ jobs:
           def main():
               st0 = ctx["st0"] = call("status-start", "GET", "/admin/engine/status", None, None, True)[1]
               for r_, e_ in [("owner", "owner"), ("accountant", "accountant"), ("installer", "installer")]:
-                  call("membership-" + r_, "POST", "/debug/create-membership", {"google_email": f"staging-stack-{e_}@example.com", "role": r_}, None, True)
+                  call("membership-" + r_, "POST", "/debug/create-membership", {"google_email": f"staging-stack-{e_}-{RUN}@example.com", "role": r_}, None, True)
               if st0.get("mode") != "engine": call("provision", "POST", "/admin/engine/provision-sample", {"confirm": BIZ}, None, True)
               st1 = call("status-ready", "GET", "/admin/engine/status", None, None, True)[1]
               NEED = ["party.create", "business.profile.set", "tax_lock.set", "credit_note.issue", "credit.apply", "refund.record", "credit_note.void", "debit_note.issue", "allocation.remove", "refund.void", "payment.allocate", "payment.refund", "expense.record", "expense.void", "expenses.find", "vat.summary", "credits.find", "business.get"]
