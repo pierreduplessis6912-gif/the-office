@@ -34,7 +34,8 @@ module.exports = kit.guard('engine mcp', async ({ check }) => {
   check(JSON.stringify(names(t)) === JSON.stringify(['list_capabilities', 'propose', 'read']), 'a write key adds propose (the only write tool)');
   const prop = t.find((x) => x.name === 'propose');
   check(prop && prop.annotations.readOnlyHint === false && prop.annotations.destructiveHint === false && /never approve|cannot approve|a person approves/i.test(prop.description), 'propose is marked as a write that is not destructive, and says an assistant can never approve: a person does');
-  check(names(await tools('installerW')).length === 0, 'an installer (nothing permitted in the engine) is offered nothing, whatever the key\'s scope');
+  const instCaps = JSON.parse((await callTool('installerW', 'list_capabilities', {})).text).capabilities.map((x) => x.id).sort();
+  check(names(await tools('installerW')).join() === 'list_capabilities,propose,read' && instCaps.includes('purchase_orders.find') && instCaps.includes('goods.receive') && !instCaps.some((i) => ['payment.record', 'party.create', 'expense.record', 'vat.summary', 'receivables.query'].includes(i)), 'an installer (field staff) is offered the tools but sees ONLY the purchasing capabilities their role allows (read orders, propose a receipt): none of the money ones');
   const noCaps = await kit.route({ method: 'POST', path: '/mcp', noSession: true, headers: { Authorization: 'Bearer ' + K.accountantW.key }, env: ENV, seed: (db) => { seed(db); db.prepare("INSERT INTO eng_config (key, value_json) VALUES ('mode', '\"engine\"')").run(); }, body: rpc('tools/list') });
   check((((noCaps.result.body || {}).result || {}).tools || []).length === 0, 'an engine business with no capability available offers nothing (as before)');
   for (const legacy of ['get_customer_receivables', 'tell_the_office', 'schedule_job', 'confirm_pending_action', 'reject_pending_action']) { const c = await callTool('accountantW', legacy, {}); check(c.rpcError && c.rpcError.code === -32602, `${legacy} is still an unknown tool in an engine business: there is no way to approve over MCP`); }
@@ -77,7 +78,7 @@ module.exports = kit.guard('engine mcp', async ({ check }) => {
   check(c.isError === true && /not a write capability/.test(c.text || ''), 'and a READ capability passed to propose is refused with that reason');
   c = await callTool('accountantR', 'read', { capability: 'parties.find', params: { name: 'x'.repeat(30000) } });
   check(c.isError === true && /too large/.test(c.text || ''), 'an enormous parameter is refused as too large');
-  check((await callTool('installerW', 'read', { capability: 'parties.find', params: {} })).rpcError.code === -32602, 'an installer cannot call read at all (the tool is not offered to them)');
+  c = await callTool('installerW', 'read', { capability: 'parties.find', params: {} }); check(c.isError === true && /not a read capability/.test(c.text || ''), 'an installer calling read for a capability their role does not allow is refused (parties are not theirs to read)');
   const withoutExpenses = await kit.route({ method: 'POST', path: '/mcp', noSession: true, headers: { Authorization: 'Bearer ' + K.accountantR.key }, env: ENV, seed: (db) => { seed(db); db.prepare("INSERT INTO eng_config (key, value_json) VALUES ('mode', '\"engine\"')").run(); db.prepare("INSERT INTO eng_config (key, value_json) VALUES ('available', ?)").run(JSON.stringify(['parties.find'])); }, body: rpc('tools/call', { name: 'read', arguments: { capability: 'expenses.find', params: {} } }) });
   check((((withoutExpenses.result.body || {}).result || {}).isError) === true, 'a read capability the business has not switched on is refused as unavailable');
 

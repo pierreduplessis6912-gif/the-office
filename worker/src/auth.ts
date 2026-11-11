@@ -511,6 +511,10 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   "engine.payment.refund": ["can_manage_invoices"],
   "engine.expense.record": ["can_manage_invoices"],
   "engine.expense.void": ["can_manage_invoices"],
+  "engine.purchase_order.create": ["can_manage_invoices"],
+  "engine.purchase_order.cancel": ["can_manage_invoices"],
+  // field staff may PROPOSE a receipt (the legacy materials capability), but approving one needs a money role: the person on site says what arrived, a manager approves it
+  "engine.goods.receive": ["can_manage_invoices"],
   "engine.business.profile.set": ["can_manage_settings"],
   "engine.tax_lock.set": ["can_manage_settings"],
   "engine.quotation.create": ["can_manage_invoices", "can_make_quotes"],
@@ -799,6 +803,7 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "GET", path: /^\/engine\/credits$/, anyOf: ["can_manage_invoices"] },
   { method: "GET", path: /^\/engine\/vat$/, anyOf: ["can_manage_invoices"] },
   { method: "GET", path: /^\/engine\/expenses$/, anyOf: ["can_know_expense_totals", "can_manage_invoices"] },
+  { method: "GET", path: /^\/engine\/purchase-orders$/, anyOf: ["can_manage_invoices", "can_know_materials"] },
   { method: "GET", path: /^\/engine\/quotations$/, anyOf: ["can_manage_invoices", "can_make_quotes"] },
   // Money — accountant and owner.
   { method: "GET", path: /^\/customers\/\d+\/profitability$/, anyOf: ["can_know_profit"] },

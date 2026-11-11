@@ -15,6 +15,7 @@ import { allQuotations, checkDate, checkLines, checkReference, planQuotationAcce
 import { documentTotals as sumTotals } from "./money";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, vatSummary, type ProfileChange } from "./business";
 import { movementAvailable, planPaymentAllocation, planPaymentRefund, refundMovementOrThrow } from "./credits";
+import { allOrders, checkReceiptLines, checkShortText, planCancel, planOrder, planReceipt, type ReceiptLineInput } from "./purchasing";
 import { allExpenses, checkExpenseInput, EXPENSE_CATEGORIES, planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { creditAvailable, debitsOf, planCreditApplication, planDebitNote, planRefund, planVoid } from "./credits";
 import { checkCreditLines, checkReason, planCreditNote, type CreditLineInput } from "./credits";
@@ -777,7 +778,100 @@ export const expensesFind: ReadCapability<{ from?: string; to?: string; category
   },
 };
 
-export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind];
+// ---- purchase orders and goods received (docs/decisions/purchase-orders.md) ---------------------------------------------------------------------------------------------------------------------------
+interface OrderCreatePayload { supplierId: number; orderedOn: string; currency: string; expectedOn?: string; reference?: string; lines: QuoteLine[]; totals?: { netMinor: number; taxMinor: number; grossMinor: number } }
+export const purchaseOrderCreate: CapabilityContract<OrderCreatePayload> = {
+  id: "purchase_order.create", heldType: "engine.purchase_order.create", label: "Placing a purchase order", requires: [], permissions: ["purchase.manage"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the order must be an object" };
+    const s = stray(payload, ["supplierId", "orderedOn", "currency", "expectedOn", "reference", "lines", "totals"]);
+    if (s) return { ok: false, reason: `${s} is not a field of an order` };
+    if (!whole(payload.supplierId)) return { ok: false, reason: "supplierId must be a record number" };
+    const on = checkDate(payload.orderedOn, "orderedOn"); if (!on.ok) return on;
+    if (typeof payload.currency !== "string" || !/^[A-Z]{3}$/.test(payload.currency)) return { ok: false, reason: "currency must be a 3-letter code such as ZAR" };
+    const out: OrderCreatePayload = { supplierId: payload.supplierId, orderedOn: on.value, currency: payload.currency, lines: [] };
+    if (payload.expectedOn !== undefined) { const e = checkDate(payload.expectedOn, "expectedOn"); if (!e.ok) return e; if (e.value < on.value) return { ok: false, reason: "expectedOn cannot be before the order date" }; out.expectedOn = e.value; }
+    if (payload.reference !== undefined) { const r = checkReference(payload.reference); if (!r.ok) return r; out.reference = r.value; }
+    const lines = checkLines(payload.lines); if (!lines.ok) return lines; out.lines = lines.value;
+    if (payload.totals !== undefined) { const t = payload.totals; if (!isObj(t) || !whole(t.netMinor, 0) || !whole(t.taxMinor, 0) || !whole(t.grossMinor, 0)) return { ok: false, reason: "totals must be the engine's worked-out totals" }; out.totals = { netMinor: t.netMinor, taxMinor: t.taxMinor, grossMinor: t.grossMinor }; }
+    return { ok: true, value: out };
+  },
+  async stamp(_env, value) { return { ...value, totals: totalsOf(value.lines) }; },
+  async check(env, value) {
+    await planOrder(env, value);
+    if (value.totals && JSON.stringify(value.totals) !== JSON.stringify(totalsOf(value.lines))) throw new EngineError("invalid_state", "The totals shown do not match the lines, so this needs to be proposed again.");
+  },
+  async execute(env, v, c) {
+    const r = await facts.recordPurchaseOrder(env, { supplierId: v.supplierId, orderedOn: v.orderedOn, currency: v.currency, expectedOn: v.expectedOn, reference: v.reference ?? null, lines: v.lines }, ctxOf(c, "purchase_order.create"));
+    return { documentId: r.documentId, number: r.number, eventId: r.eventId };
+  },
+};
+
+interface GoodsReceivePayload { orderId: number; receivedOn: string; lines: ReceiptLineInput[]; deliveryNote?: string; note?: string; basedOn?: { orderVersion: number } }
+export const goodsReceive: CapabilityContract<GoodsReceivePayload> = {
+  id: "goods.receive", heldType: "engine.goods.receive", label: "Receiving goods", requires: [], permissions: ["goods.receive"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the receipt must be an object" };
+    const s = stray(payload, ["orderId", "receivedOn", "lines", "deliveryNote", "note", "basedOn"]);
+    if (s) return { ok: false, reason: `${s} is not a field of a receipt` };
+    if (!whole(payload.orderId)) return { ok: false, reason: "orderId must be a record number" };
+    const d = checkDate(payload.receivedOn, "receivedOn"); if (!d.ok) return d;
+    const lines = checkReceiptLines(payload.lines); if (!lines.ok) return lines;
+    const out: GoodsReceivePayload = { orderId: payload.orderId, receivedOn: d.value, lines: lines.value };
+    if (payload.deliveryNote !== undefined) { const n = checkShortText(payload.deliveryNote, "deliveryNote", 60); if (!n.ok) return n; out.deliveryNote = n.value; }
+    if (payload.note !== undefined) { const n = checkShortText(payload.note, "note", 200); if (!n.ok) return n; out.note = n.value; }
+    if (payload.basedOn !== undefined) { if (!stampOk(payload.basedOn, "orderVersion")) return { ok: false, reason: "basedOn must name the version it was proposed against" }; out.basedOn = { orderVersion: (payload.basedOn as Record<string, number>).orderVersion }; }
+    return { ok: true, value: out };
+  },
+  async stamp(env, value) { await planReceipt(env, value); return { ...value, basedOn: { orderVersion: await verOf(env, value.orderId) } }; },
+  async check(env, value) {
+    if (value.basedOn && (await verOf(env, value.orderId)) !== value.basedOn.orderVersion) throw new EngineError("stale", "That order changed after this was proposed, so it needs to be proposed again.");
+    await planReceipt(env, value);
+  },
+  async execute(env, v, c) { const r = await facts.receiveGoods(env, { orderId: v.orderId, receivedOn: v.receivedOn, lines: v.lines, deliveryNote: v.deliveryNote, note: v.note }, ctxOf(c, "goods.receive")); return { documentId: r.documentId, number: r.number, eventId: r.eventId }; },
+};
+
+interface OrderCancelPayload { orderId: number; reason: string; cancelledOn: string; basedOn?: { orderVersion: number } }
+export const purchaseOrderCancel: CapabilityContract<OrderCancelPayload> = {
+  id: "purchase_order.cancel", heldType: "engine.purchase_order.cancel", label: "Cancelling a purchase order", requires: [], permissions: ["purchase.manage"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(payload, ["orderId", "reason", "cancelledOn", "basedOn"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (!whole(payload.orderId)) return { ok: false, reason: "orderId must be a record number" };
+    const r = checkShortText(payload.reason, "reason", 200); if (!r.ok) return r;
+    const d = checkDate(payload.cancelledOn, "cancelledOn"); if (!d.ok) return d;
+    const out: OrderCancelPayload = { orderId: payload.orderId, reason: r.value, cancelledOn: d.value };
+    if (payload.basedOn !== undefined) { if (!stampOk(payload.basedOn, "orderVersion")) return { ok: false, reason: "basedOn must name the version it was proposed against" }; out.basedOn = { orderVersion: (payload.basedOn as Record<string, number>).orderVersion }; }
+    return { ok: true, value: out };
+  },
+  async stamp(env, value) { await planCancel(env, value); return { ...value, basedOn: { orderVersion: await verOf(env, value.orderId) } }; },
+  async check(env, value) {
+    if (value.basedOn && (await verOf(env, value.orderId)) !== value.basedOn.orderVersion) throw new EngineError("stale", "That order changed after this was proposed, so it needs to be proposed again.");
+    await planCancel(env, value);
+  },
+  async execute(env, v, c) { const r = await facts.cancelPurchaseOrder(env, { orderId: v.orderId, reason: v.reason, cancelledOn: v.cancelledOn }, ctxOf(c, "purchase_order.cancel")); return { eventId: r.eventId }; },
+};
+
+export const purchaseOrdersFind: ReadCapability<{ supplierId?: number; status?: string }> = {
+  id: "purchase_orders.find", label: "Finding purchase orders", permissions: ["purchase.read"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["supplierId", "status"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const out: { supplierId?: number; status?: string } = {};
+    if (params.supplierId !== undefined) { if (!whole(params.supplierId)) return { ok: false, reason: "supplierId must be a record number" }; out.supplierId = params.supplierId; }
+    if (params.status !== undefined) { if (typeof params.status !== "string" || !["open", "part_received", "received", "cancelled", "closed", "outstanding", "any"].includes(params.status)) return { ok: false, reason: "status must be open, part_received, received, cancelled, closed, outstanding or any" }; out.status = params.status; }
+    return { ok: true, value: out };
+  },
+  async run(env, _viewer, value) {
+    const names = new Map((await allProfiles(env)).map((p) => [p.id, p.name]));
+    const all = await allOrders(env, value);
+    return { orders: all.slice(0, 100).map((o) => ({ ref: { kind: "document", id: o.id }, id: o.id, number: o.number, supplierId: o.supplierId, supplierName: names.get(o.supplierId) ?? null, currency: o.currency, orderedOn: o.orderedOn, expectedOn: o.expectedOn, reference: o.reference, netMinor: o.netMinor, taxMinor: o.taxMinor, grossMinor: o.grossMinor, status: o.status, receivedValueMinor: o.receivedValueMinor, outstandingValueMinor: o.outstandingValueMinor })), count: all.length, truncated: all.length > 100, derivedBy: "purchasing.allOrders" };
+  },
+};
+
+export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
@@ -785,5 +879,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

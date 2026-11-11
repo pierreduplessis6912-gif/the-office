@@ -56,6 +56,8 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "overpayment.refunded": { creates: null, note: "part of an unapplied payment is paid back to the customer; the money-out movement is created by its own event beside it" },
   "expense.recorded": { creates: null, note: "a paid expense: ties the expense document to the money-out movement that paid it; the document and the movement are created by their own events beside it" },
   "expense.voided": { creates: null, note: "an expense is voided; the reversals are created by their own events beside it" },
+  "goods.received": { creates: null, note: "goods arrive against a purchase order: ties the goods_receipt document to its order; the document is created by its own event beside it" },
+  "purchase_order.cancelled": { creates: null, note: "the remainder of a purchase order is cancelled; its state is derived (purchasing.ts)" },
   "operation.executed": { creates: null, note: "the record that an approved proposal executed; it creates no fact" },
 };
 const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal" };
@@ -301,6 +303,31 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
       if (typeof p.movementId !== "number" || !creditMovements.has(p.movementId)) problems.push({ code: "orphan", detail: `event ${e.id} (expense.recorded) points at movement ${String(p.movementId)}, which does not exist` });
       else if (creditMovements.get(p.movementId) !== Number(p.amountPaidMinor)) problems.push({ code: "orphan", detail: `expense ${p.documentId}: the amount paid (${String(p.amountPaidMinor)}) does not match its money-out movement (${creditMovements.get(p.movementId)})` });
     } else if (!reversed.has(p.documentId)) problems.push({ code: "orphan", detail: `event ${e.id} (expense.voided): expense ${p.documentId} is not reversed` });
+  }
+
+  // purchasing: a receipt or cancellation must point at a purchase order that exists, receipts can never add up to more than a line ordered, nothing is received after a cancellation, and an order is cancelled once
+  const orderDocs = new Map((await many<{ id: number; party_id: number }>(env, "SELECT id, party_id FROM eng_document WHERE kind = 'purchase_order'")).map((d) => [d.id, d.party_id]));
+  const receiptDocs = new Set((await many<{ id: number }>(env, "SELECT id FROM eng_document WHERE kind = 'goods_receipt'")).map((d) => d.id));
+  const orderedQty = new Map<string, number>();
+  for (const l of await many<{ document_id: number; line_no: number; quantity_milli: number }>(env, "SELECT document_id, line_no, quantity_milli FROM eng_document_line")) if (orderDocs.has(l.document_id)) orderedQty.set(`${l.document_id}:${l.line_no}`, l.quantity_milli);
+  const gotQty = new Map<string, number>(); const cancelledAt = new Map<number, number>();
+  for (const e of await many<{ id: number; type: string; payload_json: string }>(env, "SELECT id, type, payload_json FROM eng_event WHERE type IN ('goods.received', 'purchase_order.cancelled') ORDER BY id")) {
+    let p: Record<string, unknown> = {};
+    try { p = JSON.parse(e.payload_json) ?? {}; } catch { /* a malformed payload is reported by the payload check */ }
+    const orderKey = e.type === "goods.received" ? p.orderId : p.documentId;
+    if (typeof orderKey !== "number" || !orderDocs.has(orderKey)) { problems.push({ code: "orphan", detail: `event ${e.id} (${e.type}) points at purchase order ${String(orderKey)}, which does not exist` }); continue; }
+    if (e.type === "purchase_order.cancelled") {
+      if (cancelledAt.has(orderKey)) problems.push({ code: "orphan", detail: `purchase order ${orderKey} is cancelled more than once (events ${cancelledAt.get(orderKey)} and ${e.id})` });
+      else cancelledAt.set(orderKey, e.id);
+      continue;
+    }
+    if (typeof p.documentId !== "number" || !receiptDocs.has(p.documentId)) { problems.push({ code: "orphan", detail: `event ${e.id} (goods.received) points at receipt ${String(p.documentId)}, which does not exist` }); continue; }
+    if (cancelledAt.has(orderKey)) problems.push({ code: "orphan", detail: `goods were received on purchase order ${orderKey} after it was cancelled (event ${e.id})` });
+    for (const l of Array.isArray(p.lines) ? (p.lines as Array<{ lineNo?: number; quantityMilli?: number }>) : []) {
+      const k = `${orderKey}:${l.lineNo}`;
+      gotQty.set(k, (gotQty.get(k) ?? 0) + (Number(l.quantityMilli) || 0));
+      if ((gotQty.get(k) ?? 0) > (orderedQty.get(k) ?? 0)) problems.push({ code: "orphan", detail: `purchase order ${orderKey} line ${l.lineNo}: receipts add up to more than was ordered (${gotQty.get(k)} against ${orderedQty.get(k) ?? 0})` });
+    }
   }
 
   return { ok: problems.length === 0, problems, warnings };

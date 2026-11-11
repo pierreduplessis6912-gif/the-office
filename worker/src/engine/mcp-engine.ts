@@ -51,6 +51,10 @@ const HINTS: Record<string, string> = {
   "payment.refund": "payload {paymentId, amountMinor, refundedOn, method}: refund an unapplied payment.",
   "expense.record": "payload {supplierId, incurredOn, method: eft | cash | card | cheque | other, category, currency, amountsIncludeTax: true | false, lines: [{description, amountMinor, taxBp}], amountPaidMinor, taxInvoiceHeld: true | false, supplierInvoiceNumber?, receiptRef?, capital?}: something bought and already paid.",
   "expense.void": "payload {expenseId, reason, voidedOn}: void an expense.",
+  "purchase_orders.find": "params {supplierId?: number, status?: open | part_received | received | cancelled | closed | outstanding | any}: purchase orders with what has arrived and what is still to receive (outstanding orders by default).",
+  "purchase_order.create": "payload {supplierId, orderedOn, currency, expectedOn?, reference?, lines: [{description, quantityMilli (1000 = one), unit?, unitPriceMinor, taxBp (required)}]}: an order placed with a supplier (a commitment, not a debt).",
+  "purchase_order.cancel": "payload {orderId, reason, cancelledOn}: cancel what has not yet arrived on an order (closes it short if part arrived).",
+  "goods.receive": "payload {orderId, receivedOn, lines: [{lineNo, quantityMilli}], deliveryNote?, note?}: goods that arrived against an order (never more than remains; a person with a money role approves it).",
   "business.profile.set": "payload {legalName?, tradingName?, address?, vatRegistered?, vatNumber?, companyRegistrationNumber?}: the business's own details.",
   "tax_lock.set": "payload {lockDate}: lock the tax period up to a date (it only moves forward).",
 };

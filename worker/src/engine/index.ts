@@ -25,4 +25,5 @@ import * as credits from "./credits";
 import * as business from "./business";
 import * as config from "./config";
 import * as expenses from "./expenses";
-export { boundary, permissions, drafts, records, operations, capabilities, parties, quotations, credits, business, config, expenses };
+import * as purchasing from "./purchasing";
+export { boundary, permissions, drafts, records, operations, capabilities, parties, quotations, credits, business, config, expenses, purchasing };

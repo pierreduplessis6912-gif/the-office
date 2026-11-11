@@ -12,6 +12,7 @@ import { isEffective, outstandingForDocument, unallocatedForMovement } from "./l
 import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from "./parties";
 import { planQuotationAcceptance, planQuotationRevision } from "./quotations";
 import { planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
+import { planCancel, planOrder, planReceipt, type ReceiptLineInput } from "./purchasing";
 import { planCreditApplication, planCreditNote, planDebitNote, planPaymentAllocation, planPaymentRefund, planRefund, planVoid, refundMovementOrThrow, checkReason, type CreditLineInput } from "./credits";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
 import { checkDate } from "./quotations";
@@ -287,6 +288,33 @@ export async function voidExpense(env: Env, input: { expenseId: number; reason: 
     const d = await reverse(tx, { documentId: expenseId, reason: plan.reason }, ctx);
     const eventId = await appendEvent(tx, "expense.voided", ctx, { documentId: expenseId, movementId: plan.movementId, reason: plan.reason, voidedOn: plan.voidedOn }, plan.reason);
     return { eventId, reversalIds: [m.id, d.id] };
+  });
+}
+
+// A PURCHASE ORDER is a document of kind purchase_order (a commitment: no payable, not a tax document, no money); a GOODS RECEIPT is a document of kind goods_receipt tied to ONE order by a goods.received event; a CANCELLATION of the
+// remainder is a purchase_order.cancelled event. Nothing is edited: what state an order is in is derived (purchasing.ts). The receipt takes the order's own price and tax rate for each line, never a new one.
+export async function recordPurchaseOrder(env: Env, input: { supplierId: number; orderedOn: string; currency: string; expectedOn?: string; reference?: string | null; lines: DocumentLineInput[] }, ctx: Ctx): Promise<{ documentId: number; number: number; eventId: number; totals: Totals }> {
+  const supplierId = id(input.supplierId, "supplier");
+  return inTransaction(env, async (tx) => {
+    await planOrder(tx, { supplierId, orderedOn: input.orderedOn, expectedOn: input.expectedOn });
+    const doc = await recordDocument(tx, { kind: "purchase_order", direction: "buy", partyId: supplierId, currency: input.currency, reference: input.reference ?? null, issuedOn: input.orderedOn, terms: input.expectedOn ? { expectedOn: input.expectedOn } : {}, lines: input.lines }, ctx);
+    return { documentId: doc.id, number: doc.number, eventId: doc.eventId, totals: doc.totals };
+  });
+}
+export async function receiveGoods(env: Env, input: { orderId: number; receivedOn: string; lines: ReceiptLineInput[]; deliveryNote?: string | null; note?: string | null }, ctx: Ctx): Promise<{ documentId: number; number: number; eventId: number }> {
+  const orderId = id(input.orderId, "order");
+  return inTransaction(env, async (tx) => {
+    const plan = await planReceipt(tx, { ...input, orderId });
+    const doc = await recordDocument(tx, { kind: "goods_receipt", direction: "buy", partyId: plan.partyId, currency: plan.currency, reference: input.deliveryNote ?? null, issuedOn: plan.receivedOn, terms: { orderId, ...(input.note ? { note: input.note } : {}) }, lines: plan.docLines }, ctx);
+    const eventId = await appendEvent(tx, "goods.received", ctx, { documentId: doc.id, orderId, receivedOn: plan.receivedOn, lines: plan.eventLines, ...(input.deliveryNote ? { deliveryNote: input.deliveryNote } : {}), ...(input.note ? { note: input.note } : {}) });
+    return { documentId: doc.id, number: doc.number, eventId };
+  });
+}
+export async function cancelPurchaseOrder(env: Env, input: { orderId: number; reason: string; cancelledOn: string }, ctx: Ctx): Promise<{ eventId: number }> {
+  const orderId = id(input.orderId, "order");
+  return inTransaction(env, async (tx) => {
+    const plan = await planCancel(tx, { ...input, orderId });
+    return { eventId: await appendEvent(tx, "purchase_order.cancelled", ctx, { documentId: orderId, reason: plan.reason, cancelledOn: plan.cancelledOn, receivedValueMinor: plan.receivedValueMinor }, plan.reason) };
   });
 }
 

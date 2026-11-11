@@ -56,6 +56,11 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
     const sid = q("supplierId");
     return answer(await invokeRead(env, member, "expenses.find", { ...(q("from") !== null ? { from: q("from") } : {}), ...(q("to") !== null ? { to: q("to") } : {}), ...(q("category") !== null ? { category: q("category") } : {}), ...(sid !== null ? { supplierId: /^\d+$/.test(sid) ? Number(sid) : sid } : {}), ...(q("status") !== null ? { status: q("status") } : {}) }));
   }
+  if (request.method === "GET" && path === "/engine/purchase-orders") {
+    const q = (k: string) => url.searchParams.get(k);
+    const sid = q("supplierId");
+    return answer(await invokeRead(env, member, "purchase_orders.find", { ...(sid !== null ? { supplierId: /^\d+$/.test(sid) ? Number(sid) : sid } : {}), ...(q("status") !== null ? { status: q("status") } : {}) }));
+  }
   const rec = path.match(/^\/engine\/records\/([a-z]+)\/(\d+)$/);
   if (request.method === "GET" && rec) return answer(await invokeRead(env, member, "records.get", { kind: rec[1], id: Number(rec[2]) }));
   if (request.method === "POST" && path === "/engine/proposals") {
