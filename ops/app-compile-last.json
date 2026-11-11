@@ -1,15 +1,15 @@
 {
- "commit": "53dc27f",
- "when": "2026-11-11T11:36:58.980916+00:00",
+ "commit": "a68cc3c",
+ "when": "2026-11-11T21:02:00.430052+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
  "tests": "success",
  "failing_lines": [],
  "test_tail": [
-  "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: the address to give an assistant is the API base plus /mcp, whatever slashes the base ends with",
   "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: the lines on a key say when it was made and used, in plain words",
   "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: a typed label is tidied: trimmed, control characters removed, at most 60 characters, and nothing usable is null",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/engine_shell_test.dart: a payment fully applied shows no unallocated line",
   "::endgroup::",
   "",
   "\ud83c\udf89 287 tests passed."
