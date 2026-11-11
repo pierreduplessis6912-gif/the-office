@@ -1,0 +1,12 @@
+{
+  "status": 200,
+  "body": {
+    "status": "held",
+    "actionId": 1,
+    "message": "Adding a customer or supplier is held for confirmation.",
+    "understood": {
+      "capability": "party.create",
+      "interpreter": "model"
+    }
+  }
+}

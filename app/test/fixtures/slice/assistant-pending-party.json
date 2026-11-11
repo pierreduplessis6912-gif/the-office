@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "body": {
+    "pending": [
+      {
+        "id": 1,
+        "type": "engine.party.create",
+        "payload": "{\"kind\":\"organisation\",\"name\":\"Dlamini Timber\",\"roles\":[\"supplier\"]}",
+        "source_transcript": "Add Dlamini Timber as a supplier",
+        "created_at": "2026-01-01 00:00:00"
+      }
+    ]
+  }
+}

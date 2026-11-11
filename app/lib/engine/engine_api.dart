@@ -43,6 +43,9 @@ abstract class EngineApi {
   /// What is waiting for approval: GET /actions/pending.
   Future<EngineResponse> pending();
 
+  /// A sentence the person typed, read by the engine's interpreter: POST /engine/interpret. The engine answers a read, HOLDS a write (nothing is recorded until it is confirmed), or says it did not understand.
+  Future<EngineResponse> interpret(String text);
+
   /// Approves a held action: POST /actions/<id>/confirm.
   Future<EngineResponse> confirm(int actionId);
 
@@ -93,6 +96,7 @@ class FixtureEngineApi implements EngineApi {
     'document/1': 'record-document',
     'party/1': 'record-party',
     'movement/1': 'record-movement-reversed',
+    'party/3': 'record-party-supplier',
   };
 
   @override
@@ -120,12 +124,49 @@ class FixtureEngineApi implements EngineApi {
     return fixtures['proposal-held'] ?? _missing;
   }
 
+  /// The assistant's recorded answers: which recorded answer a sentence gets is chosen here by a few words (the real interpreter is the engine's; this only stands in for it in a demo). A held action stays held until it is confirmed or declined.
+  String? _heldKind;       // 'party' or 'expense' while an assistant action waits
+  int? _heldId;
+  bool _heldResolved = false;
+
   @override
-  Future<EngineResponse> pending() async => fixtures[_rejected ? 'pending-empty' : (overpay ? 'pending-held-over' : 'pending-held')] ?? _missing;
+  Future<EngineResponse> interpret(String text) async {
+    if (!capabilityAvailable) return fixtures['unavailable-ask'] ?? _missing;
+    if (role == 'installer' || role == 'sales') return fixtures['assistant-refused-installer'] ?? _missing;
+    final t = text.toLowerCase();
+    String? name;
+    if (t.contains('patel')) {
+      name = 'assistant-parties';
+    } else if (t.contains('vat')) {
+      name = 'assistant-vat';
+    } else if (t.contains('fuel') || t.contains('spend')) {
+      name = 'assistant-expenses';
+    } else if (t.contains('nobody')) {
+      name = 'assistant-refused';
+    } else if (t.contains('dlamini') || (t.contains('add ') && t.contains('supplier'))) {
+      name = 'assistant-held-party';
+    } else if (t.contains('bought') || t.contains('plywood')) {
+      name = 'assistant-held-expense';
+    }
+    final response = fixtures[name ?? 'assistant-not-understood'] ?? _missing;
+    if (name == 'assistant-held-party' || name == 'assistant-held-expense') {
+      _heldKind = name == 'assistant-held-party' ? 'party' : 'expense';
+      _heldId = name == 'assistant-held-party' ? 1 : 2;
+      _heldResolved = false;
+    }
+    return response;
+  }
+
+  @override
+  Future<EngineResponse> pending() async => (_heldKind != null && !_heldResolved) ? (fixtures['assistant-pending-$_heldKind'] ?? _missing) : fixtures[_rejected ? 'pending-empty' : (overpay ? 'pending-held-over' : 'pending-held')] ?? _missing;
 
   @override
   Future<EngineResponse> confirm(int actionId) async {
     confirmations.add(actionId);
+    if (_heldKind != null && !_heldResolved && actionId == _heldId) {
+      _heldResolved = true;
+      return fixtures['assistant-confirm-$_heldKind'] ?? _missing;
+    }
     if (_rejected) return fixtures['confirm-after-reject'] ?? _missing;
     if (staleApproval) return fixtures['confirm-stale'] ?? _missing;
     _approved = true;
@@ -135,6 +176,10 @@ class FixtureEngineApi implements EngineApi {
   @override
   Future<EngineResponse> reject(int actionId) async {
     rejections.add(actionId);
+    if (_heldKind != null && !_heldResolved && actionId == _heldId) {
+      _heldResolved = true;
+      return fixtures['reject-ok'] ?? _missing;
+    }
     if (!canDecline || role == 'installer' || role == 'sales') return fixtures['reject-refused'] ?? _missing;
     _rejected = true;
     return fixtures['reject-ok'] ?? _missing;

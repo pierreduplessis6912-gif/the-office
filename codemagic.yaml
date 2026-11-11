@@ -49,6 +49,36 @@ workflows:
           include: true
       cancel_previous_builds: true
 
+  # THE ENGINE DEMO (recorded engine answers, NOT a live business): builds lib/engine_main.dart (the engine shell, with its two tabs: what is owed, and the assistant) as a separate app with its OWN application id
+  # (za.co.websitehub.the_office_engine_demo), so installing it never replaces or conflicts with the live Office app. Started by hand in Codemagic (no automatic trigger), on whichever branch is chosen.
+  office-engine-demo-android:
+    name: Office Engine Demo (Android, recorded answers)
+    max_build_duration: 30
+    environment:
+      flutter: stable
+    scripts:
+      - name: Bootstrap native scaffolding (Android, distinct application id)
+        script: |
+          cd app
+          if [ ! -d "android" ]; then
+            cp pubspec.yaml /tmp/pubspec.yaml.bak
+            cp lib/main.dart /tmp/main.dart.bak
+            flutter create --platforms=android --org za.co.websitehub --project-name the_office_engine_demo .
+            cp /tmp/pubspec.yaml.bak pubspec.yaml
+            cp /tmp/main.dart.bak lib/main.dart
+            python3 ../patch_android_manifest.py
+          fi
+      - name: Get Flutter packages
+        script: |
+          cd app
+          flutter pub get
+      - name: Build APK (release, engine demo)
+        script: |
+          cd app
+          flutter build apk --release --android-skip-build-dependency-validation -t lib/engine_main.dart
+    artifacts:
+      - app/build/app/outputs/**/*.apk
+
   # iOS workflow intentionally not added yet — Android proves the whole
   # phone-only pipeline first, without the extra signing/provisioning
   # setup iOS needs. Add an office-ios workflow here once Android is

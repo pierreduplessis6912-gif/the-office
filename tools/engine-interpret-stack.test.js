@@ -73,7 +73,7 @@ module.exports = kit.guard('engine interpret (stack)', async ({ check }) => {
   const psys = ((pp[0] || { messages: [] }).messages.find((m) => m.role === 'system') || {}).content || '';
   check(psys.includes('parties.find') && psys.includes('expense.record') && psys.includes('vat.summary') && !psys.includes('party.create') && !psys.includes('expenses.find') && !psys.includes('quotations.find') && !psys.includes('payment.record'), 'a business with only some capabilities is shown only those');
   let r = await interpret('Who is Patel?', { role: 'installer', ai: [{ match: /./, reply: () => { throw new Error('the model must not be called'); } }] });
-  check(status(r) === 403, 'an installer is refused at the gate and the model is never called');
+  check(status(r) === 403 && /Asking The Office needs permission/.test(body(r).message || '') && !/payment/i.test(body(r).message || ''), 'an installer is refused at the gate and the model is never called, in words that fit the whole assistant (not "recording a payment")');
   const salesProbe = []; r = await interpret('Quotes for Mokoena', { role: 'sales', ai: [{ match: /./, reply: (i) => { salesProbe.push(i); return call('quotations.find', { customer: 'Mokoena' }); } }] });
   const ssys = ((salesProbe[0] || { messages: [] }).messages.find((m) => m.role === 'system') || {}).content || '';
   check(salesProbe.length === 0 || (!ssys.includes('expense.record') && !ssys.includes('party.create') && !ssys.includes('vat.summary') && !ssys.includes('payment.record')), 'a salesperson (who may make quotes but not handle money) is never shown the money capabilities');

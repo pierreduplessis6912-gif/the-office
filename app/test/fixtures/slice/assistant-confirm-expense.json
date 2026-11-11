@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "body": {
+    "status": "confirmed",
+    "capability": "expense.record",
+    "outcome": {
+      "documentId": 3,
+      "number": 1,
+      "movementId": 3,
+      "eventId": 15
+    }
+  }
+}

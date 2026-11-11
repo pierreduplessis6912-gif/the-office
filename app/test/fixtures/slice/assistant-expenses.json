@@ -1,0 +1,17 @@
+{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "result": {
+      "expenses": [],
+      "count": 0,
+      "truncated": false,
+      "categories": [],
+      "derivedBy": "expenses.allExpenses"
+    },
+    "understood": {
+      "capability": "expenses.find",
+      "interpreter": "model"
+    }
+  }
+}

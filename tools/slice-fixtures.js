@@ -7,6 +7,7 @@ const kit = require('./engine-kit.js');
 const DIR = path.join(__dirname, '..', 'app', 'test', 'fixtures', 'slice');
 const DART_FILE = path.join(__dirname, '..', 'app', 'lib', 'engine', 'engine_fixtures.dart');
 const FIXED_AT = '2026-01-01T00:00:00.000Z';
+const stripDebug = (v) => { if (Array.isArray(v)) return v.map(stripDebug); if (v && typeof v === 'object') { const o = {}; for (const [k, x] of Object.entries(v)) if (k !== 'debug') o[k] = stripDebug(x); return o; } return v; };   // the model's reply is shown in a rehearsal only; a recorded answer for the app never carries it
 const normalise = (v) => JSON.parse(JSON.stringify(v).replace(/"at":"[^"]*"/g, `"at":"${FIXED_AT}"`).replace(/"created_at":"[^"]*"/g, '"created_at":"2026-01-01 00:00:00"'));
 
 async function build() {
@@ -21,7 +22,36 @@ async function build() {
   const open = (role, kind, id) => ({ method: 'GET', path: `/engine/records/${kind}/${id}`, role });
   const twoMokoenas = (db) => { kit.seedReceivables()(db); const e = Number(db.prepare("INSERT INTO eng_event (type, actor_email, contract, contract_version, payload_json) VALUES ('party.created', 'seed@example.com', 'seed', 1, ?) RETURNING id").get(JSON.stringify({ kind: 'organisation', name: 'Mokoena', roles: ['customer'] })).id); db.prepare("INSERT INTO eng_party (kind, name, event_id) VALUES ('organisation', 'Mokoena', ?)").run(e); db.prepare("INSERT INTO eng_party_role (party_id, role, event_id) VALUES (2, 'customer', ?)").run(e); };
   const offB = kit.asEngineBusiness((db) => db.prepare("INSERT INTO eng_config (key, value_json) VALUES ('available', '[]')").run());
+  // ---- the assistant (the engine's interpreter and what it offers since the first slice): the same engine, a scripted model, the same sample ---------------------------------------------------------------------------------
+  const callJson = (capability, args) => JSON.stringify({ capability, arguments: args });
+  const AI = [
+    { match: /Who is Patel\?/, reply: () => callJson('parties.find', { name: 'Patel' }) },
+    { match: /VAT this month/, reply: () => callJson('vat.summary', { period: 'this_month' }) },
+    { match: /spend on fuel/, reply: () => callJson('expenses.find', { category: 'fuel', period: 'last_month' }) },
+    { match: /Add Dlamini Timber/, reply: () => callJson('party.create', { name: 'Dlamini Timber', role: 'supplier' }) },
+    { match: /Bought plywood from Timber Supplies/, reply: () => callJson('expense.record', { supplier: 'Timber Supplies', amountCents: 23000, vat: 'incl_vat', description: 'Plywood', category: 'materials', method: 'eft', invoiceHeld: true }) },
+    { match: /Bought glue from Nobody/, reply: () => callJson('expense.record', { supplier: 'Nobody Ltd', amountCents: 10000, vat: 'incl_vat', description: 'Glue', category: 'materials', method: 'eft' }) },
+    { match: /Lock the tax period/, reply: () => callJson(null) },
+  ];
+  const sayTo = (text, role = 'accountant') => ({ method: 'POST', path: '/engine/interpret', role, body: { text } });
+  const asked = (text, extra = {}) => run({ ai: AI, ...sayTo(text, extra.role), before: extra.before });
+  const SUP = [{ method: 'POST', path: '/engine/proposals', role: 'accountant', body: { capability: 'party.create', payload: { kind: 'organisation', name: 'Timber Supplies', roles: ['supplier'], contact: { vatNumber: '4111111111' } }, transcript: 'setup' } }, confirm('accountant', 1)];
+  const WORDS = { patel: 'Who is Patel?', vat: 'What is my VAT this month?', fuel: 'What did I spend on fuel last month?', party: 'Add Dlamini Timber as a supplier', expense: 'Bought plywood from Timber Supplies for R230 including VAT, paid by EFT, I have the invoice', nobody: 'Bought glue from Nobody Ltd for R100 including VAT', lock: 'Lock the tax period up to the end of last month' };
+  const pendingAfter = (before) => run({ ai: AI, before, method: 'GET', path: '/actions/pending', role: 'accountant' });
   const out = {
+    'assistant-parties': (await asked(WORDS.patel)).result,
+    'assistant-vat': (await asked(WORDS.vat)).result,
+    'assistant-expenses': (await asked(WORDS.fuel)).result,
+    'assistant-held-party': (await asked(WORDS.party)).result,
+    'assistant-held-expense': (await asked(WORDS.expense, { before: SUP })).result,
+    'assistant-not-understood': (await asked(WORDS.lock)).result,
+    'assistant-refused': (await asked(WORDS.nobody, { before: SUP })).result,
+    'assistant-refused-installer': (await asked(WORDS.patel, { role: 'installer' })).result,
+    'assistant-pending-party': (await pendingAfter([sayTo(WORDS.party)])).result,
+    'assistant-pending-expense': (await pendingAfter([...SUP, sayTo(WORDS.expense)])).result,
+    'assistant-confirm-party': (await run({ ai: AI, before: [sayTo(WORDS.party)], ...confirm('accountant', 1) })).result,
+    'assistant-confirm-expense': (await run({ ai: AI, before: [...SUP, sayTo(WORDS.expense)], ...confirm('accountant', 2) })).result,
+    'record-party-supplier': (await run({ before: SUP, ...open('accountant', 'party', 3) })).result,
     'receivables-answer': (await run(ask('accountant', 'Mokoena'))).result,
     'receivables-after-payment': (await run({ before: [propose(), confirm()], ...ask('accountant', 'Mokoena') })).result,
     'receivables-ambiguous': (await kit.route({ env: { BUSINESS_ID: 'eng-a' }, ...ask('accountant', 'Mokoena'), seed: twoMokoenas })).result,
@@ -45,7 +75,7 @@ async function build() {
     'unavailable-ask': (await kit.route({ env: { BUSINESS_ID: 'eng-b' }, seed: offB, ...ask('accountant', 'Mokoena') })).result,
     'unavailable-proposal': (await kit.route({ env: { BUSINESS_ID: 'eng-b' }, seed: offB, ...propose() })).result,
   };
-  const files = {}; for (const [k, v] of Object.entries(out)) files[k + '.json'] = normalise(v);
+  const files = {}; for (const [k, v] of Object.entries(out)) files[k + '.json'] = normalise(stripDebug(v));
   return files;
 }
 // The same answers as Dart source, so the engine shell's entry point (app/lib/engine_main.dart) can run on them without bundling files (no pubspec change). The backend test fails if this file differs from what the engine answers now.

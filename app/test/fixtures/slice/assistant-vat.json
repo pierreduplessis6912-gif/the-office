@@ -1,0 +1,69 @@
+{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "result": {
+      "period": {
+        "from": "2026-10-01",
+        "to": "2026-10-31"
+      },
+      "locked": false,
+      "lockDate": null,
+      "standardRateBp": 1500,
+      "field1Minor": 161000,
+      "field4Minor": 21000,
+      "taxPerDocumentsMinor": 21000,
+      "differenceMinor": 0,
+      "field2Minor": 0,
+      "otherRates": [],
+      "documents": [
+        {
+          "ref": {
+            "kind": "document",
+            "id": 1
+          },
+          "kind": "invoice",
+          "number": 1,
+          "issuedOn": "2026-10-01",
+          "sign": 1,
+          "netMinor": 100000,
+          "taxMinor": 15000,
+          "grossMinor": 115000,
+          "complete": false
+        },
+        {
+          "ref": {
+            "kind": "document",
+            "id": 2
+          },
+          "kind": "invoice",
+          "number": 2,
+          "issuedOn": "2026-10-02",
+          "sign": 1,
+          "netMinor": 40000,
+          "taxMinor": 6000,
+          "grossMinor": 46000,
+          "complete": false
+        }
+      ],
+      "incompleteDocuments": 2,
+      "outputOnly": false,
+      "field14Minor": 0,
+      "field15Minor": 0,
+      "inputTaxMinor": 0,
+      "netVatMinor": 21000,
+      "inputExcluded": [],
+      "notes": [
+        "Input tax covers recorded EXPENSES only (fields 14 and 15, claimed on the date fixed when each was recorded): supplier bills (procurement), imported services (field 16) and adjustments are not in it yet, so this is still not a complete VAT201.",
+        "Exempt supplies are not told apart from zero-rated ones (both are 0%): all 0% lines are shown as zero-rated, and an accountant must classify them.",
+        "A document counts in the period of its own issue date (time-of-supply rules are not applied); credit notes reduce the period they are issued in.",
+        "Field 4 is output tax by the tax fraction on field 1; the difference from the sum of per-document tax is per-line rounding and is shown, not hidden."
+      ],
+      "derivedBy": "business.vatSummary"
+    },
+    "understood": {
+      "capability": "vat.summary",
+      "interpreter": "model"
+    }
+  }
+}

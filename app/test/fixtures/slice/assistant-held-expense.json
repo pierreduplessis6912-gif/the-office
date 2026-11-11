@@ -1,0 +1,12 @@
+{
+  "status": 200,
+  "body": {
+    "status": "held",
+    "actionId": 2,
+    "message": "Recording an expense is held for confirmation.",
+    "understood": {
+      "capability": "expense.record",
+      "interpreter": "model"
+    }
+  }
+}

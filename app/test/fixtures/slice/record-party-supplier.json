@@ -1,0 +1,108 @@
+{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "result": {
+      "ref": {
+        "kind": "party",
+        "id": 3
+      },
+      "version": 11,
+      "title": "Timber Supplies",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "value": "Timber Supplies"
+        },
+        {
+          "key": "kind",
+          "label": "Kind",
+          "value": "organisation"
+        },
+        {
+          "key": "roles",
+          "label": "Roles",
+          "value": "supplier"
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "value": null
+        },
+        {
+          "key": "phone",
+          "label": "Phone",
+          "value": null
+        },
+        {
+          "key": "address",
+          "label": "Address",
+          "value": null
+        },
+        {
+          "key": "vatNumber",
+          "label": "VAT number",
+          "value": "4111111111"
+        },
+        {
+          "key": "outstandingMinor",
+          "label": "Outstanding",
+          "value": 0,
+          "derivedBy": "ledger.outstandingForParty"
+        },
+        {
+          "key": "unappliedCreditMinor",
+          "label": "Credit owed back",
+          "value": 0,
+          "derivedBy": "ledger.unappliedCreditForParty"
+        }
+      ],
+      "collections": {
+        "documents": [],
+        "payments": []
+      },
+      "relations": [],
+      "actions": [
+        {
+          "capability": "party.edit",
+          "label": "Change this supplier",
+          "valid": true,
+          "reason": null
+        },
+        {
+          "capability": "payment.record",
+          "label": "Record a payment",
+          "valid": true,
+          "reason": null
+        }
+      ],
+      "history": [
+        {
+          "eventId": 11,
+          "type": "party.created",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "accountant@example.com",
+          "reason": null,
+          "captureId": 2,
+          "proposalId": 1,
+          "approvedBy": "accountant@example.com",
+          "contract": "party.create",
+          "contractVersion": 1,
+          "interpretationId": 1,
+          "interpreter": "script"
+        }
+      ],
+      "exports": [
+        {
+          "kind": "pdf",
+          "available": false
+        },
+        {
+          "kind": "share",
+          "available": false
+        }
+      ]
+    }
+  }
+}

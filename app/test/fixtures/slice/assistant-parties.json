@@ -1,0 +1,30 @@
+{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "result": {
+      "parties": [
+        {
+          "ref": {
+            "kind": "party",
+            "id": 2
+          },
+          "id": 2,
+          "name": "Patel Builders",
+          "kind": "organisation",
+          "roles": [
+            "customer"
+          ],
+          "contact": {}
+        }
+      ],
+      "count": 1,
+      "truncated": false,
+      "derivedBy": "parties.allProfiles"
+    },
+    "understood": {
+      "capability": "parties.find",
+      "interpreter": "model"
+    }
+  }
+}

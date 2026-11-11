@@ -137,7 +137,9 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
   if (entries.length === 0) {
     // Nothing is available or permitted: no model call. The door answers honestly (unavailable, or not permitted) and leaves what was said, exactly as for any other client.
     const r = await proposeCapabilityAs(env, member, { capability: "payment.record", payload: {}, transcript: text, source: "app", interpreter: "model" });
-    return r.status === "held" ? await notUnderstood(env, member, text) : { kind: "refused", code: r.code, message: r.message };
+    if (r.status === "held") return await notUnderstood(env, member, text);
+    // the door was asked with the first capability only to answer honestly and leave what was said; its words name that one capability (a payment), which would be wrong for the whole assistant, so the message is general
+    return { kind: "refused", code: r.code, message: r.code === "not_permitted" ? "Asking The Office needs permission this member does not have, so nothing was done." : r.code === "capability_unavailable" ? "The Office is not switched on for this business yet, so nothing was done." : r.message };
   }
   const content = await askModel(env, entries, text);
   if (content === null) return { kind: "model_unavailable", message: "I could not read that just now, so nothing was done. Please try again." };

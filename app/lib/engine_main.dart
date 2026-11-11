@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import 'engine/engine_api.dart';
 import 'engine/engine_fixtures.dart';
+import 'engine/assistant_panel.dart';
 import 'engine/engine_shell.dart';
 
 void main() {
@@ -53,6 +54,8 @@ class EngineDemoHome extends StatefulWidget {
 class _EngineDemoHomeState extends State<EngineDemoHome> {
   final Map<String, EngineResponse> _fixtures = engineResponsesFrom(engineFixtureJson);
   String _scenario = 'accountant';
+  int _tab = 0;   // 0: the first slice (what a customer owes); 1: the assistant (everything built since)
+  final Map<String, FixtureEngineApi> _assistantApis = <String, FixtureEngineApi>{};
 
   EngineApi _api() {
     switch (_scenario) {
@@ -75,6 +78,23 @@ class _EngineDemoHomeState extends State<EngineDemoHome> {
 
   @override
   Widget build(BuildContext context) {
+    final assistantApi = _assistantApis.putIfAbsent(_scenario, () => _api() as FixtureEngineApi);
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0B),
+      body: _tab == 0 ? _slice() : SafeArea(child: AssistantPanel(key: ValueKey<String>('assistant-$_scenario'), api: assistantApi, footnote: 'Recorded engine answers, not a live business. Showing: ${_label()}.')),
+      bottomNavigationBar: NavigationBar(
+        key: const Key('demo-tabs'),
+        selectedIndex: _tab,
+        onDestinationSelected: (i) => setState(() => _tab = i),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'What is owed'),
+          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Assistant'),
+        ],
+      ),
+    );
+  }
+
+  Widget _slice() {
     return Stack(
       children: [
         EngineShell(
@@ -92,7 +112,10 @@ class _EngineDemoHomeState extends State<EngineDemoHome> {
                 key: const Key('demo-menu'),
                 tooltip: 'Show another member or business',
                 icon: const Icon(Icons.tune, color: Color(0xFF5A5A5F)),
-                onSelected: (id) => setState(() => _scenario = id),
+                onSelected: (id) => setState(() {
+                  _scenario = id;
+                  _assistantApis.remove(id);
+                }),
                 itemBuilder: (context) => [
                   for (final s in _scenarios) PopupMenuItem<String>(value: s.id, child: Text(s.label)),
                 ],

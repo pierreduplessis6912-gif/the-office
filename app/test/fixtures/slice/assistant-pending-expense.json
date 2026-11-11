@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "body": {
+    "pending": [
+      {
+        "id": 2,
+        "type": "engine.expense.record",
+        "payload": "{\"supplierId\":3,\"incurredOn\":\"2026-10-03\",\"method\":\"eft\",\"category\":\"materials\",\"currency\":\"ZAR\",\"amountsIncludeTax\":true,\"lines\":[{\"description\":\"Plywood\",\"amountMinor\":23000,\"taxBp\":1500}],\"amountPaidMinor\":23000,\"taxInvoiceHeld\":true,\"totals\":{\"netMinor\":20000,\"taxMinor\":3000,\"grossMinor\":23000}}",
+        "source_transcript": "Bought plywood from Timber Supplies for R230 including VAT, paid by EFT, I have the invoice",
+        "created_at": "2026-01-01 00:00:00"
+      }
+    ]
+  }
+}

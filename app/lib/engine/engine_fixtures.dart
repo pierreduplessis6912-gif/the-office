@@ -2,6 +2,327 @@
 //   NODE_PATH=worker/node_modules node tools/slice-fixtures.js
 // The engine shell's demo entry point (lib/engine_main.dart) runs on these RECORDED answers, not on a live business, and tools/slice-mokoena.test.js fails if this file differs from what the engine answers now.
 const Map<String, String> engineFixtureJson = <String, String>{
+  'assistant-parties': r'''{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "result": {
+      "parties": [
+        {
+          "ref": {
+            "kind": "party",
+            "id": 2
+          },
+          "id": 2,
+          "name": "Patel Builders",
+          "kind": "organisation",
+          "roles": [
+            "customer"
+          ],
+          "contact": {}
+        }
+      ],
+      "count": 1,
+      "truncated": false,
+      "derivedBy": "parties.allProfiles"
+    },
+    "understood": {
+      "capability": "parties.find",
+      "interpreter": "model"
+    }
+  }
+}''',
+  'assistant-vat': r'''{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "result": {
+      "period": {
+        "from": "2026-10-01",
+        "to": "2026-10-31"
+      },
+      "locked": false,
+      "lockDate": null,
+      "standardRateBp": 1500,
+      "field1Minor": 161000,
+      "field4Minor": 21000,
+      "taxPerDocumentsMinor": 21000,
+      "differenceMinor": 0,
+      "field2Minor": 0,
+      "otherRates": [],
+      "documents": [
+        {
+          "ref": {
+            "kind": "document",
+            "id": 1
+          },
+          "kind": "invoice",
+          "number": 1,
+          "issuedOn": "2026-10-01",
+          "sign": 1,
+          "netMinor": 100000,
+          "taxMinor": 15000,
+          "grossMinor": 115000,
+          "complete": false
+        },
+        {
+          "ref": {
+            "kind": "document",
+            "id": 2
+          },
+          "kind": "invoice",
+          "number": 2,
+          "issuedOn": "2026-10-02",
+          "sign": 1,
+          "netMinor": 40000,
+          "taxMinor": 6000,
+          "grossMinor": 46000,
+          "complete": false
+        }
+      ],
+      "incompleteDocuments": 2,
+      "outputOnly": false,
+      "field14Minor": 0,
+      "field15Minor": 0,
+      "inputTaxMinor": 0,
+      "netVatMinor": 21000,
+      "inputExcluded": [],
+      "notes": [
+        "Input tax covers recorded EXPENSES only (fields 14 and 15, claimed on the date fixed when each was recorded): supplier bills (procurement), imported services (field 16) and adjustments are not in it yet, so this is still not a complete VAT201.",
+        "Exempt supplies are not told apart from zero-rated ones (both are 0%): all 0% lines are shown as zero-rated, and an accountant must classify them.",
+        "A document counts in the period of its own issue date (time-of-supply rules are not applied); credit notes reduce the period they are issued in.",
+        "Field 4 is output tax by the tax fraction on field 1; the difference from the sum of per-document tax is per-line rounding and is shown, not hidden."
+      ],
+      "derivedBy": "business.vatSummary"
+    },
+    "understood": {
+      "capability": "vat.summary",
+      "interpreter": "model"
+    }
+  }
+}''',
+  'assistant-expenses': r'''{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "result": {
+      "expenses": [],
+      "count": 0,
+      "truncated": false,
+      "categories": [],
+      "derivedBy": "expenses.allExpenses"
+    },
+    "understood": {
+      "capability": "expenses.find",
+      "interpreter": "model"
+    }
+  }
+}''',
+  'assistant-held-party': r'''{
+  "status": 200,
+  "body": {
+    "status": "held",
+    "actionId": 1,
+    "message": "Adding a customer or supplier is held for confirmation.",
+    "understood": {
+      "capability": "party.create",
+      "interpreter": "model"
+    }
+  }
+}''',
+  'assistant-held-expense': r'''{
+  "status": 200,
+  "body": {
+    "status": "held",
+    "actionId": 2,
+    "message": "Recording an expense is held for confirmation.",
+    "understood": {
+      "capability": "expense.record",
+      "interpreter": "model"
+    }
+  }
+}''',
+  'assistant-not-understood': r'''{
+  "status": 422,
+  "body": {
+    "error": "not_understood",
+    "message": "I did not understand that as something I can do, so nothing was done."
+  }
+}''',
+  'assistant-refused': r'''{
+  "status": 404,
+  "body": {
+    "error": "not_found",
+    "message": "There is no supplier called Nobody Ltd. Add them first."
+  }
+}''',
+  'assistant-refused-installer': r'''{
+  "status": 403,
+  "body": {
+    "error": "not_permitted",
+    "message": "Asking The Office needs permission this member does not have, so nothing was done."
+  }
+}''',
+  'assistant-pending-party': r'''{
+  "status": 200,
+  "body": {
+    "pending": [
+      {
+        "id": 1,
+        "type": "engine.party.create",
+        "payload": "{\"kind\":\"organisation\",\"name\":\"Dlamini Timber\",\"roles\":[\"supplier\"]}",
+        "source_transcript": "Add Dlamini Timber as a supplier",
+        "created_at": "2026-01-01 00:00:00"
+      }
+    ]
+  }
+}''',
+  'assistant-pending-expense': r'''{
+  "status": 200,
+  "body": {
+    "pending": [
+      {
+        "id": 2,
+        "type": "engine.expense.record",
+        "payload": "{\"supplierId\":3,\"incurredOn\":\"2026-10-03\",\"method\":\"eft\",\"category\":\"materials\",\"currency\":\"ZAR\",\"amountsIncludeTax\":true,\"lines\":[{\"description\":\"Plywood\",\"amountMinor\":23000,\"taxBp\":1500}],\"amountPaidMinor\":23000,\"taxInvoiceHeld\":true,\"totals\":{\"netMinor\":20000,\"taxMinor\":3000,\"grossMinor\":23000}}",
+        "source_transcript": "Bought plywood from Timber Supplies for R230 including VAT, paid by EFT, I have the invoice",
+        "created_at": "2026-01-01 00:00:00"
+      }
+    ]
+  }
+}''',
+  'assistant-confirm-party': r'''{
+  "status": 200,
+  "body": {
+    "status": "confirmed",
+    "capability": "party.create",
+    "outcome": {
+      "partyId": 3,
+      "eventId": 11
+    }
+  }
+}''',
+  'assistant-confirm-expense': r'''{
+  "status": 200,
+  "body": {
+    "status": "confirmed",
+    "capability": "expense.record",
+    "outcome": {
+      "documentId": 3,
+      "number": 1,
+      "movementId": 3,
+      "eventId": 15
+    }
+  }
+}''',
+  'record-party-supplier': r'''{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "result": {
+      "ref": {
+        "kind": "party",
+        "id": 3
+      },
+      "version": 11,
+      "title": "Timber Supplies",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "value": "Timber Supplies"
+        },
+        {
+          "key": "kind",
+          "label": "Kind",
+          "value": "organisation"
+        },
+        {
+          "key": "roles",
+          "label": "Roles",
+          "value": "supplier"
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "value": null
+        },
+        {
+          "key": "phone",
+          "label": "Phone",
+          "value": null
+        },
+        {
+          "key": "address",
+          "label": "Address",
+          "value": null
+        },
+        {
+          "key": "vatNumber",
+          "label": "VAT number",
+          "value": "4111111111"
+        },
+        {
+          "key": "outstandingMinor",
+          "label": "Outstanding",
+          "value": 0,
+          "derivedBy": "ledger.outstandingForParty"
+        },
+        {
+          "key": "unappliedCreditMinor",
+          "label": "Credit owed back",
+          "value": 0,
+          "derivedBy": "ledger.unappliedCreditForParty"
+        }
+      ],
+      "collections": {
+        "documents": [],
+        "payments": []
+      },
+      "relations": [],
+      "actions": [
+        {
+          "capability": "party.edit",
+          "label": "Change this supplier",
+          "valid": true,
+          "reason": null
+        },
+        {
+          "capability": "payment.record",
+          "label": "Record a payment",
+          "valid": true,
+          "reason": null
+        }
+      ],
+      "history": [
+        {
+          "eventId": 11,
+          "type": "party.created",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "accountant@example.com",
+          "reason": null,
+          "captureId": 2,
+          "proposalId": 1,
+          "approvedBy": "accountant@example.com",
+          "contract": "party.create",
+          "contractVersion": 1,
+          "interpretationId": 1,
+          "interpreter": "script"
+        }
+      ],
+      "exports": [
+        {
+          "kind": "pdf",
+          "available": false
+        },
+        {
+          "kind": "share",
+          "available": false
+        }
+      ]
+    }
+  }
+}''',
   'receivables-answer': r'''{
   "status": 200,
   "body": {

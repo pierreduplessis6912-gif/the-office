@@ -1,0 +1,11 @@
+{
+  "status": 200,
+  "body": {
+    "status": "confirmed",
+    "capability": "party.create",
+    "outcome": {
+      "partyId": 3,
+      "eventId": 11
+    }
+  }
+}
