@@ -103,10 +103,13 @@ export interface InputTax { claimable: boolean; taxMinor: number; reasons: strin
 // Whether the input tax on an expense can be claimed, and if not exactly why (docs/decisions/expenses.md, decision 4).
 export async function inputTaxOf(env: Env, documentId: number): Promise<InputTax | null> {
   const info = await expenseInfo(env, documentId);
-  if (!info) return null;
+  return info ? inputTaxWith(env, documentId, info) : null;
+}
+// The same rules for anything bought from a supplier (an expense or a bill): the caller says who the supplier is, whether a valid tax invoice is held, the category, the claim date and whether it is capital.
+export async function inputTaxWith(env: Env, documentId: number, info: { supplierId: number; taxInvoiceHeld: boolean; category: string; claimDate: string; capital: boolean }): Promise<InputTax> {
   const totals = await documentTotals(env, documentId);
   const reasons: string[] = [], advisory: string[] = [];
-  if (!(await isEffective(env, "document", documentId))) reasons.push("the expense has been voided");
+  if (!(await isEffective(env, "document", documentId))) reasons.push("the document has been voided");
   if (totals.taxMinor <= 0) reasons.push("there is no tax on this purchase");
   const profile = await businessProfile(env);
   if (profile.vatRegistered !== true) reasons.push("the business is not recorded as VAT registered");

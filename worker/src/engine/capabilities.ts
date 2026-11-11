@@ -15,6 +15,7 @@ import { allQuotations, checkDate, checkLines, checkReference, planQuotationAcce
 import { documentTotals as sumTotals } from "./money";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, vatSummary, type ProfileChange } from "./business";
 import { movementAvailable, planPaymentAllocation, planPaymentRefund, refundMovementOrThrow } from "./credits";
+import { allBills, checkBillInput, planBill, planBillVoid, planSupplierPayment, type BillInput } from "./bills";
 import { allOrders, checkReceiptLines, checkShortText, planCancel, planOrder, planReceipt, type ReceiptLineInput } from "./purchasing";
 import { allExpenses, checkExpenseInput, EXPENSE_CATEGORIES, planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { creditAvailable, debitsOf, planCreditApplication, planDebitNote, planRefund, planVoid } from "./credits";
@@ -871,7 +872,94 @@ export const purchaseOrdersFind: ReadCapability<{ supplierId?: number; status?: 
   },
 };
 
-export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind];
+// ---- supplier invoices, the three-way match and supplier payment (docs/decisions/supplier-invoices.md) ---------------------------------------------------------------------------------------------------
+interface BillRecordPayload extends BillInput { totals?: { netMinor: number; taxMinor: number; grossMinor: number }; match?: unknown }
+export const supplierInvoiceRecord: CapabilityContract<BillRecordPayload> = {
+  id: "supplier_invoice.record", heldType: "engine.supplier_invoice.record", label: "Recording a supplier invoice", requires: [], permissions: ["bill.manage"], version: 1, recordsExecution: true,
+  validate(payload) {
+    const c = checkBillInput(payload); if (!c.ok) return c;
+    const out: BillRecordPayload = { ...c.value };
+    const raw = payload as Record<string, unknown>;
+    if (raw.totals !== undefined) { const t = raw.totals; if (!isObj(t) || !whole(t.netMinor, 0) || !whole(t.taxMinor, 0) || !whole(t.grossMinor, 0)) return { ok: false, reason: "totals must be the engine's worked-out totals" }; out.totals = { netMinor: t.netMinor, taxMinor: t.taxMinor, grossMinor: t.grossMinor }; }
+    if (raw.match !== undefined) out.match = raw.match;   // shown to the approver; never trusted: the match is worked out again when the bill is recorded
+    return { ok: true, value: out };
+  },
+  async stamp(env, value) { const plan = await planBill(env, value); return { ...value, totals: plan.totals, match: plan.match }; },
+  async check(env, value) {
+    const plan = await planBill(env, value);
+    if (value.totals && JSON.stringify(value.totals) !== JSON.stringify(plan.totals)) throw new EngineError("invalid_state", "The totals shown do not match the lines, so this needs to be proposed again.");
+  },
+  async execute(env, v, c) {
+    const { totals: _t, match: _m, ...input } = v;
+    const r = await facts.recordSupplierInvoice(env, input, ctxOf(c, "supplier_invoice.record"));
+    return { documentId: r.documentId, number: r.number, matchStatus: r.matchStatus, eventId: r.eventId };
+  },
+};
+
+interface BillVoidPayload { billId: number; reason: string; voidedOn: string }
+export const supplierInvoiceVoid: CapabilityContract<BillVoidPayload> = {
+  id: "supplier_invoice.void", heldType: "engine.supplier_invoice.void", label: "Voiding a supplier invoice", requires: [], permissions: ["bill.manage"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(payload, ["billId", "reason", "voidedOn"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (!whole(payload.billId)) return { ok: false, reason: "billId must be a record number" };
+    const r = checkReason(payload.reason, "void"); if (!r.ok) return r;
+    const d = checkDate(payload.voidedOn, "voidedOn"); if (!d.ok) return d;
+    return { ok: true, value: { billId: payload.billId, reason: r.value, voidedOn: d.value } };
+  },
+  async check(env, value) { await planBillVoid(env, value); },
+  async execute(env, v, c) { const r = await facts.voidSupplierInvoice(env, v, ctxOf(c, "supplier_invoice.void")); return { eventId: r.eventId, reversalId: r.reversalId }; },
+};
+
+interface SupplierPaymentPayload { supplierId: number; amountMinor: number; currency: string; paidOn: string; method: string; allocations?: Array<{ billId: number; amountMinor: number }>; allocate?: "oldest_first" }
+export const supplierPaymentRecord: CapabilityContract<SupplierPaymentPayload> = {
+  id: "supplier_payment.record", heldType: "engine.supplier_payment.record", label: "Paying a supplier", requires: [], permissions: ["supplier_payment.record"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the payment must be an object" };
+    const s = stray(payload, ["supplierId", "amountMinor", "currency", "paidOn", "method", "allocations", "allocate"]);
+    if (s) return { ok: false, reason: `${s} is not a field of a supplier payment` };
+    if (!whole(payload.supplierId)) return { ok: false, reason: "supplierId must be a record number" };
+    if (!nowMinor(payload.amountMinor)) return { ok: false, reason: "amountMinor must be a whole number of cents, at least 1" };
+    if (typeof payload.currency !== "string" || !/^[A-Z]{3}$/.test(payload.currency)) return { ok: false, reason: "currency must be a 3-letter code such as ZAR" };
+    const d = checkDate(payload.paidOn, "paidOn"); if (!d.ok) return d;
+    if (typeof payload.method !== "string" || !["eft", "cash", "card", "cheque", "other"].includes(payload.method)) return { ok: false, reason: "method must be eft, cash, card, cheque or other" };
+    const out: SupplierPaymentPayload = { supplierId: payload.supplierId, amountMinor: payload.amountMinor as number, currency: payload.currency, paidOn: d.value, method: payload.method };
+    const hasAlloc = payload.allocations !== undefined && !(Array.isArray(payload.allocations) && payload.allocations.length === 0), wantsOldest = payload.allocate !== undefined;
+    if (hasAlloc && wantsOldest) return { ok: false, reason: "name the bills to pay, or say oldest_first, not both" };
+    if (wantsOldest) { if (payload.allocate !== "oldest_first") return { ok: false, reason: "allocate must be oldest_first" }; out.allocate = "oldest_first"; return { ok: true, value: out }; }
+    if (!hasAlloc || !Array.isArray(payload.allocations)) return { ok: false, reason: "name the bills to pay (allocations), or say oldest_first" };
+    const seen = new Set<number>(); const allocs: Array<{ billId: number; amountMinor: number }> = [];
+    for (const [i, a] of payload.allocations.entries()) {
+      if (!isObj(a) || stray(a, ["billId", "amountMinor"]) || !whole(a.billId) || !nowMinor(a.amountMinor)) return { ok: false, reason: `allocation ${i + 1} must be {billId, amountMinor} with whole numbers, at least 1` };
+      if (seen.has(a.billId)) return { ok: false, reason: "the same bill is named twice; use one allocation per bill" };
+      seen.add(a.billId); allocs.push({ billId: a.billId, amountMinor: a.amountMinor as number });
+    }
+    out.allocations = allocs;
+    return { ok: true, value: out };
+  },
+  async check(env, value) { await planSupplierPayment(env, value); },
+  async execute(env, v, c) { const r = await facts.recordSupplierPayment(env, v, ctxOf(c, "supplier_payment.record")); return { movementId: r.movementId, allocationIds: r.allocationIds, eventId: r.eventId }; },
+};
+
+export const supplierInvoicesFind: ReadCapability<{ supplierId?: number; status?: string }> = {
+  id: "supplier_invoices.find", label: "Finding supplier invoices", permissions: ["bill.read"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["supplierId", "status"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const out: { supplierId?: number; status?: string } = {};
+    if (params.supplierId !== undefined) { if (!whole(params.supplierId)) return { ok: false, reason: "supplierId must be a record number" }; out.supplierId = params.supplierId; }
+    if (params.status !== undefined) { if (typeof params.status !== "string" || !["unpaid", "part_paid", "paid", "voided", "outstanding", "any"].includes(params.status)) return { ok: false, reason: "status must be unpaid, part_paid, paid, voided, outstanding or any" }; out.status = params.status; }
+    return { ok: true, value: out };
+  },
+  async run(env, _viewer, value) {
+    const all = await allBills(env, value);
+    return { bills: all.slice(0, 100), count: all.length, truncated: all.length > 100, derivedBy: "bills.allBills" };
+  },
+};
+
+export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
@@ -879,5 +967,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

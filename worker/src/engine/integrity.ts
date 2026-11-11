@@ -58,6 +58,9 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "expense.voided": { creates: null, note: "an expense is voided; the reversals are created by their own events beside it" },
   "goods.received": { creates: null, note: "goods arrive against a purchase order: ties the goods_receipt document to its order; the document is created by its own event beside it" },
   "purchase_order.cancelled": { creates: null, note: "the remainder of a purchase order is cancelled; its state is derived (purchasing.ts)" },
+  "supplier_invoice.recorded": { creates: null, note: "a supplier bill: keeps what its document cannot (the order it bills, the match at the time, the claim date); the document is created by its own event beside it" },
+  "supplier_invoice.voided": { creates: null, note: "a supplier bill is voided; the reversal is created by its own event beside it" },
+  "supplier_payment.recorded": { creates: null, note: "a supplier is paid: ties the money-out movement to the bills it was allocated to; the movement and allocations are created by their own events beside it" },
   "operation.executed": { creates: null, note: "the record that an approved proposal executed; it creates no fact" },
 };
 const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal" };
@@ -328,6 +331,26 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
       gotQty.set(k, (gotQty.get(k) ?? 0) + (Number(l.quantityMilli) || 0));
       if ((gotQty.get(k) ?? 0) > (orderedQty.get(k) ?? 0)) problems.push({ code: "orphan", detail: `purchase order ${orderKey} line ${l.lineNo}: receipts add up to more than was ordered (${gotQty.get(k)} against ${orderedQty.get(k) ?? 0})` });
     }
+  }
+
+  // supplier bills and payments: a bill event must point at a supplier_invoice document, a supplier and (if any) an order that exist; a void at a bill that exists and is reversed; a supplier payment at a movement that exists and whose allocations add up to it
+  const billDocs = new Set((await many<{ id: number }>(env, "SELECT id FROM eng_document WHERE kind = 'supplier_invoice'")).map((d) => d.id));
+  for (const e of await many<{ id: number; type: string; payload_json: string }>(env, "SELECT id, type, payload_json FROM eng_event WHERE type IN ('supplier_invoice.recorded', 'supplier_invoice.voided', 'supplier_payment.recorded') ORDER BY id")) {
+    let p: Record<string, unknown> = {};
+    try { p = JSON.parse(e.payload_json) ?? {}; } catch { /* a malformed payload is reported by the payload check */ }
+    const gone = (what: string, v: unknown) => problems.push({ code: "orphan", detail: `event ${e.id} (${e.type}) points at ${what} ${String(v)}, which does not exist` });
+    if (e.type === "supplier_payment.recorded") {
+      if (typeof p.movementId !== "number" || !creditMovements.has(p.movementId)) { gone("money movement", p.movementId); continue; }
+      let sum = 0;
+      for (const a of Array.isArray(p.allocations) ? (p.allocations as Array<{ billId?: unknown; amountMinor?: unknown }>) : []) { if (typeof a.billId !== "number" || !billDocs.has(a.billId)) gone("bill", a.billId); sum += Number(a.amountMinor) || 0; }
+      if (sum !== creditMovements.get(p.movementId)) problems.push({ code: "orphan", detail: `event ${e.id} (supplier_payment.recorded): its allocations (${sum}) do not add up to the money-out movement (${creditMovements.get(p.movementId)})` });
+      continue;
+    }
+    if (typeof p.documentId !== "number" || !billDocs.has(p.documentId)) { gone("bill", p.documentId); continue; }
+    if (e.type === "supplier_invoice.recorded") {
+      if (typeof p.supplierId !== "number" || !known.has(p.supplierId)) gone("supplier", p.supplierId);
+      if (p.orderId !== undefined && (typeof p.orderId !== "number" || !orderDocs.has(p.orderId))) gone("purchase order", p.orderId);
+    } else if (!reversed.has(p.documentId)) problems.push({ code: "orphan", detail: `event ${e.id} (supplier_invoice.voided): bill ${p.documentId} is not reversed` });
   }
 
   return { ok: problems.length === 0, problems, warnings };

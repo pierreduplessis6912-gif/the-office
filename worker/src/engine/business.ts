@@ -11,6 +11,7 @@ import { documentTotals as sumLines } from "./money";
 import { partyProfile } from "./parties";
 import { checkDate } from "./quotations";
 import { allExpenses } from "./expenses";
+import { allBills } from "./bills";
 
 export interface BusinessProfile { legalName?: string; tradingName?: string; address?: string; vatRegistered?: boolean; vatNumber?: string; companyRegistrationNumber?: string }
 export type ProfileChange = { [K in keyof BusinessProfile]?: BusinessProfile[K] | null };
@@ -142,6 +143,11 @@ export async function vatSummary(env: Env, period: { from: string; to: string })
     if (x.inputTaxClaimable) { if (x.capital) f14 += x.inputTaxMinor; else f15 += x.inputTaxMinor; }
     else if (x.taxMinor > 0) excluded.push({ ref: x.ref, number: x.number, taxMinor: x.taxMinor, reasons: x.inputTaxReasons });
   }
+  for (const b of await allBills(env, { status: "any" })) {
+    if (b.status === "voided" || b.claimDate < period.from || b.claimDate > period.to) continue;
+    if (b.inputTaxClaimable) { if (b.capital) f14 += b.inputTaxMinor; else f15 += b.inputTaxMinor; }
+    else if (b.taxMinor > 0) excluded.push({ ref: b.ref, number: b.number, taxMinor: b.taxMinor, reasons: b.inputTaxReasons });
+  }
   const field4 = Math.round(std * STANDARD_RATE_BP / (10000 + STANDARD_RATE_BP));   // the tax fraction: r / (100 + r)
   const lock = await taxLockDate(env);
   return {
@@ -150,7 +156,7 @@ export async function vatSummary(env: Env, period: { from: string; to: string })
     otherRates: [...other.entries()].sort((a, b) => a[0] - b[0]).map(([taxBp, v]) => ({ taxBp, ...v })),
     documents: out.slice(0, 200), incompleteDocuments: incomplete, outputOnly: false, field14Minor: f14, field15Minor: f15, inputTaxMinor: f14 + f15, netVatMinor: field4 - (f14 + f15), inputExcluded: excluded,
     notes: [
-      "Input tax covers recorded EXPENSES only (fields 14 and 15, claimed on the date fixed when each was recorded): supplier bills (procurement), imported services (field 16) and adjustments are not in it yet, so this is still not a complete VAT201.",
+      "Input tax covers recorded EXPENSES and supplier BILLS (fields 14 and 15, claimed on the date fixed when each was recorded): imported services (field 16), supplier credit notes and adjustments are not in it yet, so this is still not a complete VAT201.",
       "Exempt supplies are not told apart from zero-rated ones (both are 0%): all 0% lines are shown as zero-rated, and an accountant must classify them.",
       "A document counts in the period of its own issue date (time-of-supply rules are not applied); credit notes reduce the period they are issued in.",
       "Field 4 is output tax by the tax fraction on field 1; the difference from the sum of per-document tax is per-line rounding and is shown, not hidden.",

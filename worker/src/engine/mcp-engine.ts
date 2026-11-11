@@ -55,6 +55,10 @@ const HINTS: Record<string, string> = {
   "purchase_order.create": "payload {supplierId, orderedOn, currency, expectedOn?, reference?, lines: [{description, quantityMilli (1000 = one), unit?, unitPriceMinor, taxBp (required)}]}: an order placed with a supplier (a commitment, not a debt).",
   "purchase_order.cancel": "payload {orderId, reason, cancelledOn}: cancel what has not yet arrived on an order (closes it short if part arrived).",
   "goods.receive": "payload {orderId, receivedOn, lines: [{lineNo, quantityMilli}], deliveryNote?, note?}: goods that arrived against an order (never more than remains; a person with a money role approves it).",
+  "supplier_invoices.find": "params {supplierId?: number, status?: unpaid | part_paid | paid | voided | outstanding | any}: supplier bills with their three-way match, whether they may be paid, and what is still owed (outstanding bills by default).",
+  "supplier_invoice.record": "payload {supplierId, invoicedOn, dueOn?, currency, supplierInvoiceNumber, orderId?, category, taxInvoiceHeld: true | false, capital?, varianceAccepted?, lines: [{orderLineNo?, description, quantityMilli, unitPriceMinor, taxBp (required)}]}: a bill from a supplier; with orderId it is matched against what was ordered and received.",
+  "supplier_invoice.void": "payload {billId, reason, voidedOn}: void a bill that nothing has been paid against.",
+  "supplier_payment.record": "payload {supplierId, amountMinor, currency, paidOn, method: eft | cash | card | cheque | other, allocations: [{billId, amountMinor}] or allocate: 'oldest_first'}: pay a supplier in full against their payable bills.",
   "business.profile.set": "payload {legalName?, tradingName?, address?, vatRegistered?, vatNumber?, companyRegistrationNumber?}: the business's own details.",
   "tax_lock.set": "payload {lockDate}: lock the tax period up to a date (it only moves forward).",
 };

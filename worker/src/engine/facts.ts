@@ -13,6 +13,7 @@ import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from
 import { planQuotationAcceptance, planQuotationRevision } from "./quotations";
 import { planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { planCancel, planOrder, planReceipt, type ReceiptLineInput } from "./purchasing";
+import { planBill, planBillVoid, planSupplierPayment, type BillInput, type PaymentInput } from "./bills";
 import { planCreditApplication, planCreditNote, planDebitNote, planPaymentAllocation, planPaymentRefund, planRefund, planVoid, refundMovementOrThrow, checkReason, type CreditLineInput } from "./credits";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
 import { checkDate } from "./quotations";
@@ -315,6 +316,36 @@ export async function cancelPurchaseOrder(env: Env, input: { orderId: number; re
   return inTransaction(env, async (tx) => {
     const plan = await planCancel(tx, { ...input, orderId });
     return { eventId: await appendEvent(tx, "purchase_order.cancelled", ctx, { documentId: orderId, reason: plan.reason, cancelledOn: plan.cancelledOn, receivedValueMinor: plan.receivedValueMinor }, plan.reason) };
+  });
+}
+
+// A BILL is a supplier_invoice document (a payable) plus a supplier_invoice.recorded event that keeps what the document cannot: the order it bills, the three-way match result AT THE TIME OF RECORDING (never taken from the proposal), whether a
+// variance was accepted, the category and the claim date. Paying it is a money-out movement allocated to bills. Nothing is edited (bills.ts derives status, payable and what is owed).
+export async function recordSupplierInvoice(env: Env, input: BillInput, ctx: Ctx): Promise<{ documentId: number; number: number; eventId: number; totals: Totals; matchStatus: string; claimDate: string }> {
+  return inTransaction(env, async (tx) => {
+    const plan = await planBill(tx, input);
+    const doc = await recordDocument(tx, { kind: "supplier_invoice", direction: "buy", partyId: input.supplierId, currency: input.currency, reference: input.supplierInvoiceNumber, issuedOn: input.invoicedOn, terms: { ...(input.dueOn ? { dueOn: input.dueOn } : {}), ...(input.orderId !== undefined ? { orderId: input.orderId } : {}), category: input.category, taxInvoiceHeld: input.taxInvoiceHeld, capital: input.capital === true }, lines: plan.docLines }, ctx);
+    const eventId = await appendEvent(tx, "supplier_invoice.recorded", ctx, { documentId: doc.id, supplierId: input.supplierId, ...(input.orderId !== undefined ? { orderId: input.orderId } : {}), supplierInvoiceNumber: input.supplierInvoiceNumber, invoicedOn: input.invoicedOn, ...(input.dueOn ? { dueOn: input.dueOn } : {}), category: input.category, taxInvoiceHeld: input.taxInvoiceHeld, capital: input.capital === true, claimDate: plan.claimDate, matchStatus: plan.match.status, varianceAccepted: input.varianceAccepted === true, lines: plan.match.lines });
+    return { documentId: doc.id, number: doc.number, eventId, totals: doc.totals, matchStatus: plan.match.status, claimDate: plan.claimDate };
+  });
+}
+export async function voidSupplierInvoice(env: Env, input: { billId: number; reason: string; voidedOn: string }, ctx: Ctx): Promise<{ eventId: number; reversalId: number }> {
+  const billId = id(input.billId, "bill");
+  return inTransaction(env, async (tx) => {
+    const plan = await planBillVoid(tx, { ...input, billId });
+    const d = await reverse(tx, { documentId: billId, reason: plan.reason }, ctx);
+    const eventId = await appendEvent(tx, "supplier_invoice.voided", ctx, { documentId: billId, reason: plan.reason, voidedOn: plan.voidedOn }, plan.reason);
+    return { eventId, reversalId: d.id };
+  });
+}
+// PAY a supplier: a money-out movement allocated IN FULL to the supplier's payable bills (no overpayment, no unapplied supplier credit), plus a supplier_payment.recorded event.
+export async function recordSupplierPayment(env: Env, input: PaymentInput, ctx: Ctx): Promise<{ movementId: number; allocationIds: number[]; eventId: number }> {
+  const supplierId = id(input.supplierId, "supplier");
+  return inTransaction(env, async (tx) => {
+    const plan = await planSupplierPayment(tx, { ...input, supplierId });
+    const pay = await recordPayment(tx, { direction: "out", partyId: supplierId, amountMinor: input.amountMinor, currency: input.currency, occurredOn: plan.paidOn, method: input.method, allocations: plan.allocations.map((a) => ({ documentId: a.billId, amountMinor: a.amountMinor })) }, ctx);
+    const eventId = await appendEvent(tx, "supplier_payment.recorded", ctx, { movementId: pay.movementId, supplierId, paidOn: plan.paidOn, method: input.method, allocations: plan.allocations });
+    return { movementId: pay.movementId, allocationIds: pay.allocationIds, eventId };
   });
 }
 
