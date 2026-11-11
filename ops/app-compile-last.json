@@ -1,28 +1,18 @@
 {
- "commit": "34805a2",
- "when": "2026-11-11T11:32:08.141808+00:00",
+ "commit": "53dc27f",
+ "when": "2026-11-11T11:36:58.980916+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
- "tests": "failure",
- "failing_lines": [
-  "::group::\u274c /home/runner/work/the-office/the-office/app/test/assistant_panel_test.dart: an expense is HELD with exactly what would be approved, and nothing is recorded yet (failed)",
-  "Expected: exactly one matching candidate",
-  "Actual: _TextWidgetFinder:<Found 0 widgets with text \"Record an expense\": []>",
-  "Which: means none were found but one was expected",
-  "::group::\u274c /home/runner/work/the-office/the-office/app/test/assistant_panel_test.dart: approving reaches the engine and says it is recorded (failed)",
-  "::group::\u274c /home/runner/work/the-office/the-office/app/test/assistant_panel_test.dart: an unknown supplier is refused in the engine's words (failed)",
-  "Expected: exactly one matching candidate",
-  "Actual: _TextContainingWidgetFinder:<Found 0 widgets with text containing There is no supplier",
-  "Which: means none were found but one was expected"
- ],
+ "tests": "success",
+ "failing_lines": [],
  "test_tail": [
   "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: the address to give an assistant is the API base plus /mcp, whatever slashes the base ends with",
   "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: the lines on a key say when it was made and used, in plain words",
   "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: a typed label is tidied: trimmed, control characters removed, at most 60 characters, and nothing usable is null",
   "::endgroup::",
   "",
-  "::error::284 tests passed, 3 failed."
+  "\ud83c\udf89 287 tests passed."
  ],
- "build": "skipped"
+ "build": "success"
 }
