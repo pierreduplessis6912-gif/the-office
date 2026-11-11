@@ -1,4 +1,4 @@
-> **Status:** built in the engine and CI-tested on branch `engine-phase1` (2026-11-10); **not** proven on a real staging object, **not** read by a real model, **not** wired to the app. **Verified:** by `tools/capability-credit-notes.test.js` (70 checks) and sixteen deliberate breakages in `tools/engine-breakage.js`. **Owns:** the meaning of "a credit note" in the engine.
+> **Status:** built in the engine and CI-tested on branch `engine-phase1` (2026-11-10); proven on a real staging Durable Object (`stack-proof` run 5, 2026-11-10, 23 of 23), **not** **not** read by a real model, **not** wired to the app. **Verified:** by `tools/capability-credit-notes.test.js` (70 checks) and sixteen deliberate breakages in `tools/engine-breakage.js`. **Owns:** the meaning of "a credit note" in the engine.
 
 # Credit notes: issue
 
