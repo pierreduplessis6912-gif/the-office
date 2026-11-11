@@ -135,18 +135,19 @@ class FixtureEngineApi implements EngineApi {
     if (role == 'installer' || role == 'sales') return fixtures['assistant-refused-installer'] ?? _missing;
     final t = text.toLowerCase();
     String? name;
+    // the more specific sentences first: a purchase that says "including VAT" is an expense, not a VAT question
     if (t.contains('patel')) {
       name = 'assistant-parties';
-    } else if (t.contains('vat')) {
-      name = 'assistant-vat';
-    } else if (t.contains('fuel') || t.contains('spend')) {
-      name = 'assistant-expenses';
     } else if (t.contains('nobody')) {
       name = 'assistant-refused';
-    } else if (t.contains('dlamini') || (t.contains('add ') && t.contains('supplier'))) {
-      name = 'assistant-held-party';
     } else if (t.contains('bought') || t.contains('plywood')) {
       name = 'assistant-held-expense';
+    } else if (t.contains('dlamini') || (t.contains('add ') && t.contains('supplier'))) {
+      name = 'assistant-held-party';
+    } else if (t.contains('fuel') || t.contains('spend')) {
+      name = 'assistant-expenses';
+    } else if (t.contains('vat')) {
+      name = 'assistant-vat';
     }
     final response = fixtures[name ?? 'assistant-not-understood'] ?? _missing;
     if (name == 'assistant-held-party' || name == 'assistant-held-expense') {
