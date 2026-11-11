@@ -775,16 +775,18 @@ jobs:
               cf = call("credits-find", "GET", "/engine/credits?partyId=1", None, "accountant")[1].get("result") or {}
               checks["finding_credit_lists_it"] = any(x.get("id") == cn2 and x.get("availableMinor") == g2 for x in (cf.get("credits") or []))
               # 4. apply it to invoice 2, undo it, refund part of it, void the refund
-              inv2 = rec("inv2-before", "accountant", "document", 2); o2 = fld(inv2, "outstandingMinor") or 0; amt = min(g2, o2)
+              do("debit-target", "accountant", "debit_note.issue", {"invoiceId": 1, "reason": f"Stack proof target {RUN}", "issuedOn": "2026-11-10", "lines": [{"invoiceLineNo": int(line.get("lineNo", 1)), "quantityMilli": 1000, "unitPriceMinor": price}]})
+              T = (rel(rec("inv1-after-debit-target", "accountant", "document", 1), "debit_note") or [0])[0]   # the sample's invoice 2 is another customer's: apply the credit to a debit note on Mokoena's own invoice
+              o2 = fld(rec("debit-target-record", "accountant", "document", T), "outstandingMinor") or 0; amt = min(g2, o2)
               if amt > 0:
-                  c, d, c2, d2 = do("apply", "accountant", "credit.apply", {"creditNoteId": cn2, "invoiceId": 2, "amountMinor": amt, "appliedOn": "2026-11-11"})
-                  inv2b = rec("inv2-after-apply", "accountant", "document", 2)
+                  c, d, c2, d2 = do("apply", "accountant", "credit.apply", {"creditNoteId": cn2, "invoiceId": T, "amountMinor": amt, "appliedOn": "2026-11-11"})
+                  inv2b = rec("inv2-after-apply", "accountant", "document", T)
                   checks["a_leftover_credit_is_applied_to_another_invoice"] = c2 == 200 and fld(inv2b, "outstandingMinor") == o2 - amt and fld(rec("cn2-after-apply", "accountant", "document", cn2), "availableMinor") == g2 - amt
                   al = ((inv2b.get("collections") or {}).get("allocations") or [])
                   alid = next((a.get("id") for a in al if a.get("amountMinor") == amt), None)
                   if alid is not None:
                       c, d, c2, d2 = do("unapply", "accountant", "allocation.remove", {"allocationId": alid, "reason": "stack proof undo"})
-                      checks["removing_the_application_restores_the_credit_and_what_the_invoice_owes"] = c2 == 200 and fld(rec("inv2-after-unapply", "accountant", "document", 2), "outstandingMinor") == o2 and fld(rec("cn2-after-unapply", "accountant", "document", cn2), "availableMinor") == g2
+                      checks["removing_the_application_restores_the_credit_and_what_the_invoice_owes"] = c2 == 200 and fld(rec("inv2-after-unapply", "accountant", "document", T), "outstandingMinor") == o2 and fld(rec("cn2-after-unapply", "accountant", "document", cn2), "availableMinor") == g2
                   else: checks["removing_the_application_restores_the_credit_and_what_the_invoice_owes"] = False
               else:
                   checks["a_leftover_credit_is_applied_to_another_invoice"] = False; checks["removing_the_application_restores_the_credit_and_what_the_invoice_owes"] = False
