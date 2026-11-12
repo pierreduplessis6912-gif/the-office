@@ -81,6 +81,20 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
     const iid = q("itemId");
     return answer(await invokeRead(env, member, "stock.reservations", { ...(iid !== null ? { itemId: /^\d+$/.test(iid) ? Number(iid) : iid } : {}), ...(q("status") !== null ? { status: q("status") } : {}) }));
   }
+  if (request.method === "GET" && path === "/engine/stock/writedowns") {
+    const q = (k: string) => url.searchParams.get(k);
+    const iid = q("itemId");
+    return answer(await invokeRead(env, member, "stock.writedowns", { ...(iid !== null ? { itemId: /^\d+$/.test(iid) ? Number(iid) : iid } : {}), ...(q("from") !== null ? { from: q("from") } : {}), ...(q("to") !== null ? { to: q("to") } : {}) }));
+  }
+  if (request.method === "GET" && path === "/engine/stock/valuation") {
+    const q = (k: string) => url.searchParams.get(k);
+    const iid = q("itemId");
+    return answer(await invokeRead(env, member, "stock.valuation", { ...(q("asOf") !== null ? { asOf: q("asOf") } : {}), ...(iid !== null ? { itemId: /^\d+$/.test(iid) ? Number(iid) : iid } : {}) }));
+  }
+  if (request.method === "GET" && path === "/engine/stock/rollforward") {
+    const q = (k: string) => url.searchParams.get(k);
+    return answer(await invokeRead(env, member, "stock.rollforward", { ...(q("from") !== null ? { from: q("from") } : {}), ...(q("to") !== null ? { to: q("to") } : {}) }));
+  }
   if (request.method === "GET" && path === "/engine/prices") {
     const q = (k: string) => url.searchParams.get(k);
     const iid = q("itemId");

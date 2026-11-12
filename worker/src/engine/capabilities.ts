@@ -15,6 +15,7 @@ import { allQuotations, checkDate, checkLines, checkReference, planQuotationAcce
 import { documentTotals as sumTotals } from "./money";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, vatSummary, type ProfileChange } from "./business";
 import { movementAvailable, planPaymentAllocation, planPaymentRefund, refundMovementOrThrow } from "./credits";
+import { allWriteDowns, checkWriteDownInput, planWriteDown, rollforward, valuationAsAt, type WriteDownInput } from "./stock";
 import { checkPriceInput, checkReturnInput, fulfilment, marginReport, planPrice, planReturn, priceHistory, priceInForce, type PriceInput, type ReturnInput } from "./stock";
 import { checkDeliveryInput, checkLineItems, planDelivery, planLineItems, type DeliveryInput, type OrderLineItem } from "./stock";
 import { goodsUnbilled } from "./bills";
@@ -1163,7 +1164,66 @@ export const salesMarginRead: ReadCapability<{ from?: string; to?: string; custo
   },
 };
 
-export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead];
+// ---- write-downs, the valuation and the roll-forward (docs/decisions/inventory.md, increment 5) -----------------------------------------------------------------------------------------------------------------------
+// A write-down is valid for the carrying value it was made against: the engine works out what the stock is carried at and what it would be carried at, stamps both on the proposal, and refuses the approval as stale if the average has moved since.
+export const stockWriteDown: CapabilityContract<WriteDownInput> = {
+  id: "stock.write_down", heldType: "engine.stock.write_down", label: "Writing stock down", requires: [], permissions: ["stock.manage"], version: 1, recordsExecution: true,
+  validate: (payload) => checkWriteDownInput(payload),
+  async stamp(env, value) { const p = await planWriteDown(env, value); return { ...value, plan: { quantityMilli: p.quantityMilli, carriedFromMinor: p.carriedFromMinor, carriedToMinor: p.carriedToMinor } }; },
+  async check(env, value) {
+    const p = await planWriteDown(env, value);
+    const shown = value.plan as { quantityMilli?: number; carriedFromMinor?: number; carriedToMinor?: number } | undefined;
+    if (shown && (shown.quantityMilli !== p.quantityMilli || shown.carriedFromMinor !== p.carriedFromMinor || shown.carriedToMinor !== p.carriedToMinor)) throw new EngineError("stale", "What this stock is carried at has changed since the write-down was proposed, so it needs to be proposed again.");
+  },
+  async execute(env, v, c) { const { plan: _shown, ...input } = v; const r = await facts.writeDownStock(env, input, ctxOf(c, "stock.write_down")); return { moveIds: r.moveIds, eventIds: r.eventIds }; },
+};
+export const stockWriteDownsRead: ReadCapability<{ itemId?: number; from?: string; to?: string }> = {
+  id: "stock.writedowns", label: "Stock write-downs", permissions: ["stock.value"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["itemId", "from", "to"]); if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const out: { itemId?: number; from?: string; to?: string } = {};
+    if (params.itemId !== undefined) { if (!whole(params.itemId)) return { ok: false, reason: "itemId must be a record number" }; out.itemId = params.itemId; }
+    if (params.from !== undefined) { const d = checkDate(params.from, "from"); if (!d.ok) return d; out.from = d.value; }
+    if (params.to !== undefined) { const d = checkDate(params.to, "to"); if (!d.ok) return d; out.to = d.value; }
+    if (out.from !== undefined && out.to !== undefined && out.to < out.from) return { ok: false, reason: "to cannot be before from" };
+    return { ok: true, value: out };
+  },
+  async run(env, _viewer, v) {
+    if (v.itemId !== undefined && !(await itemProfile(env, v.itemId))) throw new EngineError("not_found", "There is no such item.");
+    const list = await allWriteDowns(env, v); const explained = await recordHistory(env, list.map((w) => w.eventId));
+    return { writedowns: list.slice(0, 200).map((w) => ({ ...w, explained: explained.find((h) => h.eventId === w.eventId) ?? null })), count: list.length, totalMinor: list.reduce((a, w) => a + w.amountMinor, 0), truncated: list.length > 200, derivedBy: "stock.allWriteDowns" };
+  },
+};
+export const stockValuationRead: ReadCapability<{ asOf: string; itemId?: number }> = {
+  id: "stock.valuation", label: "Stock valued as at a date", permissions: ["stock.value"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["asOf", "itemId"]); if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const d = checkDate(params.asOf, "asOf"); if (!d.ok) return d;
+    const out: { asOf: string; itemId?: number } = { asOf: d.value };
+    if (params.itemId !== undefined) { if (!whole(params.itemId)) return { ok: false, reason: "itemId must be a record number" }; out.itemId = params.itemId; }
+    return { ok: true, value: out };
+  },
+  async run(env, _viewer, v) {
+    if (v.itemId !== undefined && !(await itemProfile(env, v.itemId))) throw new EngineError("not_found", "There is no such item.");
+    const items = await valuationAsAt(env, v.asOf, v.itemId);
+    return { asOf: v.asOf, items, totals: { valueMinor: items.reduce((a, i) => a + i.valueMinor, 0), writtenDownMinor: items.reduce((a, i) => a + i.writtenDownMinor, 0) }, notes: ["Stock is valued at cost less the diminution recorded as write-downs (cost is the weighted average): a place for an accountant to start, not a tax position. Whether a write-down is just and reasonable is for your accountant and SARS to decide (Income Tax Act s22(1)(a); IAS 2 measures stock at the lower of cost and net realisable value). Movements dated on or before the date are included as the books now stand."], derivedBy: "stock.valuationAsAt" };
+  },
+};
+export const stockRollforwardRead: ReadCapability<{ from: string; to: string }> = {
+  id: "stock.rollforward", label: "Stock roll-forward", permissions: ["stock.value"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["from", "to"]); if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const f = checkDate(params.from, "from"); if (!f.ok) return f; const t = checkDate(params.to, "to"); if (!t.ok) return t;
+    if (t.value < f.value) return { ok: false, reason: "to cannot be before from" };
+    return { ok: true, value: { from: f.value, to: t.value } };
+  },
+  async run(env, _viewer, v) { return { ...(await rollforward(env, v.from, v.to)), notes: ["Opening plus the value of every kind of movement equals closing, and closing is also the valuation at the end: the two must agree, and the read says whether they do."], derivedBy: "stock.rollforward" }; },
+};
+
+export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
@@ -1171,5 +1231,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

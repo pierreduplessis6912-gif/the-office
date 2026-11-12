@@ -40,7 +40,7 @@ def main():
     st0 = ctx["st0"] = call("status-start", "GET", "/admin/engine/status", None, None, True)[1]
     if st0.get("mode") != "engine": call("provision", "POST", "/admin/engine/provision-sample", {"confirm": BIZ}, None, True)
     st1 = call("status-ready", "GET", "/admin/engine/status", None, None, True)[1]
-    NEED = ["party.create", "item.create", "item.revise", "location.create", "stock.receive", "stock.issue", "stock.transfer", "stock.adjust", "stock.reverse", "stock.count", "stock.reserve", "stock.release", "stock.receive_delivery", "stock.return", "item.price", "items.find", "stock.on_hand", "stock.ledger", "stock.reservations", "stock.reorder_suggestions", "stock.fulfilment", "sales.margin", "prices.find", "goods.unbilled", "purchase_order.create", "goods.receive"]
+    NEED = ["party.create", "item.create", "item.revise", "location.create", "stock.receive", "stock.issue", "stock.transfer", "stock.adjust", "stock.reverse", "stock.count", "stock.reserve", "stock.release", "stock.receive_delivery", "stock.return", "item.price", "items.find", "stock.on_hand", "stock.ledger", "stock.reservations", "stock.reorder_suggestions", "stock.fulfilment", "sales.margin", "prices.find", "goods.unbilled", "purchase_order.create", "goods.receive", "stock.write_down", "stock.writedowns", "stock.valuation", "stock.rollforward"]
     checks["the_object_is_in_engine_mode_with_every_stock_capability"] = st1.get("mode") == "engine" and all(x in (st1.get("available") or []) for x in NEED)
     # ---- masters
     c, d, c2, d2 = do("supplier", "accountant", "party.create", {"kind": "organisation", "name": f"Stock Timber {RUN}", "roles": ["supplier"], "contact": {"vatNumber": "4111111111"}}); sup = (d2.get("outcome") or {}).get("partyId")
@@ -139,6 +139,20 @@ def main():
     c, d, _ = propose("over-return", "accountant", "stock.return", {"issueMoveId": sale, "quantityMilli": (qty1 or 2), "locationId": main_, "returnedOn": "2026-11-16"}); checks["a_return_can_never_exceed_what_was_issued"] = c == 409 and d.get("error") == "invalid_state"
     fu = res("fulfilment", "accountant", "/engine/stock/fulfilment"); checks["fulfilment_lists_nothing_when_no_invoice_line_names_an_item"] = isinstance(fu.get("lines"), list) and fu.get("count") == 0
     ii = call("inst-margin", "GET", "/engine/margin", None, "installer")[0]; checks["costs_and_margins_are_refused_to_those_who_may_not_see_costs_or_shown_by_the_same_mapping_as_the_harness"] = ii in (200, 403)
+    # ---- write-downs, the valuation as at a date and the roll-forward
+    ply_before = row(stock(), ply); carried = ply_before.get("valueMinor"); qty_before = ply_before.get("quantityMilli")
+    c, d, _ = propose("wd-noevidence", "accountant", "stock.write_down", {"itemId": ply, "locationId": main_, "amountMinor": 10000, "reason": "damaged", "evidence": "wet", "writtenDownOn": "2026-11-20"}); checks["a_write_down_without_real_evidence_is_refused"] = c == 422 and d.get("error") == "invalid_payload"
+    ci2, di2, _ = propose("wd-installer", "installer", "stock.write_down", {"itemId": ply, "locationId": main_, "amountMinor": 10000, "reason": "damaged", "evidence": "Water damage, photos kept on file", "writtenDownOn": "2026-11-20"}); checks["field_staff_may_not_write_stock_down"] = ci2 == 403
+    c, d, _ = propose("wd-toomuch", "accountant", "stock.write_down", {"itemId": ply, "locationId": main_, "amountMinor": (carried or 0) * 10, "reason": "damaged", "evidence": "Water damage, photos kept on file", "writtenDownOn": "2026-11-20"}); checks["a_write_down_above_the_carrying_value_is_refused"] = c == 409 and d.get("error") == "invalid_state"
+    c, d, c2, d2 = do("writedown", "accountant", "stock.write_down", {"itemId": ply, "locationId": main_, "amountMinor": 10000, "reason": "damaged", "evidence": "Water damage in the storeroom, photos kept on file", "writtenDownOn": "2026-11-20"})
+    ply_after = row(stock(), ply)
+    checks["a_write_down_carries_the_same_units_at_less_by_exactly_the_amount"] = c2 == 200 and ply_after.get("quantityMilli") == qty_before and ply_after.get("valueMinor") == (carried or 0) - 10000
+    wl = res("writedowns", "accountant", "/engine/stock/writedowns?itemId=%s" % ply); w1 = (wl.get("writedowns") or [{}])[-1]
+    checks["the_write_down_list_shows_the_amount_the_reason_and_the_evidence_explained"] = w1.get("amountMinor") == 10000 and w1.get("reason") == "damaged" and "storeroom" in (w1.get("evidence") or "") and (w1.get("explained") or {}).get("approvedBy") == f"staging-stock-accountant-{RUN}@example.com"
+    vl = res("valuation", "accountant", "/engine/stock/valuation?asOf=2026-12-31"); vp = next((x for x in (vl.get("items") or []) if x.get("itemId") == ply), {})
+    checks["the_valuation_is_cost_less_the_diminution_recorded"] = vp.get("quantityMilli") == ply_after.get("quantityMilli") and vp.get("valueMinor") == ply_after.get("valueMinor") and (vp.get("writtenDownMinor") or 0) >= 10000
+    rf = res("rollforward", "accountant", "/engine/stock/rollforward?from=2026-11-01&to=2026-12-31")
+    checks["the_roll_forward_reconciles_to_the_valuation_after_a_real_history"] = rf.get("reconciles") is True and rf.get("differenceMinor") == 0
     # ---- the books
     st2 = call("status-end", "GET", "/admin/engine/status", None, None, True)[1]
     checks["the_integrity_verifier_is_clean_at_the_end"] = (st2.get("integrity") or {}).get("ok") is True

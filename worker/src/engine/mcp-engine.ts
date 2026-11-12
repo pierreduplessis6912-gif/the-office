@@ -82,6 +82,10 @@ const HINTS: Record<string, string> = {
   "sales.margin": "params {from?, to?: dates, customerId?, invoiceId?: numbers}: revenue, cost of sales and margin per invoice line (margin only for lines issued in full). Needs permission to see costs.",
   "item.price": "payload {itemId, unitPriceMinor, currency, effectiveFrom, note?}: set the selling price of an item from a date (the latest effective date is the price in force).",
   "stock.return": "payload {issueMoveId, quantityMilli, locationId, returnedOn, creditNoteId?, note?}: goods a customer sent back go into stock at the ORIGINAL cost of the issue they were taken from, never more than was issued.",
+  "stock.writedowns": "params {itemId?: number, from?, to?: dates}: stock write-downs (diminution) with the amount, reason and the evidence on file. Needs permission to see costs.",
+  "stock.valuation": "params {asOf: date, itemId?: number}: stock valued as at a date: per item the quantity, cost less the diminution recorded, and how much was written down. A place for an accountant to start, not a tax position.",
+  "stock.rollforward": "params {from, to: dates}: opening stock value plus every kind of movement equals closing, with whether it agrees with the valuation at the end.",
+  "stock.write_down": "payload {itemId, locationId, amountMinor, reason: damaged | obsolete | slow_moving | market_decline | other, evidence (10 to 200 characters), writtenDownOn}: carry the stock at one location at less (by amountMinor) without moving a unit. The reason and the evidence are required.",
   "business.profile.set": "payload {legalName?, tradingName?, address?, vatRegistered?, vatNumber?, companyRegistrationNumber?}: the business's own details.",
   "tax_lock.set": "payload {lockDate}: lock the tax period up to a date (it only moves forward).",
 };

@@ -75,6 +75,7 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "stock.released": { creates: null, note: "what remains of a reservation is given back" },
   "item.priced": { creates: null, note: "a selling price is set for an item from an effective date: an event only, the price list is derived (stock.ts)" },
   "stock.returned": { creates: "stock_move", note: "one eng_stock_move of kind adjust_in that returns issued goods at the original cost of the issue it reverses" },
+  "stock.written_down": { creates: "stock_move", note: "one eng_stock_move of kind adjust_out or adjust_in: the two halves of a write-down (the stock out at its carrying value and back in at the lower one). The second says by how much, why and on what evidence" },
   "operation.executed": { creates: null, note: "the record that an approved proposal executed; it creates no fact" },
 };
 const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal", item: "eng_item", location: "eng_location", stock_move: "eng_stock_move" };
@@ -369,7 +370,7 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
   }
 
   // stock: every item, location and movement carries an event of the right kind that says what the row says; and the invariants of the ledger (docs/decisions/inventory.md section 5)
-  const stockEventFor: Record<string, string[]> = { receive: ["stock.received"], issue: ["stock.issued"], transfer_out: ["stock.transferred_out"], transfer_in: ["stock.transferred_in"], adjust_in: ["stock.adjusted", "stock.returned"], adjust_out: ["stock.adjusted"], reversal_in: ["stock.move_reversed"], reversal_out: ["stock.move_reversed"] };
+  const stockEventFor: Record<string, string[]> = { receive: ["stock.received"], issue: ["stock.issued"], transfer_out: ["stock.transferred_out"], transfer_in: ["stock.transferred_in"], adjust_in: ["stock.adjusted", "stock.returned", "stock.written_down"], adjust_out: ["stock.adjusted", "stock.written_down"], reversal_in: ["stock.move_reversed"], reversal_out: ["stock.move_reversed"] };
   for (const it of await many<{ id: number; sku: string; name: string; unit: string; event_id: number }>(env, "SELECT id, sku, name, unit, event_id FROM eng_item")) {
     const ev = wrongEvent("item", it.id, it.event_id, ["item.created"]);
     if (ev && (!ev.payload || !same([ev.payload.sku, ev.payload.name, ev.payload.unit], [it.sku, it.name, it.unit]))) problems.push({ code: "fact_changed", detail: `item ${it.id} no longer matches what was recorded` });
@@ -420,6 +421,20 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
     returnedQ.set(o.id, (returnedQ.get(o.id) ?? 0) + (Number(p.quantityMilli) || 0));
     if ((returnedQ.get(o.id) ?? 0) > o.quantity_milli) problems.push({ code: "stock_invariant", detail: `issue ${o.id}: more was returned (${returnedQ.get(o.id)}) than was issued (${o.quantity_milli})` });
   }
+  // write-downs: the second half names the first, agrees with it on item, place and quantity, comes back lower by exactly the amount written down, and carries a declared reason and a note of the evidence
+  const wdEvents = await many<{ id: number; payload_json: string }>(env, "SELECT id, payload_json FROM eng_event WHERE type = 'stock.written_down' ORDER BY id");
+  const wdById = new Map<number, Record<string, unknown>>(); const outsClaimed = new Map<number, number>();
+  for (const e of wdEvents) { try { wdById.set(e.id, JSON.parse(e.payload_json) ?? {}); } catch { wdById.set(e.id, {}); } }
+  for (const [id, p] of wdById) {
+    if (p.part === "in") {
+      const o = typeof p.outEventId === "number" ? wdById.get(p.outEventId) : undefined;
+      if (!o || o.part !== "out" || o.itemId !== p.itemId || o.locationId !== p.locationId || o.quantityMilli !== p.quantityMilli) problems.push({ code: "stock_invariant", detail: `write-down event ${id}: its second half does not match the first half it names` });
+      else { outsClaimed.set(Number(p.outEventId), (outsClaimed.get(Number(p.outEventId)) ?? 0) + 1); if (Number(o.valueMinor) - Number(p.valueMinor) !== Number(p.amountMinor) || !(Number(p.amountMinor) >= 1)) problems.push({ code: "stock_invariant", detail: `write-down event ${id}: the stock does not come back lower by the amount written down (${String(p.amountMinor)})` }); }
+      if (typeof p.reason !== "string" || !["damaged", "obsolete", "slow_moving", "market_decline", "other"].includes(p.reason)) problems.push({ code: "stock_invariant", detail: `write-down event ${id}: the reason ${String(p.reason)} is not a declared one` });
+      if (typeof p.evidence !== "string" || p.evidence.trim().length < 10) problems.push({ code: "stock_invariant", detail: `write-down event ${id}: there is no note of the evidence` });
+    } else if (p.part !== "out") problems.push({ code: "stock_invariant", detail: `write-down event ${id}: it is neither the first nor the second half of a write-down` });
+  }
+  for (const [id, p] of wdById) if (p.part === "out" && (outsClaimed.get(id) ?? 0) !== 1) problems.push({ code: "stock_invariant", detail: `write-down event ${id}: its first half has ${outsClaimed.get(id) ?? 0} matching second halves, expected exactly one` });
   for (const m of moves) if (m.kind === "transfer_out" && (transferIn.get(m.id) ?? 0) !== 1) problems.push({ code: "stock_invariant", detail: `transfer out ${m.id} has ${transferIn.get(m.id) ?? 0} matching transfers in, expected exactly one` });
   for (const [k, n] of stockedFromLine) { const [d, l] = k.split(":").map(Number); const line = (await many<{ quantity_milli: number }>(env, "SELECT quantity_milli FROM eng_document_line WHERE document_id = ? AND line_no = ?", d, l))[0]; if (!line || n > line.quantity_milli) problems.push({ code: "stock_invariant", detail: `goods receipt ${d} line ${l}: more was put into stock (${n}) than the line received (${line?.quantity_milli ?? 0})` }); }
 

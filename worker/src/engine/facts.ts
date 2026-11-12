@@ -13,6 +13,7 @@ import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from
 import { planQuotationAcceptance, planQuotationRevision } from "./quotations";
 import { planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { planCancel, planOrder, planReceipt, type ReceiptLineInput } from "./purchasing";
+import { checkWriteDownInput, planWriteDown, type WriteDownInput } from "./stock";
 import { planPrice, planReturn, type PriceInput, type ReturnInput } from "./stock";
 import { planDelivery, planLineItems, type DeliveryInput, type OrderLineItem } from "./stock";
 import { planCount, planRelease, planReserve, type CountInput, type ReleaseInput, type ReserveInput } from "./stock";
@@ -481,6 +482,21 @@ export async function returnStock(env: Env, input: ReturnInput, ctx: Ctx): Promi
     const eventId = await appendEvent(tx, "stock.returned", ctx, { itemId: plan.move.item_id, locationId: input.locationId, quantityMilli: input.quantityMilli, valueMinor: plan.valueMinor, occurredOn: input.returnedOn, returnsMoveId: input.issueMoveId, ...(input.creditNoteId !== undefined ? { creditNoteId: input.creditNoteId } : {}), ...(input.note ? { note: input.note } : {}) }, input.note ?? "customer return");
     const moveId = await insertMove(tx, { itemId: plan.move.item_id, locationId: input.locationId, kind: "adjust_in", quantityMilli: input.quantityMilli, valueMinor: plan.valueMinor, occurredOn: input.returnedOn, reason: "customer return", eventId });
     return { moveId, valueMinor: plan.valueMinor, eventId };
+  });
+}
+
+// A WRITE-DOWN (diminution): stock is carried at less without a unit moving. All of the stock of the item at one location goes out at its carrying value and comes back at the lower one: two ordinary movements, so the average, later issues, the ledger and the
+// verifier all see it. Each carries a stock.written_down event; the second says by how much, why and on what evidence.
+export async function writeDownStock(env: Env, input: WriteDownInput, ctx: Ctx): Promise<{ moveIds: number[]; eventIds: number[] }> {
+  const ok = checkWriteDownInput(input); if (!ok.ok) throw new EngineError("invalid_input", ok.reason);   // validated before a transaction is opened
+  return inTransaction(env, async (tx) => {
+    const plan = await planWriteDown(tx, input);
+    const common = { itemId: input.itemId, locationId: input.locationId, quantityMilli: plan.quantityMilli, occurredOn: input.writtenDownOn };
+    const outEvent = await appendEvent(tx, "stock.written_down", ctx, { ...common, direction: "out", valueMinor: plan.carriedFromMinor, part: "out", reason: input.reason }, input.evidence);
+    const outMove = await insertMove(tx, { itemId: input.itemId, locationId: input.locationId, kind: "adjust_out", quantityMilli: plan.quantityMilli, valueMinor: plan.carriedFromMinor, occurredOn: input.writtenDownOn, reason: "write-down", eventId: outEvent });
+    const inEvent = await appendEvent(tx, "stock.written_down", ctx, { ...common, direction: "in", valueMinor: plan.carriedToMinor, part: "in", outEventId: outEvent, amountMinor: input.amountMinor, reason: input.reason, evidence: input.evidence }, input.evidence);
+    const inMove = await insertMove(tx, { itemId: input.itemId, locationId: input.locationId, kind: "adjust_in", quantityMilli: plan.quantityMilli, valueMinor: plan.carriedToMinor, occurredOn: input.writtenDownOn, reason: "write-down", eventId: inEvent });
+    return { moveIds: [outMove, inMove], eventIds: [outEvent, inEvent] };
   });
 }
 

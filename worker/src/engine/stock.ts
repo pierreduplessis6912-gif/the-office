@@ -397,6 +397,70 @@ export async function marginReport(env: Env, f: { from?: string; to?: string; cu
   return out;
 }
 
+// ---- write-downs, the valuation as at a date and the roll-forward (docs/decisions/inventory.md, increment 5) ----------------------------------------------------------------------------------------------
+export const WRITE_DOWN_REASONS = ["damaged", "obsolete", "slow_moving", "market_decline", "other"] as const;
+export interface WriteDownInput { itemId: number; locationId: number; amountMinor: number; reason: string; evidence: string; writtenDownOn: string; plan?: unknown }
+export function checkWriteDownInput(v: unknown): Checked<WriteDownInput> {
+  if (!isObj(v)) return { ok: false, reason: "the write-down must be an object" };
+  const s = strayOf(v, ["itemId", "locationId", "amountMinor", "reason", "evidence", "writtenDownOn", "plan"]); if (s) return { ok: false, reason: `${s} is not a field of a write-down` };
+  if (!whole(v.itemId, 1, Number.MAX_SAFE_INTEGER) || !whole(v.locationId, 1, Number.MAX_SAFE_INTEGER)) return { ok: false, reason: "itemId and locationId must be record numbers" };
+  if (!whole(v.amountMinor, 1, MAX_COST)) return { ok: false, reason: "amountMinor must be a whole number of cents, at least 1: the amount the stock is written down BY" };
+  if (typeof v.reason !== "string" || !(WRITE_DOWN_REASONS as readonly string[]).includes(v.reason)) return { ok: false, reason: `reason must be one of ${WRITE_DOWN_REASONS.join(", ")}` };
+  if (typeof v.evidence !== "string" || v.evidence.trim().length < 10 || v.evidence.trim().length > 200) return { ok: false, reason: "evidence must be 10 to 200 characters: what shows the stock is worth less (a diminution without a note of the evidence is not accepted)" };
+  const d = checkDate(v.writtenDownOn, "writtenDownOn"); if (!d.ok) return d;
+  const out: WriteDownInput = { itemId: v.itemId, locationId: v.locationId, amountMinor: v.amountMinor, reason: v.reason, evidence: v.evidence.trim().replace(/\s+/g, " "), writtenDownOn: d.value };
+  if (v.plan !== undefined) out.plan = v.plan;   // shown to the approver, never trusted: worked out again at approval
+  return { ok: true, value: out };
+}
+/** A write-down lowers what the stock at ONE location is carried at, by an amount, without moving a unit: all of it goes out at its carrying value and comes back at the lower one. */
+export async function planWriteDown(env: Env, input: WriteDownInput) {
+  const item = await requireItem(env, input.itemId, false); await requireLocation(env, input.locationId);
+  const q = (await onHand(env, input.itemId, input.locationId)).quantityMilli;
+  if (q <= 0) throw new EngineError("invalid_state", `There is no ${item.name} at that location to write down.`);
+  const first = await one<{ d: string | null }>(env, "SELECT MIN(occurred_on) AS d FROM eng_stock_move WHERE item_id = ? AND location_id = ?", input.itemId, input.locationId);
+  if (first?.d && input.writtenDownOn < first.d) throw new EngineError("invalid_input", `A write-down cannot be dated before the stock was received (${first.d}).`);
+  const total = await onHand(env, input.itemId), carried = outValue(total, q);
+  if (input.amountMinor > carried) throw new EngineError("invalid_state", `That stock is only carried at ${carried}, so it cannot be written down by ${input.amountMinor}.`);
+  return { item, quantityMilli: q, carriedFromMinor: carried, carriedToMinor: carried - input.amountMinor };
+}
+export interface WriteDownRow { eventId: number; itemId: number; sku: string | null; name: string | null; locationId: number; locationName: string | null; quantityMilli: number; amountMinor: number; reason: string; evidence: string; writtenDownOn: string; carriedFromMinor: number; carriedToMinor: number }
+export async function allWriteDowns(env: Env, f: { itemId?: number; from?: string; to?: string } = {}): Promise<WriteDownRow[]> {
+  const locs = new Map((await allLocations(env)).map((l) => [l.id, l.name])); const out: WriteDownRow[] = [];
+  for (const e of await many<{ id: number; payload_json: string }>(env, "SELECT id, payload_json FROM eng_event WHERE type = 'stock.written_down' AND json_extract(payload_json, '$.part') = 'in' ORDER BY id")) {
+    const p = parse(e.payload_json); const itemId = Number(p.itemId), on = String(p.occurredOn ?? "");
+    if ((f.itemId !== undefined && itemId !== f.itemId) || (f.from !== undefined && on < f.from) || (f.to !== undefined && on > f.to)) continue;
+    const it = await itemProfile(env, itemId), outEv = await one<{ payload_json: string }>(env, "SELECT payload_json FROM eng_event WHERE id = ?", Number(p.outEventId)), po = parse(outEv?.payload_json ?? "{}");
+    out.push({ eventId: e.id, itemId, sku: it?.sku ?? null, name: it?.name ?? null, locationId: Number(p.locationId), locationName: locs.get(Number(p.locationId)) ?? null, quantityMilli: Number(p.quantityMilli), amountMinor: Number(p.amountMinor), reason: String(p.reason ?? ""), evidence: String(p.evidence ?? ""), writtenDownOn: on, carriedFromMinor: Number(po.valueMinor), carriedToMinor: Number(p.valueMinor) });
+  }
+  return out;
+}
+export interface ValuationRow { itemId: number; sku: string; name: string; unit: string; quantityMilli: number; valueMinor: number; averageCostMinor: number | null; writtenDownMinor: number }
+/** What the stock was, as at a date: every movement dated on or before it (as we now know the books), cost less the diminution recorded. */
+export async function valuationAsAt(env: Env, asOf: string, itemId?: number): Promise<ValuationRow[]> {
+  const out: ValuationRow[] = []; const wds = await allWriteDowns(env, { to: asOf });
+  for (const id of itemId !== undefined ? [itemId] : await allItemIds(env)) {
+    const p = await itemProfile(env, id); if (!p) continue;
+    const r = await one<{ q: number | null; v: number | null }>(env, `SELECT SUM(${SIGN_SQL} * quantity_milli) AS q, SUM(${SIGN_SQL} * value_minor) AS v FROM eng_stock_move WHERE item_id = ? AND occurred_on <= ?`, id, asOf);
+    const q = Number(r?.q ?? 0), v = Number(r?.v ?? 0); if (q === 0 && v === 0) continue;
+    out.push({ itemId: id, sku: p.sku, name: p.name, unit: p.unit, quantityMilli: q, valueMinor: v, averageCostMinor: averageCostMinor(q, v), writtenDownMinor: wds.filter((w) => w.itemId === id).reduce((a, w) => a + w.amountMinor, 0) });
+  }
+  return out;
+}
+export interface Rollforward { from: string; to: string; openingMinor: number; categories: Record<string, number>; closingMinor: number; computedClosingMinor: number; reconciles: boolean; differenceMinor: number }
+/** Opening + the value of every kind of movement = closing, where closing is ALSO the valuation at the end: two derivations that must agree. */
+export async function rollforward(env: Env, from: string, to: string): Promise<Rollforward> {
+  const sum = async (cond: string, ...b: unknown[]) => Number((await one<{ v: number | null }>(env, `SELECT SUM(${SIGN_SQL} * value_minor) AS v FROM eng_stock_move WHERE ${cond}`, ...b))?.v ?? 0);
+  const opening = await sum("occurred_on < ?", from), closing = await sum("occurred_on <= ?", to);
+  const cats: Record<string, number> = { receipts: 0, issues: 0, returns: 0, counts: 0, adjustments: 0, writeDowns: 0, reversals: 0, transfers: 0 };
+  for (const m of await many<{ kind: string; reason: string | null; value_minor: number; etype: string }>(env, "SELECT m.kind, m.reason, m.value_minor, e.type AS etype FROM eng_stock_move m JOIN eng_event e ON e.id = m.event_id WHERE m.occurred_on >= ? AND m.occurred_on <= ?", from, to)) {
+    const signed = ((IN_KINDS as readonly string[]).includes(m.kind) ? 1 : -1) * m.value_minor;
+    const k = m.kind.startsWith("transfer") ? "transfers" : m.kind === "receive" ? "receipts" : m.kind === "issue" ? "issues" : m.kind.startsWith("reversal") ? "reversals" : m.etype === "stock.written_down" ? "writeDowns" : m.etype === "stock.returned" ? "returns" : m.reason === "stocktake" ? "counts" : "adjustments";
+    cats[k] += signed;
+  }
+  const computed = opening + Object.values(cats).reduce((a, b) => a + b, 0);
+  return { from, to, openingMinor: opening, categories: cats, closingMinor: closing, computedClosingMinor: computed, reconciles: computed === closing, differenceMinor: closing - computed };
+}
+
 // ---- reading (derived) -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 export interface ItemProfile { id: number; sku: string; name: string; unit: string; reorderLevelMilli: number | null; reorderQtyMilli: number | null; preferredSupplierId: number | null; active: boolean; eventId: number }
 /** An item as it is NOW: the row it was created as, with its creating event's attributes, then every item.revised event in order. */
@@ -554,6 +618,9 @@ export async function planReverse(env: Env, input: StockReverseInput) {
   if (await one(env, "SELECT id FROM eng_stock_move WHERE reverses_move_id = ?", m.id)) throw new EngineError("invalid_state", "That movement has already been reversed.");
   if (input.reversedOn < m.occurred_on) throw new EngineError("invalid_input", `A reversal cannot be dated before the movement (${m.occurred_on}).`);
   const item = await requireItem(env, m.item_id, false);
+  const ev = await one<{ type: string }>(env, "SELECT type FROM eng_event WHERE id = (SELECT event_id FROM eng_stock_move WHERE id = ?)", m.id);
+  if (ev?.type === "stock.written_down") throw new EngineError("invalid_state", "Either half of a write-down cannot be reversed on its own (it would leave the stock carried wrongly): a write-down is changed by a later one.");
+  if (m.kind === "issue" && (await returnedOf(env, m.id)).quantityMilli > 0) throw new EngineError("invalid_state", "Goods have been returned from that issue, so it cannot also be reversed.");
   const wasIn = m.kind === "receive" || m.kind === "adjust_in";
   if (wasIn) {
     if (await one(env, "SELECT id FROM eng_stock_move WHERE item_id = ? AND id > ? AND kind IN ('issue', 'adjust_out', 'reversal_in')", m.item_id, m.id)) throw new EngineError("invalid_state", `Later movements of ${item.name} (an issue or a write-off) were costed using that stock, so it cannot be reversed: correct it with an adjustment instead.`);
