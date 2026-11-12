@@ -417,8 +417,8 @@ const MUTATIONS = [
   { name: 'sales link: the verifier ignores stock issued as the wrong item for an invoice line', suite: SALES, file: E('integrity.ts'), find: 'if (forItem !== undefined && forItem !== m.item_id) problems.push', replace: 'if (false) problems.push' },
   { name: 'sales link: the invoice record hides its fulfilment', suite: SALES, file: E('records.ts'), find: '{ fulfilment: await (async () => {', replace: '{ fulfilmentHidden: await (async () => {' },
   // stock: write-downs, valuation and the roll-forward (capability-stock-valuation.test.js)
-  { name: 'valuation: write stock down by more than it is carried at', suite: VAL, file: E('stock.ts'), find: 'if (input.amountMinor > carried) throw new EngineError("invalid_state", `That stock is only carried at', replace: 'if (false) throw new EngineError("invalid_state", `That stock is only carried at' },
-  { name: 'valuation: write down stock that is not at the location', suite: VAL, file: E('stock.ts'), find: 'if (q <= 0) throw new EngineError("invalid_state", `There is no', replace: 'if (false) throw new EngineError("invalid_state", `There is no' },
+  { name: 'valuation: write stock down by more than it is carried at', suite: VAL, file: E('stock.ts'), find: 'if (input.amountMinor > total.valueMinor) throw new EngineError("invalid_state", `That stock is only carried at', replace: 'if (false) throw new EngineError("invalid_state", `That stock is only carried at' },
+  { name: 'valuation: write down an item with none on hand', suite: VAL, file: E('stock.ts'), find: 'if (total.quantityMilli <= 0) throw new EngineError("invalid_state", `There is no', replace: 'if (false) throw new EngineError("invalid_state", `There is no' },
   { name: 'valuation: a write-down dated before the stock was received', suite: VAL, file: E('stock.ts'), find: 'if (first?.d && input.writtenDownOn < first.d) throw', replace: 'if (false) throw' },
   { name: 'valuation: a write-down needs no evidence', suite: VAL, file: E('stock.ts'), find: 'typeof v.evidence !== "string" || v.evidence.trim().length < 10 || v.evidence.trim().length > 200', replace: 'typeof v.evidence !== "string" || v.evidence.trim().length > 200' },
   { name: 'valuation: a write-down may have any reason', suite: VAL, file: E('stock.ts'), find: 'typeof v.reason !== "string" || !(WRITE_DOWN_REASONS as readonly string[]).includes(v.reason)', replace: 'typeof v.reason !== "string"' },
@@ -437,6 +437,10 @@ const MUTATIONS = [
   { name: 'valuation: the verifier ignores a write-down with no evidence', suite: VAL, file: E('integrity.ts'), find: 'if (typeof p.evidence !== "string" || p.evidence.trim().length < 10) problems.push', replace: 'if (false) problems.push' },
   { name: 'valuation: the verifier ignores an undeclared write-down reason', suite: VAL, file: E('integrity.ts'), find: 'if (typeof p.reason !== "string" || !["damaged", "obsolete", "slow_moving", "market_decline", "other"].includes(p.reason)) problems.push', replace: 'if (false) problems.push' },
   { name: 'valuation: the verifier ignores a write-down with a missing second half', suite: VAL, file: E('integrity.ts'), find: 'if (p.part === "out" && (outsClaimed.get(id) ?? 0) !== 1) problems.push', replace: 'if (false) problems.push' },
+  { name: 'valuation: each place rounds its own share, so the parts drift from the whole', suite: VAL, file: E('stock.ts'), find: 'const carried = mulDiv(vRem, q, qRem), share = mulDiv(aRem, q, qRem);', replace: 'const carried = mulDiv(total.valueMinor, q, total.quantityMilli), share = mulDiv(input.amountMinor, q, total.quantityMilli);' },
+  { name: 'valuation: the places are taken in the wrong order', suite: VAL, file: E('stock.ts'), find: '.slice().sort((x, y) => x.id - y.id)', replace: '.slice().sort((x, y) => y.id - x.id)' },
+  { name: 'valuation: a write-down approved after stock moved between places', suite: VAL, file: E('capabilities.ts'), find: ' || JSON.stringify(shown.parts) !== JSON.stringify(p.parts)', replace: '' },
+  { name: 'valuation: the verifier ignores shares that do not add up to the amount', suite: VAL, file: E('integrity.ts'), find: '|| g.sum !== [...g.totals][0]) problems.push', replace: ') problems.push' },
 ];
 
 let opts;

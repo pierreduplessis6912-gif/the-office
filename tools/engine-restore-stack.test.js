@@ -64,7 +64,7 @@ module.exports = kit.guard('engine restore (stack)', async ({ check }) => {
     const grS = await facts.receiveGoods(w.env, { orderId: poS.documentId, receivedOn: '2026-10-03', lines: [{ lineNo: 1, quantityMilli: 5000 }] }, CTX);
     await facts.receiveDelivery(w.env, { receiptId: grS.documentId, locationId: main, receivedOn: '2026-10-04' }, CTX);
     // a write-down: the stock at Main store carried at less, with its reason and evidence
-    await facts.writeDownStock(w.env, { itemId: item, locationId: main, amountMinor: 10000, reason: 'damaged', evidence: 'Water damage, photos kept on file', writtenDownOn: '2026-10-16' }, CTX);
+    await facts.writeDownStock(w.env, { itemId: item, amountMinor: 10000, reason: 'damaged', evidence: 'Water damage, photos kept on file', writtenDownOn: '2026-10-16' }, CTX);
     // the sales link: a price, an invoice that names its item, stock issued against its line, and a return
     await facts.setItemPrice(w.env, { itemId: item, unitPriceMinor: 35000, currency: 'ZAR', effectiveFrom: '2026-10-01', note: 'list price' }, CTX);
     const dr = await eng.drafts.createDraft(w.env, { kind: 'invoice', direction: 'sell', partyId: cust }, CTX);

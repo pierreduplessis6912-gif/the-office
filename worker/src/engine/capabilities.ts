@@ -1169,11 +1169,11 @@ export const salesMarginRead: ReadCapability<{ from?: string; to?: string; custo
 export const stockWriteDown: CapabilityContract<WriteDownInput> = {
   id: "stock.write_down", heldType: "engine.stock.write_down", label: "Writing stock down", requires: [], permissions: ["stock.manage"], version: 1, recordsExecution: true,
   validate: (payload) => checkWriteDownInput(payload),
-  async stamp(env, value) { const p = await planWriteDown(env, value); return { ...value, plan: { quantityMilli: p.quantityMilli, carriedFromMinor: p.carriedFromMinor, carriedToMinor: p.carriedToMinor } }; },
+  async stamp(env, value) { const p = await planWriteDown(env, value); return { ...value, plan: { quantityMilli: p.quantityMilli, carriedFromMinor: p.carriedFromMinor, carriedToMinor: p.carriedToMinor, parts: p.parts } }; },
   async check(env, value) {
     const p = await planWriteDown(env, value);
-    const shown = value.plan as { quantityMilli?: number; carriedFromMinor?: number; carriedToMinor?: number } | undefined;
-    if (shown && (shown.quantityMilli !== p.quantityMilli || shown.carriedFromMinor !== p.carriedFromMinor || shown.carriedToMinor !== p.carriedToMinor)) throw new EngineError("stale", "What this stock is carried at has changed since the write-down was proposed, so it needs to be proposed again.");
+    const shown = value.plan as { quantityMilli?: number; carriedFromMinor?: number; carriedToMinor?: number; parts?: unknown } | undefined;
+    if (shown && (shown.quantityMilli !== p.quantityMilli || shown.carriedFromMinor !== p.carriedFromMinor || shown.carriedToMinor !== p.carriedToMinor || JSON.stringify(shown.parts) !== JSON.stringify(p.parts))) throw new EngineError("stale", "What this stock is carried at has changed since the write-down was proposed, so it needs to be proposed again.");
   },
   async execute(env, v, c) { const { plan: _shown, ...input } = v; const r = await facts.writeDownStock(env, input, ctxOf(c, "stock.write_down")); return { moveIds: r.moveIds, eventIds: r.eventIds }; },
 };

@@ -485,18 +485,23 @@ export async function returnStock(env: Env, input: ReturnInput, ctx: Ctx): Promi
   });
 }
 
-// A WRITE-DOWN (diminution): stock is carried at less without a unit moving. All of the stock of the item at one location goes out at its carrying value and comes back at the lower one: two ordinary movements, so the average, later issues, the ledger and the
-// verifier all see it. Each carries a stock.written_down event; the second says by how much, why and on what evidence.
+// A WRITE-DOWN (diminution): ALL the stock of an item is carried at less without a unit moving. At each place that holds the item, all of its units go out at their carrying value and come back at the lower one: ordinary movements, so the average, later issues,
+// the ledger and the verifier all see them. Each carries a stock.written_down event; the first event names the write-down (its number), and each second event says its share, the total amount, why and on what evidence.
 export async function writeDownStock(env: Env, input: WriteDownInput, ctx: Ctx): Promise<{ moveIds: number[]; eventIds: number[] }> {
   const ok = checkWriteDownInput(input); if (!ok.ok) throw new EngineError("invalid_input", ok.reason);   // validated before a transaction is opened
   return inTransaction(env, async (tx) => {
     const plan = await planWriteDown(tx, input);
-    const common = { itemId: input.itemId, locationId: input.locationId, quantityMilli: plan.quantityMilli, occurredOn: input.writtenDownOn };
-    const outEvent = await appendEvent(tx, "stock.written_down", ctx, { ...common, direction: "out", valueMinor: plan.carriedFromMinor, part: "out", reason: input.reason }, input.evidence);
-    const outMove = await insertMove(tx, { itemId: input.itemId, locationId: input.locationId, kind: "adjust_out", quantityMilli: plan.quantityMilli, valueMinor: plan.carriedFromMinor, occurredOn: input.writtenDownOn, reason: "write-down", eventId: outEvent });
-    const inEvent = await appendEvent(tx, "stock.written_down", ctx, { ...common, direction: "in", valueMinor: plan.carriedToMinor, part: "in", outEventId: outEvent, amountMinor: input.amountMinor, reason: input.reason, evidence: input.evidence }, input.evidence);
-    const inMove = await insertMove(tx, { itemId: input.itemId, locationId: input.locationId, kind: "adjust_in", quantityMilli: plan.quantityMilli, valueMinor: plan.carriedToMinor, occurredOn: input.writtenDownOn, reason: "write-down", eventId: inEvent });
-    return { moveIds: [outMove, inMove], eventIds: [outEvent, inEvent] };
+    const moveIds: number[] = [], eventIds: number[] = []; let head: number | null = null;
+    for (const part of plan.parts) {
+      const common = { itemId: input.itemId, locationId: part.locationId, quantityMilli: part.quantityMilli, occurredOn: input.writtenDownOn };
+      const outEvent = await appendEvent(tx, "stock.written_down", ctx, { ...common, direction: "out", valueMinor: part.carriedFromMinor, part: "out", reason: input.reason, ...(head === null ? {} : { groupEventId: head }) }, input.evidence);
+      if (head === null) head = outEvent;
+      const outMove = await insertMove(tx, { itemId: input.itemId, locationId: part.locationId, kind: "adjust_out", quantityMilli: part.quantityMilli, valueMinor: part.carriedFromMinor, occurredOn: input.writtenDownOn, reason: "write-down", eventId: outEvent });
+      const inEvent = await appendEvent(tx, "stock.written_down", ctx, { ...common, direction: "in", valueMinor: part.carriedToMinor, part: "in", outEventId: outEvent, groupEventId: head, amountMinor: part.shareMinor, totalAmountMinor: input.amountMinor, reason: input.reason, evidence: input.evidence }, input.evidence);
+      const inMove = await insertMove(tx, { itemId: input.itemId, locationId: part.locationId, kind: "adjust_in", quantityMilli: part.quantityMilli, valueMinor: part.carriedToMinor, occurredOn: input.writtenDownOn, reason: "write-down", eventId: inEvent });
+      moveIds.push(outMove, inMove); eventIds.push(outEvent, inEvent);
+    }
+    return { moveIds, eventIds };
   });
 }
 
