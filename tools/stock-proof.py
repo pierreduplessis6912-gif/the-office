@@ -129,8 +129,8 @@ def main():
     c, d, c2, d2 = do("sale-issue", "accountant", "stock.issue", {"itemId": ply, "locationId": main_, "quantityMilli": qty1, "issuedOn": "2026-11-15", "reason": "sale", "documentId": 1, "lineNo": 1}); sale = (d2.get("outcome") or {}).get("moveId")
     mg = res("margin", "accountant", "/engine/margin?invoiceId=1"); ml = next((x for x in (mg.get("lines") or []) if x.get("lineNo") == 1), {})
     against = [m for m in ledger(ply).get("moves", []) if m.get("kind") == "issue" and m.get("sourceDocumentId") == 1 and m.get("sourceLineNo") == 1]
-              expected_cost = sum(m.get("valueMinor") or 0 for m in against)
-              checks["margin_is_revenue_less_the_cost_of_what_was_issued_against_the_line"] = c2 == 200 and len(against) == 2 and ml.get("costed") == "full" and ml.get("costMinor") == expected_cost and ml.get("netMinor") == round((qty1 or 0) * (price1 or 0) / 1000) and ml.get("marginMinor") == (ml.get("netMinor") or 0) - (ml.get("costMinor") or 0)
+    expected_cost = sum(m.get("valueMinor") or 0 for m in against)
+    checks["margin_is_revenue_less_the_cost_of_what_was_issued_against_the_line"] = c2 == 200 and len(against) == 2 and ml.get("costed") == "full" and ml.get("costMinor") == expected_cost and ml.get("netMinor") == round((qty1 or 0) * (price1 or 0) / 1000) and ml.get("marginMinor") == (ml.get("netMinor") or 0) - (ml.get("costMinor") or 0)
     mv2 = next((m for m in ledger(ply).get("moves", []) if m.get("id") == sale), {})
     rq = max(1, (qty1 or 2) // 2)
     c, d, c2, d2 = do("return", "accountant", "stock.return", {"issueMoveId": sale, "quantityMilli": rq, "locationId": main_, "returnedOn": "2026-11-16", "note": "stock proof return"})
