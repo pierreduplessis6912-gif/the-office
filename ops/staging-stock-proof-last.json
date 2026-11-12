@@ -1,9 +1,9 @@
 {
- "when": "2026-11-12T12:02:23.582864+00:00",
- "run": "43214001468",
- "commit": "2e1b0bf",
+ "when": "2026-11-12T14:26:23.643776+00:00",
+ "run": "43236903582",
+ "commit": "177b987",
  "mode": "stock-proof",
- "business": "staging-stock-43214001468",
+ "business": "staging-stock-43236903582",
  "started_in": {
   "mode": "legacy",
   "rows": 0
@@ -89,6 +89,15 @@
   "over-return-propose": 409,
   "fulfilment": 200,
   "inst-margin": 200,
+  "wd-noevidence-propose": 422,
+  "wd-installer-propose": 403,
+  "wd-toomuch-propose": 409,
+  "writedown-propose": 200,
+  "writedown-approve": 200,
+  "wd-location-propose": 422,
+  "writedowns": 200,
+  "valuation": 200,
+  "rollforward": 200,
   "status-end": 200
  },
  "samples": {
@@ -102,7 +111,11 @@
   "po-badunit-propose": "{\"error\":\"invalid_input\",\"message\":\"Line 1 is in box but Plywood 18mm sheet is stocked in sheet. Nothing was done.\"}",
   "wrong-item-propose": "{\"error\":\"invalid_input\",\"message\":\"That line is for Plywood 18mm sheet, so it cannot be put into stock as Chipboard 16mm sheet. Nothing was done.\"}",
   "delivery-again-propose": "{\"error\":\"invalid_state\",\"message\":\"Everything on that goods receipt that names an item has already been put into stock: nothing is left to put in. Nothing was done.\"}",
-  "over-return-propose": "{\"error\":\"invalid_state\",\"message\":\"That issue was of 2 sheet of Plywood 18mm sheet and 1 has already been returned, so only 1 more can be. Nothing was done.\"}"
+  "over-return-propose": "{\"error\":\"invalid_state\",\"message\":\"That issue was of 2 sheet of Plywood 18mm sheet and 1 has already been returned, so only 1 more can be. Nothing was done.\"}",
+  "wd-noevidence-propose": "{\"error\":\"invalid_payload\",\"message\":\"evidence must be 10 to 200 characters: what shows the stock is worth less (a diminution without a note of the evidence is not accepted), so nothing was done.\"}",
+  "wd-installer-propose": "{\"error\":\"not_permitted\",\"message\":\"Writing stock down needs permission this member does not have, so nothing was done.\"}",
+  "wd-toomuch-propose": "{\"error\":\"invalid_state\",\"message\":\"That stock is only carried at 483896, so it cannot be written down by 4838960. Nothing was done.\"}",
+  "wd-location-propose": "{\"error\":\"invalid_payload\",\"message\":\"locationId is not a field of a write-down (a write-down is of the whole item, at every place that holds it), so nothing was done.\"}"
  },
  "crash": null,
  "checks": {
@@ -139,6 +152,15 @@
   "a_return_can_never_exceed_what_was_issued": true,
   "fulfilment_lists_nothing_when_no_invoice_line_names_an_item": true,
   "costs_and_margins_are_refused_to_those_who_may_not_see_costs_or_shown_by_the_same_mapping_as_the_harness": true,
+  "a_write_down_without_real_evidence_is_refused": true,
+  "field_staff_may_not_write_stock_down": true,
+  "a_write_down_above_the_carrying_value_is_refused": true,
+  "a_write_down_carries_the_same_units_at_less_by_exactly_the_amount": true,
+  "a_write_down_is_of_the_whole_item_recorded_at_every_place_that_holds_it_and_adds_up_to_the_cent": true,
+  "a_write_down_cannot_be_aimed_at_one_location": true,
+  "the_write_down_list_shows_the_amount_the_reason_and_the_evidence_explained": true,
+  "the_valuation_is_cost_less_the_diminution_recorded": true,
+  "the_roll_forward_reconciles_to_the_valuation_after_a_real_history": true,
   "the_integrity_verifier_is_clean_at_the_end": true
  },
  "passed": true,
