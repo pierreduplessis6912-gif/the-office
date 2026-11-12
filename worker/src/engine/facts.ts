@@ -13,6 +13,7 @@ import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from
 import { planQuotationAcceptance, planQuotationRevision } from "./quotations";
 import { planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { planCancel, planOrder, planReceipt, type ReceiptLineInput } from "./purchasing";
+import { planAdjust, planIssue, planItem, planItemRevision, planLocation, planReceive, planReverse, planTransfer, type AdjustInput, type IssueInput, type ItemInput, type ItemRevision, type LocationInput, type ReceiveInput, type StockReverseInput, type TransferInput } from "./stock";
 import { planBill, planBillVoid, planSupplierPayment, type BillInput, type PaymentInput } from "./bills";
 import { planCreditApplication, planCreditNote, planDebitNote, planPaymentAllocation, planPaymentRefund, planRefund, planVoid, refundMovementOrThrow, checkReason, type CreditLineInput } from "./credits";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
@@ -346,6 +347,78 @@ export async function recordSupplierPayment(env: Env, input: PaymentInput, ctx: 
     const pay = await recordPayment(tx, { direction: "out", partyId: supplierId, amountMinor: input.amountMinor, currency: input.currency, occurredOn: plan.paidOn, method: input.method, allocations: plan.allocations.map((a) => ({ documentId: a.billId, amountMinor: a.amountMinor })) }, ctx);
     const eventId = await appendEvent(tx, "supplier_payment.recorded", ctx, { movementId: pay.movementId, supplierId, paidOn: plan.paidOn, method: input.method, allocations: plan.allocations });
     return { movementId: pay.movementId, allocationIds: pay.allocationIds, eventId };
+  });
+}
+
+// STOCK (stock.ts): items, locations and one immutable movement ledger. Every write is one transaction: the event, then the row that carries it. Cost is stamped here, once, and never changes. The same plan functions that the contracts check with
+// decide here, so the fact layer cannot be used to record what the door would refuse.
+async function insertMove(tx: Env, m: { itemId: number; locationId: number; kind: string; quantityMilli: number; valueMinor: number; occurredOn: string; sourceDocumentId?: number | null; sourceLineNo?: number | null; reason?: string | null; jobRef?: string | null; pairId?: number | null; reversesMoveId?: number | null; eventId: number }): Promise<number> {
+  const row = await one<{ id: number }>(tx, "INSERT INTO eng_stock_move (item_id, location_id, kind, quantity_milli, value_minor, occurred_on, source_document_id, source_line_no, reason, job_ref, pair_id, reverses_move_id, event_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id", m.itemId, m.locationId, m.kind, m.quantityMilli, m.valueMinor, m.occurredOn, m.sourceDocumentId ?? null, m.sourceLineNo ?? null, m.reason ?? null, m.jobRef ?? null, m.pairId ?? null, m.reversesMoveId ?? null, m.eventId);
+  return Number(row!.id);
+}
+export async function createItem(env: Env, input: ItemInput, ctx: Ctx): Promise<{ itemId: number; eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    await planItem(tx, input);
+    const eventId = await appendEvent(tx, "item.created", ctx, { sku: input.sku, name: input.name, unit: input.unit, ...(input.reorderLevelMilli !== undefined ? { reorderLevelMilli: input.reorderLevelMilli } : {}), ...(input.reorderQtyMilli !== undefined ? { reorderQtyMilli: input.reorderQtyMilli } : {}), ...(input.preferredSupplierId !== undefined ? { preferredSupplierId: input.preferredSupplierId } : {}) });
+    const row = await one<{ id: number }>(tx, "INSERT INTO eng_item (sku, name, unit, event_id) VALUES (?, ?, ?, ?) RETURNING id", input.sku, input.name, input.unit, eventId);
+    return { itemId: Number(row!.id), eventId };
+  });
+}
+export async function reviseItem(env: Env, input: ItemRevision, ctx: Ctx): Promise<{ eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    await planItemRevision(tx, input);
+    return { eventId: await appendEvent(tx, "item.revised", ctx, { ...input }) };
+  });
+}
+export async function createLocation(env: Env, input: LocationInput, ctx: Ctx): Promise<{ locationId: number; eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    await planLocation(tx, input);
+    const eventId = await appendEvent(tx, "location.created", ctx, { name: input.name, kind: input.kind });
+    const row = await one<{ id: number }>(tx, "INSERT INTO eng_location (name, kind, event_id) VALUES (?, ?, ?) RETURNING id", input.name, input.kind, eventId);
+    return { locationId: Number(row!.id), eventId };
+  });
+}
+export async function receiveStock(env: Env, input: ReceiveInput, ctx: Ctx): Promise<{ moveId: number; valueMinor: number; eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    const plan = await planReceive(tx, input);
+    const eventId = await appendEvent(tx, "stock.received", ctx, { itemId: input.itemId, locationId: input.locationId, quantityMilli: input.quantityMilli, valueMinor: plan.valueMinor, occurredOn: input.receivedOn, ...(plan.source ? { receipt: plan.source } : { unitCostMinor: plan.unitCostMinor }) });
+    const moveId = await insertMove(tx, { itemId: input.itemId, locationId: input.locationId, kind: "receive", quantityMilli: input.quantityMilli, valueMinor: plan.valueMinor, occurredOn: input.receivedOn, sourceDocumentId: plan.source?.documentId, sourceLineNo: plan.source?.lineNo, reason: plan.source ? "goods receipt" : "received", eventId });
+    return { moveId, valueMinor: plan.valueMinor, eventId };
+  });
+}
+export async function issueStock(env: Env, input: IssueInput, ctx: Ctx): Promise<{ moveId: number; valueMinor: number; eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    const plan = await planIssue(tx, input);
+    const eventId = await appendEvent(tx, "stock.issued", ctx, { itemId: input.itemId, locationId: input.locationId, quantityMilli: input.quantityMilli, valueMinor: plan.valueMinor, occurredOn: input.issuedOn, reason: input.reason, ...(input.jobRef ? { jobRef: input.jobRef } : {}), ...(input.documentId !== undefined ? { documentId: input.documentId, lineNo: input.lineNo } : {}) });
+    const moveId = await insertMove(tx, { itemId: input.itemId, locationId: input.locationId, kind: "issue", quantityMilli: input.quantityMilli, valueMinor: plan.valueMinor, occurredOn: input.issuedOn, sourceDocumentId: input.documentId, sourceLineNo: input.lineNo, reason: input.reason, jobRef: input.jobRef, eventId });
+    return { moveId, valueMinor: plan.valueMinor, eventId };
+  });
+}
+export async function transferStock(env: Env, input: TransferInput, ctx: Ctx): Promise<{ outMoveId: number; inMoveId: number }> {
+  return inTransaction(env, async (tx) => {
+    await planTransfer(tx, input);
+    const outEvent = await appendEvent(tx, "stock.transferred_out", ctx, { itemId: input.itemId, locationId: input.fromLocationId, toLocationId: input.toLocationId, quantityMilli: input.quantityMilli, valueMinor: 0, occurredOn: input.movedOn });
+    const outMoveId = await insertMove(tx, { itemId: input.itemId, locationId: input.fromLocationId, kind: "transfer_out", quantityMilli: input.quantityMilli, valueMinor: 0, occurredOn: input.movedOn, reason: "transfer", eventId: outEvent });
+    const inEvent = await appendEvent(tx, "stock.transferred_in", ctx, { itemId: input.itemId, locationId: input.toLocationId, fromLocationId: input.fromLocationId, quantityMilli: input.quantityMilli, valueMinor: 0, occurredOn: input.movedOn, outMoveId });
+    const inMoveId = await insertMove(tx, { itemId: input.itemId, locationId: input.toLocationId, kind: "transfer_in", quantityMilli: input.quantityMilli, valueMinor: 0, occurredOn: input.movedOn, reason: "transfer", pairId: outMoveId, eventId: inEvent });
+    return { outMoveId, inMoveId };
+  });
+}
+export async function adjustStock(env: Env, input: AdjustInput, ctx: Ctx): Promise<{ moveId: number; valueMinor: number; eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    const plan = await planAdjust(tx, input);
+    const eventId = await appendEvent(tx, "stock.adjusted", ctx, { itemId: input.itemId, locationId: input.locationId, direction: input.direction, quantityMilli: input.quantityMilli, valueMinor: plan.valueMinor, occurredOn: input.adjustedOn, reason: input.reason, ...(input.note ? { note: input.note } : {}) }, input.note ?? input.reason);
+    const moveId = await insertMove(tx, { itemId: input.itemId, locationId: input.locationId, kind: input.direction === "in" ? "adjust_in" : "adjust_out", quantityMilli: input.quantityMilli, valueMinor: plan.valueMinor, occurredOn: input.adjustedOn, reason: input.reason, eventId });
+    return { moveId, valueMinor: plan.valueMinor, eventId };
+  });
+}
+export async function reverseStockMove(env: Env, input: StockReverseInput, ctx: Ctx): Promise<{ moveId: number; eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    const plan = await planReverse(tx, input);
+    const m = plan.move;
+    const eventId = await appendEvent(tx, "stock.move_reversed", ctx, { itemId: m.item_id, locationId: m.location_id, quantityMilli: m.quantity_milli, valueMinor: m.value_minor, occurredOn: input.reversedOn, reversesMoveId: m.id, reason: input.reason, direction: plan.kind === "reversal_in" ? "in" : "out" }, input.reason);
+    const moveId = await insertMove(tx, { itemId: m.item_id, locationId: m.location_id, kind: plan.kind, quantityMilli: m.quantity_milli, valueMinor: m.value_minor, occurredOn: input.reversedOn, reason: input.reason, reversesMoveId: m.id, eventId });
+    return { moveId, eventId };
   });
 }
 

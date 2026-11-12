@@ -46,12 +46,12 @@ module.exports = kit.guard('engine ownership', async ({ check }) => {
   }
   const engineFiles = Object.keys(facts).filter((k) => k.startsWith('engine/'));
   const nonEngine = Object.keys(facts).filter((k) => !k.startsWith('engine/') && !GENERATED.has(k));
-  const mig = fs.readFileSync(path.join(kit.workerDir, 'migrations', '0004_engine_foundation.sql'), 'utf8');
+  const mig = ['0004_engine_foundation.sql', '0005_engine_stock.sql'].map((f) => fs.readFileSync(path.join(kit.workerDir, 'migrations', f), 'utf8')).join('\n');   // 0005 (stock) added 2026-11-11 with Pierre's waiver of the restore-drill gate for additive engine tables
   const ENGINE_TABLES = new Set([...mig.matchAll(/CREATE TABLE (?:IF NOT EXISTS )?(eng_[a-z_]+)/g)].map((m) => m[1]));
-  check(engineFiles.length >= 14 && ENGINE_TABLES.size === 13, `FIXTURE: ${engineFiles.length} engine files scanned, ${nonEngine.length} other source files, migration 0004 creates ${ENGINE_TABLES.size} tables`);
-  const FACT = new Set(['eng_event', 'eng_party', 'eng_party_role', 'eng_document', 'eng_document_line', 'eng_document_number', 'eng_money_movement', 'eng_allocation', 'eng_reversal', 'eng_interpretation']);
+  check(engineFiles.length >= 14 && ENGINE_TABLES.size === 16, `FIXTURE: ${engineFiles.length} engine files scanned, ${nonEngine.length} other source files, migrations 0004 and 0005 create ${ENGINE_TABLES.size} tables`);
+  const FACT = new Set(['eng_event', 'eng_party', 'eng_party_role', 'eng_document', 'eng_document_line', 'eng_document_number', 'eng_money_movement', 'eng_allocation', 'eng_reversal', 'eng_interpretation', 'eng_item', 'eng_location', 'eng_stock_move']);
   const MUTABLE = new Set(['eng_config', 'eng_draft', 'eng_observation']);
-  check([...FACT, ...MUTABLE].length === 13 && [...FACT, ...MUTABLE].every((t) => ENGINE_TABLES.has(t)), 'FIXTURE: the ten fact tables and three mutable tables named here are exactly the thirteen the migration creates');
+  check([...FACT, ...MUTABLE].length === 16 && [...FACT, ...MUTABLE].every((t) => ENGINE_TABLES.has(t)), 'FIXTURE: the thirteen fact tables and three mutable tables named here are exactly the sixteen the migrations create');
   const canon = (o) => JSON.stringify(o, (_k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, v[k]])) : v));
   const sqlTables = (strings) => { const out = new Set(); for (const s of strings) for (const m of s.matchAll(/\b(?:FROM|JOIN|INTO|UPDATE|REFERENCES)\s+([a-z_][a-z0-9_]*)/g)) out.add(m[1]); return out; };
 
@@ -119,10 +119,11 @@ module.exports = kit.guard('engine ownership', async ({ check }) => {
     eng_event: ['capability-contract.ts INSERT', 'engine/facts.ts INSERT'],   // facts.ts for every fact; capability-contract.ts for the single operation.executed record
     eng_party: ['engine/facts.ts INSERT'], eng_party_role: ['engine/facts.ts INSERT'], eng_document: ['engine/facts.ts INSERT'], eng_document_line: ['engine/facts.ts INSERT'], eng_document_number: ['engine/facts.ts INSERT'],
     eng_money_movement: ['engine/facts.ts INSERT'], eng_allocation: ['engine/facts.ts INSERT'], eng_reversal: ['engine/facts.ts INSERT'], eng_interpretation: ['engine/facts.ts INSERT'],
+    eng_item: ['engine/facts.ts INSERT'], eng_location: ['engine/facts.ts INSERT'], eng_stock_move: ['engine/facts.ts INSERT'],   // stock (0005): inserted only by the fact layer
     eng_config: ['engine/admin.ts INSERT', 'engine/boundary.ts DELETE', 'engine/boundary.ts INSERT'], eng_draft: ['engine/drafts.ts INSERT', 'engine/drafts.ts UPDATE'], eng_observation: ['engine/admin.ts INSERT', 'engine/availability.ts INSERT'],
   };
   const factVerbs = Object.entries(W).filter(([t]) => FACT.has(t)).flatMap(([t, v]) => v.filter((x) => !x.endsWith(' INSERT')).map((x) => `${t}: ${x}`));
-  check(factVerbs.length === 0, `R6: the ten FACT tables are INSERT-ONLY everywhere in the source: there is no UPDATE and no DELETE of any of them${factVerbs.length ? ' [VIOLATIONS: ' + factVerbs.join('; ') + ']' : ''}`);
+  check(factVerbs.length === 0, `R6: the thirteen FACT tables are INSERT-ONLY everywhere in the source: there is no UPDATE and no DELETE of any of them${factVerbs.length ? ' [VIOLATIONS: ' + factVerbs.join('; ') + ']' : ''}`);
   const factWriters = Object.entries(W).filter(([t]) => FACT.has(t)).flatMap(([t, v]) => v.map((x) => `${t}: ${x}`)).filter((x) => !x.includes('engine/facts.ts') && !x.startsWith('eng_event: capability-contract.ts'));
   check(factWriters.length === 0, `R6: fact rows are written only by engine/facts.ts, with the one exception of capability-contract.ts recording operation.executed in eng_event${factWriters.length ? ' [VIOLATIONS: ' + factWriters.join('; ') + ']' : ''}`);
   check(JSON.stringify(W.eng_interpretation) === JSON.stringify(['engine/facts.ts INSERT']), 'R6: eng_interpretation has exactly one writer, engine/facts.ts, and it only inserts (the door records what was understood from a capture)');

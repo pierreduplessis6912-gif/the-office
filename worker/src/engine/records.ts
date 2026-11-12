@@ -84,7 +84,7 @@ export async function versionOf(env: Env, ref: RecordRef): Promise<number> {
   return latest;
 }
 
-async function history(env: Env, eventIds: number[]): Promise<RecordView["history"]> {
+export async function history(env: Env, eventIds: number[]): Promise<RecordView["history"]> {
   const ids = [...new Set(eventIds.filter((x) => Number.isInteger(x)))].sort((a, b) => a - b).slice(-50);
   if (ids.length === 0) return [];
   const rows = await many<{ id: number; type: string; occurred_at: string; actor_email: string | null; reason: string | null; capture_id: number | null; proposal_id: number | null; approved_by: string | null; contract: string | null; contract_version: number | null }>(env, `SELECT id, type, occurred_at, actor_email, reason, capture_id, proposal_id, approved_by, contract, contract_version FROM eng_event WHERE id IN (${ids.map(() => "?").join(",")}) ORDER BY id`, ...ids);

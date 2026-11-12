@@ -15,6 +15,8 @@ import { allQuotations, checkDate, checkLines, checkReference, planQuotationAcce
 import { documentTotals as sumTotals } from "./money";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, vatSummary, type ProfileChange } from "./business";
 import { movementAvailable, planPaymentAllocation, planPaymentRefund, refundMovementOrThrow } from "./credits";
+import { ADJUST_REASONS, allItemIds, allLocations, checkAdjustInput, checkIssueInput, checkItemInput, checkItemRevision, checkLocationInput, checkReceiveInput, checkReverseInput as checkStockReverse, checkTransferInput, itemProfile, planAdjust, planIssue, planItem, planItemRevision, planLocation, planReceive, planReverse, planTransfer, stockLedger, stockReport, type AdjustInput, type IssueInput, type ItemInput, type ItemRevision, type LocationInput, type ReceiveInput, type StockReverseInput, type TransferInput } from "./stock";
+import { history as recordHistory } from "./records";
 import { allBills, checkBillInput, planBill, planBillVoid, planSupplierPayment, type BillInput } from "./bills";
 import { allOrders, checkReceiptLines, checkShortText, planCancel, planOrder, planReceipt, type ReceiptLineInput } from "./purchasing";
 import { allExpenses, checkExpenseInput, EXPENSE_CATEGORIES, planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
@@ -959,7 +961,82 @@ export const supplierInvoicesFind: ReadCapability<{ supplierId?: number; status?
   },
 };
 
-export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind];
+// ---- stock: items, locations and the movement ledger (docs/decisions/inventory.md, inventory-integration.md) -------------------------------------------------------------------------------------------
+// A stock movement that carries a VALUE (a receipt, an issue, a write-off) has the value the ENGINE worked out stamped on the proposal, so the approver sees what is being approved; at approval it is worked out again and a proposal whose value has since changed
+// (another receipt moved the average) is refused as stale rather than approved at a different cost than the one that was shown.
+const stockContract = <P extends object>(id: string, label: string, perm: "stock.manage" | "stock.move", check1: (v: unknown) => { ok: true; value: P } | { ok: false; reason: string }, plan: (env: Env, v: P) => Promise<unknown>, run: (env: Env, v: P, c: Parameters<CapabilityContract<P>["execute"]>[2]) => Promise<Record<string, unknown>>): CapabilityContract<P> => ({
+  id, heldType: `engine.${id}`, label, requires: [], permissions: [perm], version: 1, recordsExecution: true,
+  validate: (payload) => check1(payload),
+  async stamp(env, value) { const p = (await plan(env, value)) as { valueMinor?: number } | undefined; return p && typeof p.valueMinor === "number" ? { ...value, valueMinor: p.valueMinor } : value; },
+  async check(env, value) {
+    const p = (await plan(env, value)) as { valueMinor?: number } | undefined;
+    const shown = (value as { valueMinor?: number }).valueMinor;
+    if (p && typeof p.valueMinor === "number" && shown !== undefined && shown !== p.valueMinor) throw new EngineError("stale", `The value of this has changed since it was proposed (it was ${shown}, it is now ${p.valueMinor}), so it needs to be proposed again.`);
+  },
+  async execute(env, v, c) { const { valueMinor: _shown, ...rest } = v as P & { valueMinor?: number }; return run(env, rest as unknown as P, c); },
+});
+export const itemCreate = stockContract<ItemInput>("item.create", "Adding a stock item", "stock.manage", checkItemInput, (e, v) => planItem(e, v), async (e, v, c) => { const r = await facts.createItem(e, v, ctxOf(c, "item.create")); return { itemId: r.itemId, eventId: r.eventId }; });
+export const itemRevise = stockContract<ItemRevision>("item.revise", "Changing a stock item", "stock.manage", checkItemRevision, (e, v) => planItemRevision(e, v), async (e, v, c) => { const r = await facts.reviseItem(e, v, ctxOf(c, "item.revise")); return { eventId: r.eventId }; });
+export const locationCreate = stockContract<LocationInput>("location.create", "Adding a stock location", "stock.manage", checkLocationInput, (e, v) => planLocation(e, v), async (e, v, c) => { const r = await facts.createLocation(e, v, ctxOf(c, "location.create")); return { locationId: r.locationId, eventId: r.eventId }; });
+export const stockReceive = stockContract<ReceiveInput>("stock.receive", "Putting goods into stock", "stock.manage", checkReceiveInput, (e, v) => planReceive(e, v), async (e, v, c) => { const r = await facts.receiveStock(e, v, ctxOf(c, "stock.receive")); return { moveId: r.moveId, valueMinor: r.valueMinor, eventId: r.eventId }; });
+export const stockIssue = stockContract<IssueInput>("stock.issue", "Issuing stock", "stock.move", checkIssueInput, (e, v) => planIssue(e, v), async (e, v, c) => { const r = await facts.issueStock(e, v, ctxOf(c, "stock.issue")); return { moveId: r.moveId, valueMinor: r.valueMinor, eventId: r.eventId }; });
+export const stockTransfer = stockContract<TransferInput>("stock.transfer", "Moving stock between locations", "stock.move", checkTransferInput, (e, v) => planTransfer(e, v), async (e, v, c) => { const r = await facts.transferStock(e, v, ctxOf(c, "stock.transfer")); return { outMoveId: r.outMoveId, inMoveId: r.inMoveId }; });
+export const stockAdjust = stockContract<AdjustInput>("stock.adjust", "Adjusting stock", "stock.manage", checkAdjustInput, (e, v) => planAdjust(e, v), async (e, v, c) => { const r = await facts.adjustStock(e, v, ctxOf(c, "stock.adjust")); return { moveId: r.moveId, valueMinor: r.valueMinor, eventId: r.eventId }; });
+export const stockReverse = stockContract<StockReverseInput>("stock.reverse", "Reversing a stock movement", "stock.manage", checkStockReverse, (e, v) => planReverse(e, v), async (e, v, c) => { const r = await facts.reverseStockMove(e, v, ctxOf(c, "stock.reverse")); return { moveId: r.moveId, eventId: r.eventId }; });
+
+const showValue = (viewer: { perms: ReadonlySet<string> | Set<string> }) => viewer.perms.has("stock.value");
+export const itemsFind: ReadCapability<{ name?: string; sku?: string; active?: boolean; belowReorder?: boolean }> = {
+  id: "items.find", label: "Finding stock items", permissions: ["stock.read"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["name", "sku", "active", "belowReorder"]); if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const out: { name?: string; sku?: string; active?: boolean; belowReorder?: boolean } = {};
+    for (const k of ["name", "sku"] as const) if (params[k] !== undefined) { if (typeof params[k] !== "string" || !(params[k] as string).trim() || (params[k] as string).length > 120) return { ok: false, reason: `${k} must be 1 to 120 characters` }; out[k] = (params[k] as string).trim(); }
+    for (const k of ["active", "belowReorder"] as const) if (params[k] !== undefined) { if (typeof params[k] !== "boolean") return { ok: false, reason: `${k} must be true or false` }; out[k] = params[k] as boolean; }
+    return { ok: true, value: out };
+  },
+  async run(env, viewer, v) {
+    const rows = (await stockReport(env)).filter((r) => (v.name === undefined || r.name.toLowerCase().includes(v.name.toLowerCase())) && (v.sku === undefined || r.sku.toLowerCase() === v.sku.toLowerCase()) && (v.active === undefined || r.active === v.active) && (v.belowReorder === undefined || r.belowReorder === v.belowReorder));
+    const money = showValue(viewer);
+    return { items: rows.slice(0, 200).map((r) => ({ ref: { kind: "item", id: r.itemId }, id: r.itemId, sku: r.sku, name: r.name, unit: r.unit, active: r.active, quantityMilli: r.quantityMilli, reorderLevelMilli: r.reorderLevelMilli, belowReorder: r.belowReorder, valueMinor: money ? r.valueMinor : null, averageCostMinor: money ? r.averageCostMinor : null, locations: r.locations })), count: rows.length, truncated: rows.length > 200, derivedBy: "stock.stockReport" };
+  },
+};
+export const stockOnHand: ReadCapability<{ itemId?: number; locationId?: number }> = {
+  id: "stock.on_hand", label: "Stock on hand", permissions: ["stock.read"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["itemId", "locationId"]); if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const out: { itemId?: number; locationId?: number } = {};
+    for (const k of ["itemId", "locationId"] as const) if (params[k] !== undefined) { if (!whole(params[k])) return { ok: false, reason: `${k} must be a record number` }; out[k] = params[k] as number; }
+    return { ok: true, value: out };
+  },
+  async run(env, viewer, v) {
+    if (v.itemId !== undefined && !(await itemProfile(env, v.itemId))) throw new EngineError("not_found", "There is no such item.");
+    const rows = await stockReport(env, v); const money = showValue(viewer);
+    return { stock: rows.map((r) => ({ itemId: r.itemId, sku: r.sku, name: r.name, unit: r.unit, quantityMilli: r.quantityMilli, belowReorder: r.belowReorder, valueMinor: money ? r.valueMinor : null, averageCostMinor: money ? r.averageCostMinor : null, locations: r.locations })), locations: await allLocations(env), totalValueMinor: money ? rows.reduce((s, r) => s + r.valueMinor, 0) : null, derivedBy: "stock.stockReport" };
+  },
+};
+export const stockLedgerRead: ReadCapability<{ itemId: number; from?: string; to?: string }> = {
+  id: "stock.ledger", label: "The movements of a stock item", permissions: ["stock.read"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["itemId", "from", "to"]); if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (!whole(params.itemId)) return { ok: false, reason: "itemId must be a record number" };
+    const out: { itemId: number; from?: string; to?: string } = { itemId: params.itemId };
+    if (params.from !== undefined) { const d = checkDate(params.from, "from"); if (!d.ok) return d; out.from = d.value; }
+    if (params.to !== undefined) { const d = checkDate(params.to, "to"); if (!d.ok) return d; out.to = d.value; }
+    if (out.from !== undefined && out.to !== undefined && out.to < out.from) return { ok: false, reason: "to cannot be before from" };
+    return { ok: true, value: out };
+  },
+  async run(env, viewer, v) {
+    const item = await itemProfile(env, v.itemId); if (!item) throw new EngineError("not_found", "There is no such item.");
+    const rows = await stockLedger(env, v.itemId, v); const money = showValue(viewer);
+    const explained = await recordHistory(env, rows.map((r) => r.eventId));
+    return { item: { id: item.id, sku: item.sku, name: item.name, unit: item.unit }, moves: rows.slice(-200).map((r) => ({ ...r, valueMinor: money ? r.valueMinor : null, explained: explained.find((h) => h.eventId === r.eventId) ?? null })), count: rows.length, truncated: rows.length > 200, derivedBy: "stock.stockLedger" };
+  },
+};
+
+export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
@@ -967,5 +1044,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

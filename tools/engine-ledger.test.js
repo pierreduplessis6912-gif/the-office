@@ -62,7 +62,7 @@ module.exports = kit.guard('engine ledger', async ({ check }) => {
 
   const engineDir = path.join(kit.workerDir, 'src', 'engine');
   const sources = fs.readdirSync(engineDir).filter((f) => f.endsWith('.ts')).map((f) => [f, fs.readFileSync(path.join(engineDir, f), 'utf8')]);
-  const FACTS = ['eng_event', 'eng_party', 'eng_party_role', 'eng_document', 'eng_document_line', 'eng_document_number', 'eng_money_movement', 'eng_allocation', 'eng_reversal', 'eng_interpretation'];
+  const FACTS = ['eng_event', 'eng_party', 'eng_party_role', 'eng_document', 'eng_document_line', 'eng_document_number', 'eng_money_movement', 'eng_allocation', 'eng_reversal', 'eng_interpretation', 'eng_item', 'eng_location', 'eng_stock_move'];
   check(sameSet(eng.FACT_TABLES, FACTS), 'the engine declares exactly which tables hold facts: ' + FACTS.length + ' (FACT_TABLES)');
   check(sameSet(eng.MUTABLE_TABLES, ['eng_config', 'eng_draft', 'eng_observation']), 'and which three are working state (configuration, drafts, observations): MUTABLE_TABLES');
   const edits = sources.flatMap(([f, text]) => (text.match(new RegExp(`\\b(UPDATE|DELETE\\s+FROM|REPLACE\\s+INTO|INSERT\\s+OR\\s+REPLACE)\\s+(?:INTO\\s+)?"?(${FACTS.join('|')})\\b`, 'gi')) || []).map((m) => `${f}: ${m}`));

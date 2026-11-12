@@ -36,7 +36,7 @@ module.exports = kit.guard('engine fit domains', async ({ check }) => {
   const customer = await party('Mokoena Builders', ['customer']), supplier = await party('Floor Supplies', ['supplier']), fitter = await party('Sipho', ['worker']), lead = await party('Zulu Interiors', ['lead']), lead2 = await party('Naidoo Homes', ['lead']);
 
   // ---- 6. INVENTORY: an item, stock moves sourced from documents, on-hand, reserved, available, valuation, a price list that changes ------------------------------------------------------------------
-  const item = Number(db.prepare("INSERT INTO tf2_item (sku, name, event_id) VALUES ('PLANK-18', 'Plank 18mm', ?) RETURNING id").get(ev('item.created')).id);
+  const item = Number(db.prepare("INSERT INTO tf2_item (sku, name, event_id) VALUES ('PLANK-18', 'Plank 18mm', ?) RETURNING id").get(ev('fit.item_created')).id);
   const move = (kind, sign, qtyMilli, documentId, reason = null) => db.prepare('INSERT INTO tf2_stock_move (item_id, kind, quantity_milli, sign, source_document_id, reason, event_id) VALUES (?, ?, ?, ?, ?, ?, ?)').run(item, kind, qtyMilli, sign, documentId, reason, ev('stock.' + kind));
   const bought = await doc('supplier_invoice', 'buy', supplier, [line('Plank 18mm', 100000, 5000)]);   // 100.000 at R50.00
   move('receive', 1, 100000, bought.id);

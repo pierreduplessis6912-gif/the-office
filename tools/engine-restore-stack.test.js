@@ -13,7 +13,7 @@ module.exports = kit.guard('engine restore (stack)', async ({ check }) => {
   const { facts, ledger } = eng;
   const bk = kit.bundle('backup.ts', 'backup');
   const CTX = { actorEmail: 'accountant@example.com', contract: 'test', contractVersion: 1 };
-  const ENG = ['eng_config', 'eng_event', 'eng_party', 'eng_party_role', 'eng_draft', 'eng_document', 'eng_document_line', 'eng_document_number', 'eng_money_movement', 'eng_allocation', 'eng_reversal', 'eng_interpretation', 'eng_observation'];
+  const ENG = ['eng_config', 'eng_event', 'eng_party', 'eng_party_role', 'eng_draft', 'eng_document', 'eng_document_line', 'eng_document_number', 'eng_money_movement', 'eng_allocation', 'eng_reversal', 'eng_interpretation', 'eng_observation', 'eng_item', 'eng_location', 'eng_stock_move'];
   const fingerprint = (db, tables) => crypto.createHash('sha256').update(tables.map((t) => t + JSON.stringify(db.prepare(`SELECT * FROM "${t}" ORDER BY rowid`).all())).join('|')).digest('hex');
   const L = (price, d, bp = 1500, qty = 1000) => [{ description: d, quantityMilli: qty, unit: 'u', unitPriceMinor: price, taxBp: bp }];
 
@@ -49,7 +49,17 @@ module.exports = kit.guard('engine restore (stack)', async ({ check }) => {
     await facts.voidExpense(w.env, { expenseId: e4.documentId, reason: 'duplicate', voidedOn: '2026-10-17' }, CTX);
     await facts.setTaxLock(w.env, { lockDate: '2026-10-31' }, CTX);
     await facts.recordExpense(w.env, { supplierId: sup, incurredOn: '2026-10-20', method: 'eft', category: 'materials', currency: 'ZAR', amountsIncludeTax: true, lines: [{ description: 'Late invoice', amountMinor: 11500, taxBp: 1500 }], amountPaidMinor: 11500, taxInvoiceHeld: true, supplierInvoiceNumber: 'LATE-1' }, CTX);   // claimed in November
-    return { cust, sup, inv1, inv2, q1, q2, cn1, cn2, dn, over, e1 };
+    // stock: items, locations and the movement ledger (migration 0005), through every kind of movement
+    const item = (await facts.createItem(w.env, { sku: 'PLY-18', name: 'Plywood 18mm sheet', unit: 'sheet', reorderLevelMilli: 5000, preferredSupplierId: sup }, CTX)).itemId;
+    await facts.reviseItem(w.env, { itemId: item, name: 'Plywood 18mm board', reorderLevelMilli: 3000 }, CTX);
+    const main = (await facts.createLocation(w.env, { name: 'Main store', kind: 'warehouse' }, CTX)).locationId, van = (await facts.createLocation(w.env, { name: 'Bakkie 1', kind: 'vehicle' }, CTX)).locationId;
+    await facts.receiveStock(w.env, { itemId: item, locationId: main, quantityMilli: 10000, receivedOn: '2026-10-06', unitCostMinor: 20000 }, CTX);
+    await facts.receiveStock(w.env, { itemId: item, locationId: main, quantityMilli: 10000, receivedOn: '2026-10-07', unitCostMinor: 30000 }, CTX);
+    const iss = await facts.issueStock(w.env, { itemId: item, locationId: main, quantityMilli: 5000, issuedOn: '2026-10-08', reason: 'job', jobRef: 'Mokoena lounge' }, CTX);
+    await facts.transferStock(w.env, { itemId: item, fromLocationId: main, toLocationId: van, quantityMilli: 4000, movedOn: '2026-10-09' }, CTX);
+    await facts.adjustStock(w.env, { itemId: item, locationId: van, direction: 'out', quantityMilli: 500, adjustedOn: '2026-10-10', reason: 'damage', note: 'dropped' }, CTX);
+    await facts.reverseStockMove(w.env, { moveId: iss.moveId, reason: 'wrong job', reversedOn: '2026-10-11' }, CTX);
+    return { cust, sup, inv1, inv2, q1, q2, cn1, cn2, dn, over, e1, item };
   };
 
   // every answer the business derives from its facts and events, as the app and the assistants read them
@@ -62,6 +72,7 @@ module.exports = kit.guard('engine restore (stack)', async ({ check }) => {
     owes: await ledger.outstandingForParty(w.env, ids.cust), credit: await ledger.unappliedCreditForParty(w.env, ids.cust),
     cn1: await eng.credits.creditAvailable(w.env, ids.cn1.documentId), cn2: await eng.credits.creditAvailable(w.env, ids.cn2.documentId),
     particulars: [await eng.business.documentParticulars(w.env, ids.inv1.id), await eng.business.documentParticulars(w.env, ids.cn1.documentId)],
+    stock: await eng.stock.stockReport(w.env), ledger: await eng.stock.stockLedger(w.env, ids.item), locations: await eng.stock.allLocations(w.env), profile1: await eng.stock.itemProfile(w.env, ids.item),
   });
 
   const w = kit.makeWorld({ backups: true });
@@ -69,17 +80,18 @@ module.exports = kit.guard('engine restore (stack)', async ({ check }) => {
   const integ = await eng.verifyIntegrity(w.env);
   check(integ.ok === true && integ.problems.length === 0 && integ.warnings.length === 0, 'the business built through every capability since the first slice verifies clean before the snapshot (no problem, no unmodelled event)');
   const events = w.db.prepare('SELECT type, COUNT(*) AS n FROM eng_event GROUP BY type').all().map((r) => r.type);
-  check(['business.profile_set', 'tax_lock.set', 'party.revised', 'quotation.revised', 'quotation.accepted', 'credit_note.issued', 'credit.allocated', 'credit.refunded', 'credit_note.voided', 'debit_note.issued', 'overpayment.refunded', 'expense.recorded', 'expense.voided'].every((t) => events.includes(t)), 'its history really uses every one of the new event types');
+  check(['business.profile_set', 'tax_lock.set', 'party.revised', 'quotation.revised', 'quotation.accepted', 'credit_note.issued', 'credit.allocated', 'credit.refunded', 'credit_note.voided', 'debit_note.issued', 'overpayment.refunded', 'expense.recorded', 'expense.voided', 'item.created', 'item.revised', 'location.created', 'stock.received', 'stock.issued', 'stock.transferred_out', 'stock.transferred_in', 'stock.adjusted', 'stock.move_reversed'].every((t) => events.includes(t)), 'its history really uses every one of the new event types, stock included');
   const before = await derive(w, ids), engineBefore = fingerprint(w.db, ENG);
   const seqBefore = JSON.stringify(w.db.prepare('SELECT name, seq FROM sqlite_sequence ORDER BY name').all());
   const D = JSON.parse(before);
   check(D.vatNov.field15Minor === 1500 && D.vatOct.field14Minor === 15000 && D.vatOct.field15Minor === 3000 && D.credit > 0 && D.cn1 >= 0, 'set-up sanity: the derived answers are the ones the history implies (the late October expense claimed in November, capital goods in field 14, credit still owed back)');
+  check(D.stock.length === 1 && D.stock[0].quantityMilli === 19500 && D.stock[0].valueMinor === 487500 && D.profile1.name === 'Plywood 18mm board', 'set-up sanity (stock): 20 sheets in, 5 issued then the issue reversed, 0.5 written off, so 19.5 are on hand, under the revised name');
   const snap = await bk.takeSnapshot(w.env, new Date('2026-11-16T03:00:00Z'));
   check(snap && snap.complete === true && ENG.every((t) => snap.tables.some((x) => x.name === t)), 'a snapshot is taken, complete, and lists every engine table');
 
   // damage that a careless fix might do: remove facts and events, edit a fact, add junk
   w.db.exec('PRAGMA foreign_keys = OFF');
-  for (const t of ['eng_reversal', 'eng_allocation', 'eng_money_movement']) w.db.exec(`DELETE FROM ${t}`);
+  for (const t of ['eng_reversal', 'eng_allocation', 'eng_money_movement', 'eng_stock_move']) w.db.exec(`DELETE FROM ${t}`);
   w.db.prepare("DELETE FROM eng_event WHERE type IN ('expense.recorded', 'credit_note.issued', 'tax_lock.set', 'business.profile_set')").run();
   w.db.prepare('UPDATE eng_document_line SET unit_price_minor = 1').run();
   w.db.prepare("INSERT INTO eng_event (type, payload_json) VALUES ('expense.recorded', '{\"documentId\":999}')").run();

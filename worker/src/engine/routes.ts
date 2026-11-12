@@ -66,6 +66,21 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
     const sid = q("supplierId");
     return answer(await invokeRead(env, member, "supplier_invoices.find", { ...(sid !== null ? { supplierId: /^\d+$/.test(sid) ? Number(sid) : sid } : {}), ...(q("status") !== null ? { status: q("status") } : {}) }));
   }
+  if (request.method === "GET" && path === "/engine/items") {
+    const q = (k: string) => url.searchParams.get(k);
+    const flag = (k: string) => (q(k) === "true" ? true : q(k) === "false" ? false : q(k) === null ? undefined : q(k));
+    return answer(await invokeRead(env, member, "items.find", { ...(q("name") !== null ? { name: q("name") } : {}), ...(q("sku") !== null ? { sku: q("sku") } : {}), ...(flag("active") !== undefined ? { active: flag("active") } : {}), ...(flag("belowReorder") !== undefined ? { belowReorder: flag("belowReorder") } : {}) }));
+  }
+  if (request.method === "GET" && path === "/engine/stock") {
+    const q = (k: string) => url.searchParams.get(k);
+    const num = (k: string) => { const v = q(k); return v === null ? undefined : /^\d+$/.test(v) ? Number(v) : v; };
+    return answer(await invokeRead(env, member, "stock.on_hand", { ...(num("itemId") !== undefined ? { itemId: num("itemId") } : {}), ...(num("locationId") !== undefined ? { locationId: num("locationId") } : {}) }));
+  }
+  if (request.method === "GET" && path === "/engine/stock/ledger") {
+    const q = (k: string) => url.searchParams.get(k);
+    const iid = q("itemId");
+    return answer(await invokeRead(env, member, "stock.ledger", { ...(iid !== null ? { itemId: /^\d+$/.test(iid) ? Number(iid) : iid } : {}), ...(q("from") !== null ? { from: q("from") } : {}), ...(q("to") !== null ? { to: q("to") } : {}) }));
+  }
   const rec = path.match(/^\/engine\/records\/([a-z]+)\/(\d+)$/);
   if (request.method === "GET" && rec) return answer(await invokeRead(env, member, "records.get", { kind: rec[1], id: Number(rec[2]) }));
   if (request.method === "POST" && path === "/engine/proposals") {

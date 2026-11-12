@@ -26,12 +26,12 @@ import { documentTotals as sumTotals } from "./money";
 import { documentTotals as docTotals } from "./ledger";
 
 export interface IntegrityProblem {
-  code: "orphan" | "fact_changed" | "over_allocated" | "allocation_on_reversed" | "number_gap" | "event_without_fact" | "event_multiple_facts" | "fact_wrong_event" | "reversal_mismatch" | "event_payload_malformed";
+  code: "orphan" | "fact_changed" | "over_allocated" | "allocation_on_reversed" | "number_gap" | "event_without_fact" | "event_multiple_facts" | "fact_wrong_event" | "reversal_mismatch" | "stock_invariant" | "event_payload_malformed";
   detail: string;
 }
 export interface IntegrityWarning { code: "event_type_not_modelled"; detail: string }
 
-type FactKind = "party" | "document" | "movement" | "allocation" | "reversal";
+type FactKind = "party" | "document" | "movement" | "allocation" | "reversal" | "item" | "location" | "stock_move";
 // Every event type the engine writes. `creates` is the kind of fact the event requires (exactly one); null means the event creates none.
 export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: string }> = {
   "party.created": { creates: "party", note: "one eng_party, plus one eng_party_role per role in the payload" },
@@ -61,9 +61,18 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "supplier_invoice.recorded": { creates: null, note: "a supplier bill: keeps what its document cannot (the order it bills, the match at the time, the claim date); the document is created by its own event beside it" },
   "supplier_invoice.voided": { creates: null, note: "a supplier bill is voided; the reversal is created by its own event beside it" },
   "supplier_payment.recorded": { creates: null, note: "a supplier is paid: ties the money-out movement to the bills it was allocated to; the movement and allocations are created by their own events beside it" },
+  "item.created": { creates: "item", note: "one eng_item (its reorder level and preferred supplier live in this event and in later item.revised events)" },
+  "item.revised": { creates: null, note: "a change to an item's name, reorder level, preferred supplier or active flag; creates no fact row, because the current profile is DERIVED (stock.ts)" },
+  "location.created": { creates: "location", note: "one eng_location" },
+  "stock.received": { creates: "stock_move", note: "one eng_stock_move of kind receive" },
+  "stock.issued": { creates: "stock_move", note: "one eng_stock_move of kind issue, with the weighted average cost stamped at that moment" },
+  "stock.transferred_out": { creates: "stock_move", note: "one eng_stock_move of kind transfer_out (the first leg of a transfer; it moves quantity, not value)" },
+  "stock.transferred_in": { creates: "stock_move", note: "one eng_stock_move of kind transfer_in, paired with its transfer_out" },
+  "stock.adjusted": { creates: "stock_move", note: "one eng_stock_move of kind adjust_in or adjust_out, always with a reason" },
+  "stock.move_reversed": { creates: "stock_move", note: "one eng_stock_move of kind reversal_in or reversal_out that mirrors the movement it reverses" },
   "operation.executed": { creates: null, note: "the record that an approved proposal executed; it creates no fact" },
 };
-const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal" };
+const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal", item: "eng_item", location: "eng_location", stock_move: "eng_stock_move" };
 
 const many = async <T>(env: Env, sql: string, ...binds: unknown[]): Promise<T[]> => ((await env.OFFICE_DB.prepare(sql).bind(...binds).all<T>()).results ?? []);
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -352,6 +361,45 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
       if (p.orderId !== undefined && (typeof p.orderId !== "number" || !orderDocs.has(p.orderId))) gone("purchase order", p.orderId);
     } else if (!reversed.has(p.documentId)) problems.push({ code: "orphan", detail: `event ${e.id} (supplier_invoice.voided): bill ${p.documentId} is not reversed` });
   }
+
+  // stock: every item, location and movement carries an event of the right kind that says what the row says; and the invariants of the ledger (docs/decisions/inventory.md section 5)
+  const stockEventFor: Record<string, string[]> = { receive: ["stock.received"], issue: ["stock.issued"], transfer_out: ["stock.transferred_out"], transfer_in: ["stock.transferred_in"], adjust_in: ["stock.adjusted"], adjust_out: ["stock.adjusted"], reversal_in: ["stock.move_reversed"], reversal_out: ["stock.move_reversed"] };
+  for (const it of await many<{ id: number; sku: string; name: string; unit: string; event_id: number }>(env, "SELECT id, sku, name, unit, event_id FROM eng_item")) {
+    const ev = wrongEvent("item", it.id, it.event_id, ["item.created"]);
+    if (ev && (!ev.payload || !same([ev.payload.sku, ev.payload.name, ev.payload.unit], [it.sku, it.name, it.unit]))) problems.push({ code: "fact_changed", detail: `item ${it.id} no longer matches what was recorded` });
+  }
+  for (const l of await many<{ id: number; name: string; kind: string; event_id: number }>(env, "SELECT id, name, kind, event_id FROM eng_location")) {
+    const ev = wrongEvent("location", l.id, l.event_id, ["location.created"]);
+    if (ev && (!ev.payload || !same([ev.payload.name, ev.payload.kind], [l.name, l.kind]))) problems.push({ code: "fact_changed", detail: `location ${l.id} no longer matches what was recorded` });
+  }
+  const moves = await many<{ id: number; item_id: number; location_id: number; kind: string; quantity_milli: number; value_minor: number; occurred_on: string; source_document_id: number | null; source_line_no: number | null; pair_id: number | null; reverses_move_id: number | null; event_id: number }>(env, "SELECT id, item_id, location_id, kind, quantity_milli, value_minor, occurred_on, source_document_id, source_line_no, pair_id, reverses_move_id, event_id FROM eng_stock_move ORDER BY id");
+  const byId = new Map(moves.map((m) => [m.id, m]));
+  const inKinds = new Set(["receive", "transfer_in", "adjust_in", "reversal_in"]);
+  const runningQty = new Map<string, number>(), itemQty = new Map<number, number>(), itemVal = new Map<number, number>();
+  const stockedFromLine = new Map<string, number>(); const transferIn = new Map<number, number>();
+  for (const m of moves) {
+    const ev = wrongEvent("stock movement", m.id, m.event_id, stockEventFor[m.kind] ?? []);
+    if (ev && (!ev.payload || !same([ev.payload.itemId, ev.payload.locationId, ev.payload.quantityMilli, ev.payload.valueMinor, ev.payload.occurredOn], [m.item_id, m.location_id, m.quantity_milli, m.value_minor, m.occurred_on]))) problems.push({ code: "fact_changed", detail: `stock movement ${m.id} no longer matches what was recorded` });
+    const sign = inKinds.has(m.kind) ? 1 : -1, key = `${m.item_id}:${m.location_id}`;
+    const q = (runningQty.get(key) ?? 0) + sign * m.quantity_milli; runningQty.set(key, q);
+    if (q < 0) problems.push({ code: "stock_invariant", detail: `item ${m.item_id} goes negative (${q} thousandths) at location ${m.location_id} on movement ${m.id}` });
+    const tq = (itemQty.get(m.item_id) ?? 0) + sign * m.quantity_milli, tv = (itemVal.get(m.item_id) ?? 0) + sign * m.value_minor; itemQty.set(m.item_id, tq); itemVal.set(m.item_id, tv);
+    if (tv < 0) problems.push({ code: "stock_invariant", detail: `item ${m.item_id} has negative value (${tv}) after movement ${m.id}` });
+    if (tq === 0 && tv !== 0) problems.push({ code: "stock_invariant", detail: `item ${m.item_id} has no stock but value ${tv} left after movement ${m.id}: value must reach exactly zero with the quantity` });
+    if (m.kind === "reversal_in" || m.kind === "reversal_out") {
+      const o = m.reverses_move_id === null ? undefined : byId.get(m.reverses_move_id);
+      if (!o) problems.push({ code: "reversal_mismatch", detail: `stock movement ${m.id} reverses movement ${String(m.reverses_move_id)}, which does not exist` });
+      else if (o.item_id !== m.item_id || o.location_id !== m.location_id || o.quantity_milli !== m.quantity_milli || o.value_minor !== m.value_minor || inKinds.has(o.kind) === inKinds.has(m.kind) || o.kind.startsWith("transfer") || o.kind.startsWith("reversal")) problems.push({ code: "reversal_mismatch", detail: `stock movement ${m.id} does not mirror the movement ${o.id} it reverses` });
+    }
+    if (m.kind === "transfer_in") {
+      const o = m.pair_id === null ? undefined : byId.get(m.pair_id);
+      if (!o || o.kind !== "transfer_out" || o.item_id !== m.item_id || o.quantity_milli !== m.quantity_milli || o.location_id === m.location_id) problems.push({ code: "stock_invariant", detail: `transfer movement ${m.id} is not paired with a matching transfer out` });
+      else transferIn.set(o.id, (transferIn.get(o.id) ?? 0) + 1);
+    }
+    if (m.source_document_id !== null && m.source_line_no !== null && (m.kind === "receive" || m.kind === "reversal_out")) { const k = `${m.source_document_id}:${m.source_line_no}`; stockedFromLine.set(k, (stockedFromLine.get(k) ?? 0) + (m.kind === "receive" ? m.quantity_milli : -m.quantity_milli)); }
+  }
+  for (const m of moves) if (m.kind === "transfer_out" && (transferIn.get(m.id) ?? 0) !== 1) problems.push({ code: "stock_invariant", detail: `transfer out ${m.id} has ${transferIn.get(m.id) ?? 0} matching transfers in, expected exactly one` });
+  for (const [k, n] of stockedFromLine) { const [d, l] = k.split(":").map(Number); const line = (await many<{ quantity_milli: number }>(env, "SELECT quantity_milli FROM eng_document_line WHERE document_id = ? AND line_no = ?", d, l))[0]; if (!line || n > line.quantity_milli) problems.push({ code: "stock_invariant", detail: `goods receipt ${d} line ${l}: more was put into stock (${n}) than the line received (${line?.quantity_milli ?? 0})` }); }
 
   return { ok: problems.length === 0, problems, warnings };
 }
