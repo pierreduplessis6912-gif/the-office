@@ -13,6 +13,7 @@ import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from
 import { planQuotationAcceptance, planQuotationRevision } from "./quotations";
 import { planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { planCancel, planOrder, planReceipt, type ReceiptLineInput } from "./purchasing";
+import { planPrice, planReturn, type PriceInput, type ReturnInput } from "./stock";
 import { planDelivery, planLineItems, type DeliveryInput, type OrderLineItem } from "./stock";
 import { planCount, planRelease, planReserve, type CountInput, type ReleaseInput, type ReserveInput } from "./stock";
 import { planAdjust, planIssue, planItem, planItemRevision, planLocation, planReceive, planReverse, planTransfer, type AdjustInput, type IssueInput, type ItemInput, type ItemRevision, type LocationInput, type ReceiveInput, type StockReverseInput, type TransferInput } from "./stock";
@@ -463,6 +464,23 @@ export async function receiveDelivery(env: Env, input: DeliveryInput, ctx: Ctx):
       moveIds.push(await insertMove(tx, { itemId: l.itemId, locationId: input.locationId, kind: "receive", quantityMilli: l.quantityMilli, valueMinor: l.valueMinor, occurredOn: input.receivedOn, sourceDocumentId: input.receiptId, sourceLineNo: l.lineNo, reason: "goods receipt", eventId }));
     }
     return { moveIds, eventIds };
+  });
+}
+
+// A PRICE is an event only (item.priced): the price list is derived, every change is explained, and the one in force is the latest effective date (the later decision for the same date).
+export async function setItemPrice(env: Env, input: PriceInput, ctx: Ctx): Promise<{ eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    await planPrice(tx, input);
+    return { eventId: await appendEvent(tx, "item.priced", ctx, { itemId: input.itemId, unitPriceMinor: input.unitPriceMinor, currency: input.currency, effectiveFrom: input.effectiveFrom, ...(input.note ? { note: input.note } : {}) }, input.note ?? null) };
+  });
+}
+// A customer RETURN: stock comes back at the ORIGINAL cost of the issue it reverses (an adjust_in movement with the reason customer return), tied to that issue by a stock.returned event.
+export async function returnStock(env: Env, input: ReturnInput, ctx: Ctx): Promise<{ moveId: number; valueMinor: number; eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    const plan = await planReturn(tx, input);
+    const eventId = await appendEvent(tx, "stock.returned", ctx, { itemId: plan.move.item_id, locationId: input.locationId, quantityMilli: input.quantityMilli, valueMinor: plan.valueMinor, occurredOn: input.returnedOn, returnsMoveId: input.issueMoveId, ...(input.creditNoteId !== undefined ? { creditNoteId: input.creditNoteId } : {}), ...(input.note ? { note: input.note } : {}) }, input.note ?? "customer return");
+    const moveId = await insertMove(tx, { itemId: plan.move.item_id, locationId: input.locationId, kind: "adjust_in", quantityMilli: input.quantityMilli, valueMinor: plan.valueMinor, occurredOn: input.returnedOn, reason: "customer return", eventId });
+    return { moveId, valueMinor: plan.valueMinor, eventId };
   });
 }
 

@@ -7,7 +7,9 @@ import { EngineError } from "./errors";
 import { checkDate } from "./quotations";
 import { partyProfile } from "./parties";
 import { quotationSummary } from "./quotations";
-import { onOrderByItem, receiptLineSource } from "./purchasing";
+import { onOrderByItem, orderLineItems, receiptLineSource } from "./purchasing";
+import { lineNetMinor } from "./money";
+import { isEffective } from "./ledger";
 
 export const LOCATION_KINDS = ["warehouse", "vehicle", "site", "in_transit"] as const;
 export const ADJUST_REASONS = ["damage", "loss", "theft", "found", "correction", "write_off"] as const;
@@ -286,6 +288,115 @@ export async function planDelivery(env: Env, input: DeliveryInput) {
   return { lines };
 }
 
+// ---- the price list (events, derived) -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+export interface PriceInput { itemId: number; unitPriceMinor: number; currency: string; effectiveFrom: string; note?: string }
+export function checkPriceInput(v: unknown): Checked<PriceInput> {
+  if (!isObj(v)) return { ok: false, reason: "the price must be an object" };
+  const s = strayOf(v, ["itemId", "unitPriceMinor", "currency", "effectiveFrom", "note"]); if (s) return { ok: false, reason: `${s} is not a field of a price` };
+  if (!whole(v.itemId, 1, Number.MAX_SAFE_INTEGER)) return { ok: false, reason: "itemId must be a record number" };
+  if (!whole(v.unitPriceMinor, 0, MAX_COST)) return { ok: false, reason: "unitPriceMinor must be a whole number of cents, 0 or more" };
+  if (typeof v.currency !== "string" || !/^[A-Z]{3}$/.test(v.currency)) return { ok: false, reason: "currency must be a 3-letter code such as ZAR" };
+  const d = checkDate(v.effectiveFrom, "effectiveFrom"); if (!d.ok) return d;
+  const out: PriceInput = { itemId: v.itemId, unitPriceMinor: v.unitPriceMinor, currency: v.currency, effectiveFrom: d.value };
+  if (v.note !== undefined) { const n = text(v.note, "note", 200); if (!n.ok) return n; out.note = n.value; }
+  return { ok: true, value: out };
+}
+export interface PricePoint { eventId: number; unitPriceMinor: number; currency: string; effectiveFrom: string; note: string | null }
+export async function priceHistory(env: Env, itemId: number): Promise<PricePoint[]> {
+  return (await many<{ id: number; payload_json: string }>(env, "SELECT id, payload_json FROM eng_event WHERE type = 'item.priced' AND json_extract(payload_json, '$.itemId') = ? ORDER BY id", itemId)).map((e) => { const p = parse(e.payload_json); return { eventId: e.id, unitPriceMinor: Number(p.unitPriceMinor), currency: String(p.currency ?? ""), effectiveFrom: String(p.effectiveFrom ?? ""), note: typeof p.note === "string" ? p.note : null }; });
+}
+/** The price in force: the latest effective date not after `asOf` (or the latest of all), and for the same date the later decision. */
+export function priceInForce(history: PricePoint[], asOf?: string): PricePoint | null {
+  const eligible = history.filter((h) => asOf === undefined || h.effectiveFrom <= asOf);
+  return eligible.reduce<PricePoint | null>((best, h) => (best === null || h.effectiveFrom > best.effectiveFrom || (h.effectiveFrom === best.effectiveFrom && h.eventId > best.eventId) ? h : best), null);
+}
+export async function planPrice(env: Env, input: PriceInput) { await requireItem(env, input.itemId, false); }
+
+// ---- selling: issuing against an invoice line, returns, fulfilment and margin ------------------------------------------------------------------------------------------------------------------------------
+/** What has been issued against an invoice line, net of issues that were reversed. */
+export async function issuedAgainst(env: Env, documentId: number, lineNo: number): Promise<number> {
+  // two plain queries added in code: a real Durable Object's SQLite allows only a few terms in a compound SELECT, so the engine never uses UNION
+  const out = await one<{ q: number | null }>(env, "SELECT SUM(quantity_milli) AS q FROM eng_stock_move WHERE kind = 'issue' AND source_document_id = ? AND source_line_no = ?", documentId, lineNo);
+  const back = await one<{ q: number | null }>(env, "SELECT SUM(r.quantity_milli) AS q FROM eng_stock_move r JOIN eng_stock_move i ON i.id = r.reverses_move_id WHERE r.kind = 'reversal_in' AND i.kind = 'issue' AND i.source_document_id = ? AND i.source_line_no = ?", documentId, lineNo);
+  return Number(out?.q ?? 0) - Number(back?.q ?? 0);
+}
+async function returnedOf(env: Env, issueMoveId: number): Promise<{ quantityMilli: number; valueMinor: number }> {
+  const r = await one<{ q: number | null; v: number | null }>(env, "SELECT SUM(json_extract(payload_json, '$.quantityMilli')) AS q, SUM(json_extract(payload_json, '$.valueMinor')) AS v FROM eng_event WHERE type = 'stock.returned' AND json_extract(payload_json, '$.returnsMoveId') = ?", issueMoveId);
+  return { quantityMilli: Number(r?.q ?? 0), valueMinor: Number(r?.v ?? 0) };
+}
+export interface ReturnInput { issueMoveId: number; quantityMilli: number; locationId: number; returnedOn: string; creditNoteId?: number; note?: string }
+export function checkReturnInput(v: unknown): Checked<ReturnInput> {
+  if (!isObj(v)) return { ok: false, reason: "the return must be an object" };
+  const s = strayOf(v, ["issueMoveId", "quantityMilli", "locationId", "returnedOn", "creditNoteId", "note", "valueMinor"]); if (s) return { ok: false, reason: `${s} is not a field of a return` };
+  if (!whole(v.issueMoveId, 1, Number.MAX_SAFE_INTEGER) || !whole(v.locationId, 1, Number.MAX_SAFE_INTEGER)) return { ok: false, reason: "issueMoveId and locationId must be record numbers" };
+  const q = qty(v.quantityMilli, "quantityMilli"); if (!q.ok) return q; const d = checkDate(v.returnedOn, "returnedOn"); if (!d.ok) return d;
+  const out: ReturnInput & { valueMinor?: number } = { issueMoveId: v.issueMoveId, quantityMilli: q.value, locationId: v.locationId, returnedOn: d.value };
+  if (v.creditNoteId !== undefined) { if (!whole(v.creditNoteId, 1, Number.MAX_SAFE_INTEGER)) return { ok: false, reason: "creditNoteId must be a record number" }; out.creditNoteId = v.creditNoteId; }
+  if (v.note !== undefined) { const n = text(v.note, "note", 200); if (!n.ok) return n; out.note = n.value; }
+  if (v.valueMinor !== undefined) { if (!whole(v.valueMinor, 0, Number.MAX_SAFE_INTEGER)) return { ok: false, reason: "valueMinor must be the value the engine worked out" }; out.valueMinor = v.valueMinor; }
+  return { ok: true, value: out };
+}
+/** A return puts stock back at the ORIGINAL cost of the issue it reverses (never today's average), never more than was issued; returning everything restores the issue's value exactly. */
+export async function planReturn(env: Env, input: ReturnInput) {
+  const m = await one<{ id: number; item_id: number; kind: string; quantity_milli: number; value_minor: number; occurred_on: string }>(env, "SELECT id, item_id, kind, quantity_milli, value_minor, occurred_on FROM eng_stock_move WHERE id = ?", input.issueMoveId);
+  if (!m) throw new EngineError("not_found", "There is no such stock movement.");
+  if (m.kind !== "issue") throw new EngineError("invalid_state", "Only stock that was issued can be returned: that movement is not an issue.");
+  if (await one(env, "SELECT id FROM eng_stock_move WHERE reverses_move_id = ?", m.id)) throw new EngineError("invalid_state", "That issue has itself been reversed, so there is nothing left to return.");
+  await requireLocation(env, input.locationId);
+  if (input.returnedOn < m.occurred_on) throw new EngineError("invalid_input", `A return cannot be dated before the issue (${m.occurred_on}).`);
+  if (input.creditNoteId !== undefined) {
+    const c = await one<{ kind: string }>(env, "SELECT kind FROM eng_document WHERE id = ?", input.creditNoteId);
+    if (!c) throw new EngineError("not_found", "There is no such credit note.");
+    if (c.kind !== "credit_note") throw new EngineError("invalid_state", "That document is not a credit note.");
+  }
+  const item = await requireItem(env, m.item_id, false);
+  const back = await returnedOf(env, m.id), left = m.quantity_milli - back.quantityMilli;
+  if (input.quantityMilli > left) throw new EngineError("invalid_state", `That issue was of ${milli(m.quantity_milli)} ${item.unit} of ${item.name} and ${milli(back.quantityMilli)} has already been returned, so only ${milli(left)} more can be.`);
+  const valueMinor = input.quantityMilli === left ? m.value_minor - back.valueMinor : mulDiv(m.value_minor, input.quantityMilli, m.quantity_milli);
+  return { item, move: m, valueMinor };
+}
+export interface FulfilmentLine { invoiceId: number; invoiceNumber: number | null; customerId: number; customerName: string | null; lineNo: number; description: string; itemId: number; itemName: string | null; invoicedMilli: number; issuedMilli: number; unfulfilledMilli: number; availableMilli: number; shortMilli: number }
+export async function fulfilment(env: Env, f: { customerId?: number } = {}): Promise<FulfilmentLine[]> {
+  const out: FulfilmentLine[] = [];
+  for (const d of await many<{ id: number; party_id: number; number: number | null }>(env, "SELECT d.id, d.party_id, n.number AS number FROM eng_document d LEFT JOIN eng_document_number n ON n.document_id = d.id WHERE d.kind = 'invoice' AND d.direction = 'sell' ORDER BY d.id")) {
+    if (f.customerId !== undefined && d.party_id !== f.customerId) continue;
+    const named = await orderLineItems(env, d.id); if (named.size === 0 || !(await isEffective(env, "document", d.id))) continue;
+    const cust = await partyProfile(env, d.party_id);
+    for (const l of await many<{ line_no: number; description: string; quantity_milli: number }>(env, "SELECT line_no, description, quantity_milli FROM eng_document_line WHERE document_id = ? ORDER BY line_no", d.id)) {
+      const itemId = named.get(l.line_no); if (itemId === undefined) continue;
+      const issued = await issuedAgainst(env, d.id, l.line_no), un = l.quantity_milli - issued; if (un <= 0) continue;
+      const item = await itemProfile(env, itemId), avail = (await onHand(env, itemId)).quantityMilli - (await reservedFor(env, itemId));
+      out.push({ invoiceId: d.id, invoiceNumber: d.number, customerId: d.party_id, customerName: cust ? cust.name : null, lineNo: l.line_no, description: l.description, itemId, itemName: item ? item.name : null, invoicedMilli: l.quantity_milli, issuedMilli: issued, unfulfilledMilli: un, availableMilli: avail, shortMilli: Math.max(0, un - Math.max(0, avail)) });
+    }
+  }
+  return out;
+}
+export interface MarginLine { invoiceId: number; invoiceNumber: number | null; customerId: number; issuedOn: string; lineNo: number; description: string; itemId: number | null; quantityMilli: number; netMinor: number; issuedMilli: number; costMinor: number; marginMinor: number | null; marginBp: number | null; costed: "full" | "partial" | "none" }
+/** Revenue, cost of sales and margin per invoice line, for invoices that have any stock link. Cost = the value of what was issued against the line, less issues reversed and goods returned. Margin only for lines issued in full: a part-issued line would show a false one. */
+export async function marginReport(env: Env, f: { from?: string; to?: string; customerId?: number; invoiceId?: number } = {}): Promise<MarginLine[]> {
+  const out: MarginLine[] = [];
+  for (const d of await many<{ id: number; party_id: number; number: number | null; issued_on: string }>(env, "SELECT d.id, d.party_id, n.number AS number, d.issued_on FROM eng_document d LEFT JOIN eng_document_number n ON n.document_id = d.id WHERE d.kind = 'invoice' AND d.direction = 'sell' ORDER BY d.id")) {
+    if ((f.customerId !== undefined && d.party_id !== f.customerId) || (f.invoiceId !== undefined && d.id !== f.invoiceId) || (f.from !== undefined && d.issued_on < f.from) || (f.to !== undefined && d.issued_on > f.to)) continue;
+    if (!(await isEffective(env, "document", d.id))) continue;
+    const named = await orderLineItems(env, d.id);
+    const linked = await one(env, "SELECT id FROM eng_stock_move WHERE source_document_id = ? AND kind = 'issue' LIMIT 1", d.id);
+    if (named.size === 0 && !linked) continue;
+    for (const l of await many<{ line_no: number; description: string; quantity_milli: number; unit_price_minor: number }>(env, "SELECT line_no, description, quantity_milli, unit_price_minor FROM eng_document_line WHERE document_id = ? ORDER BY line_no", d.id)) {
+      const issued = await issuedAgainst(env, d.id, l.line_no);
+      const issues = await many<{ id: number; value_minor: number }>(env, "SELECT id, value_minor FROM eng_stock_move WHERE kind = 'issue' AND source_document_id = ? AND source_line_no = ?", d.id, l.line_no);
+      let cost = 0;
+      for (const i of issues) {
+        const rev = await one<{ v: number | null }>(env, "SELECT SUM(value_minor) AS v FROM eng_stock_move WHERE reverses_move_id = ? AND kind = 'reversal_in'", i.id);
+        cost += i.value_minor - Number(rev?.v ?? 0) - (await returnedOf(env, i.id)).valueMinor;
+      }
+      const net = lineNetMinor(l.quantity_milli, l.unit_price_minor);
+      const costed = issued <= 0 ? "none" : issued >= l.quantity_milli ? "full" : "partial";
+      out.push({ invoiceId: d.id, invoiceNumber: d.number, customerId: d.party_id, issuedOn: d.issued_on, lineNo: l.line_no, description: l.description, itemId: named.get(l.line_no) ?? null, quantityMilli: l.quantity_milli, netMinor: net, issuedMilli: issued, costMinor: costed === "none" ? 0 : cost, marginMinor: costed === "full" ? net - cost : null, marginBp: costed === "full" && net > 0 ? mulDiv(net - cost, 10000, net) : null, costed });
+    }
+  }
+  return out;
+}
+
 // ---- reading (derived) -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 export interface ItemProfile { id: number; sku: string; name: string; unit: string; reorderLevelMilli: number | null; reorderQtyMilli: number | null; preferredSupplierId: number | null; active: boolean; eventId: number }
 /** An item as it is NOW: the row it was created as, with its creating event's attributes, then every item.revised event in order. */
@@ -410,7 +521,15 @@ export async function planIssue(env: Env, input: IssueInput) {
     const d = await one<{ kind: string }>(env, "SELECT kind FROM eng_document WHERE id = ?", input.documentId);
     if (!d) throw new EngineError("not_found", "There is no such document to issue the stock for.");
     if (d.kind !== "invoice") throw new EngineError("invalid_state", "Stock is issued for an invoice line (or a job), not for that kind of document.");
-    if (!(await one(env, "SELECT id FROM eng_document_line WHERE document_id = ? AND line_no = ?", input.documentId, input.lineNo))) throw new EngineError("invalid_input", `That invoice has no line ${input.lineNo}.`);
+    const dl = await one<{ quantity_milli: number }>(env, "SELECT quantity_milli FROM eng_document_line WHERE document_id = ? AND line_no = ?", input.documentId, input.lineNo);
+    if (!dl) throw new EngineError("invalid_input", `That invoice has no line ${input.lineNo}.`);
+    // a line that NAMES its item is held to it: stock issued against it is that item and never more than was invoiced (a line that names none keeps the old, unchecked behaviour)
+    const forItem = (await orderLineItems(env, input.documentId)).get(input.lineNo!);
+    if (forItem !== undefined) {
+      if (forItem !== input.itemId) { const named = await itemProfile(env, forItem); throw new EngineError("invalid_input", `That invoice line is for ${named ? named.name : "another item"}, so stock cannot be issued against it as ${item.name}.`); }
+      const issued = await issuedAgainst(env, input.documentId, input.lineNo!), left = dl.quantity_milli - issued;
+      if (input.quantityMilli > left) throw new EngineError("invalid_state", `That invoice line was invoiced for ${milli(dl.quantity_milli)} and ${milli(issued)} has already been issued, so only ${milli(Math.max(0, left))} is left to issue.`);
+    }
   }
   const total = await onHand(env, input.itemId);
   return { item, location: loc, valueMinor: outValue(total, input.quantityMilli) };

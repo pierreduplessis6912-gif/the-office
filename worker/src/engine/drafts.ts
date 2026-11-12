@@ -7,8 +7,9 @@ import { atomically } from "../atomic";
 import { EngineError } from "./errors";
 import { documentTotals, wholeNumber, type Totals } from "./money";
 import { recordDocument, type Ctx } from "./facts";
+import { planLineItems } from "./stock";
 
-export interface DraftLine { description?: unknown; quantityMilli?: unknown; unit?: unknown; unitPriceMinor?: unknown; taxBp?: unknown }
+export interface DraftLine { description?: unknown; quantityMilli?: unknown; unit?: unknown; unitPriceMinor?: unknown; taxBp?: unknown; itemId?: unknown }
 export interface DraftPayload { currency?: unknown; issuedOn?: unknown; reference?: unknown; terms?: unknown; lines?: unknown }
 export interface DraftValidation { ok: boolean; errors: Array<{ field: string; message: string }>; totals: Totals | null }
 
@@ -36,6 +37,7 @@ export function validateDraft(partyId: number | null, payload: DraftPayload): Dr
     need(whole(l.quantityMilli, 1), "quantityMilli", "a whole number of thousandths, at least 1");
     need(whole(l.unitPriceMinor, 0), "unitPriceMinor", "a whole number of cents, not negative");
     need(whole(l.taxBp, 0, 10000), "taxBp", "a rate from 0 to 10,000 basis points");
+    if (l.itemId !== undefined) need(whole(l.itemId, 1), "itemId", "the number of the stock item this line is for, or leave it out");
     if (!bad) sound.push({ quantityMilli: l.quantityMilli as number, unitPriceMinor: l.unitPriceMinor as number, taxBp: l.taxBp as number });
   });
   let totals: Totals | null = null;
@@ -88,7 +90,10 @@ export async function issueDraft(env: Env, id: number, input: { expectedVersion:
     if (v.ok && typeof payload.issuedOn === "string") await requireOpenTaxPeriod(tx, payload.issuedOn, "An invoice");   // the tax lock: invoices must be dated in the open period
     if (!v.ok) throw new EngineError("invalid_state", "the draft is not ready: " + v.errors.map((e) => `${e.field} ${e.message}`).join("; "));
     const lines = (payload.lines as DraftLine[]).map((l) => ({ description: String(l.description), quantityMilli: l.quantityMilli as number, unit: typeof l.unit === "string" ? l.unit : null, unitPriceMinor: l.unitPriceMinor as number, taxBp: l.taxBp as number }));
-    const doc = await recordDocument(tx, { kind: d.kind, direction: d.direction, partyId: d.party_id as number, currency: payload.currency as string, reference: typeof payload.reference === "string" ? payload.reference : null, issuedOn: payload.issuedOn as string, terms: (payload.terms && typeof payload.terms === "object" ? payload.terms : {}) as Record<string, unknown>, lines }, ctx);
+    // the item each line is for (optional): validated, then kept in the document's own terms (the foundation tables do not change shape)
+    const lineItems = (payload.lines as DraftLine[]).flatMap((l, i) => (typeof l.itemId === "number" ? [{ lineNo: i + 1, itemId: l.itemId }] : []));
+    if (lineItems.length) await planLineItems(tx, lineItems, lines.map((l) => ({ unit: l.unit })));
+    const doc = await recordDocument(tx, { kind: d.kind, direction: d.direction, partyId: d.party_id as number, currency: payload.currency as string, reference: typeof payload.reference === "string" ? payload.reference : null, issuedOn: payload.issuedOn as string, terms: { ...((payload.terms && typeof payload.terms === "object" ? payload.terms : {}) as Record<string, unknown>), ...(lineItems.length ? { lineItems } : {}) }, lines }, ctx);
     await tx.OFFICE_DB.prepare("UPDATE eng_draft SET issued_document_id = ?, version = version + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").bind(doc.id, id).run();
     return { documentId: doc.id, number: doc.number, eventId: doc.eventId, totals: doc.totals };
   });

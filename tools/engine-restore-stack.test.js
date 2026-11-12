@@ -63,6 +63,13 @@ module.exports = kit.guard('engine restore (stack)', async ({ check }) => {
     const poS = await facts.recordPurchaseOrder(w.env, { supplierId: sup, orderedOn: '2026-10-02', currency: 'ZAR', lines: [{ description: 'Plywood', quantityMilli: 12000, unit: 'sheet', unitPriceMinor: 20000, taxBp: 1500 }], lineItems: [{ lineNo: 1, itemId: item }] }, CTX);
     const grS = await facts.receiveGoods(w.env, { orderId: poS.documentId, receivedOn: '2026-10-03', lines: [{ lineNo: 1, quantityMilli: 5000 }] }, CTX);
     await facts.receiveDelivery(w.env, { receiptId: grS.documentId, locationId: main, receivedOn: '2026-10-04' }, CTX);
+    // the sales link: a price, an invoice that names its item, stock issued against its line, and a return
+    await facts.setItemPrice(w.env, { itemId: item, unitPriceMinor: 35000, currency: 'ZAR', effectiveFrom: '2026-10-01', note: 'list price' }, CTX);
+    const dr = await eng.drafts.createDraft(w.env, { kind: 'invoice', direction: 'sell', partyId: cust }, CTX);
+    const ds = await eng.drafts.saveDraft(w.env, dr.id, { expectedVersion: dr.version, payload: { currency: 'ZAR', issuedOn: '2026-11-20', lines: [{ description: 'Plywood sheets', quantityMilli: 3000, unit: 'sheet', unitPriceMinor: 35000, taxBp: 1500, itemId: item }, { description: 'Fitting', quantityMilli: 1000, unit: 'job', unitPriceMinor: 50000, taxBp: 1500 }] } }, CTX);
+    const invS = await eng.drafts.issueDraft(w.env, dr.id, { expectedVersion: ds.version }, CTX);
+    const issS = await facts.issueStock(w.env, { itemId: item, locationId: main, quantityMilli: 2000, issuedOn: '2026-11-20', reason: 'sale', documentId: invS.documentId, lineNo: 1 }, CTX);
+    await facts.returnStock(w.env, { issueMoveId: issS.moveId, quantityMilli: 500, locationId: main, returnedOn: '2026-11-21' }, CTX);
     const hold = await facts.reserveStock(w.env, { itemId: item, quantityMilli: 4000, reservedOn: '2026-10-12', forRef: 'Mokoena lounge' }, CTX);
     await facts.issueStock(w.env, { itemId: item, locationId: main, quantityMilli: 1000, issuedOn: '2026-10-13', reason: 'job', jobRef: 'Mokoena lounge', reservationId: hold.reservationId }, CTX);
     await facts.countStock(w.env, { locationId: main, countedOn: '2026-10-14', lines: [{ itemId: item, countedMilli: 14000 }] }, CTX);
@@ -80,7 +87,7 @@ module.exports = kit.guard('engine restore (stack)', async ({ check }) => {
     owes: await ledger.outstandingForParty(w.env, ids.cust), credit: await ledger.unappliedCreditForParty(w.env, ids.cust),
     cn1: await eng.credits.creditAvailable(w.env, ids.cn1.documentId), cn2: await eng.credits.creditAvailable(w.env, ids.cn2.documentId),
     particulars: [await eng.business.documentParticulars(w.env, ids.inv1.id), await eng.business.documentParticulars(w.env, ids.cn1.documentId)],
-    stock: await eng.stock.stockReport(w.env), ledger: await eng.stock.stockLedger(w.env, ids.item), locations: await eng.stock.allLocations(w.env), profile1: await eng.stock.itemProfile(w.env, ids.item), reservations: await eng.stock.allReservations(w.env, { status: 'any' }), reorder: await eng.stock.reorderSuggestions(w.env), onOrder: [...(await eng.purchasing.onOrderByItem(w.env)).entries()], unbilled: await eng.bills.goodsUnbilled(w.env), poProgress: await eng.purchasing.orderProgress(w.env, ids.poS.documentId),
+    stock: await eng.stock.stockReport(w.env), ledger: await eng.stock.stockLedger(w.env, ids.item), locations: await eng.stock.allLocations(w.env), profile1: await eng.stock.itemProfile(w.env, ids.item), reservations: await eng.stock.allReservations(w.env, { status: 'any' }), reorder: await eng.stock.reorderSuggestions(w.env), onOrder: [...(await eng.purchasing.onOrderByItem(w.env)).entries()], unbilled: await eng.bills.goodsUnbilled(w.env), poProgress: await eng.purchasing.orderProgress(w.env, ids.poS.documentId), prices: await eng.stock.priceHistory(w.env, ids.item), fulfilment: await eng.stock.fulfilment(w.env), margin: await eng.stock.marginReport(w.env),
   });
 
   const w = kit.makeWorld({ backups: true });
@@ -88,7 +95,7 @@ module.exports = kit.guard('engine restore (stack)', async ({ check }) => {
   const integ = await eng.verifyIntegrity(w.env);
   check(integ.ok === true && integ.problems.length === 0 && integ.warnings.length === 0, 'the business built through every capability since the first slice verifies clean before the snapshot (no problem, no unmodelled event)');
   const events = w.db.prepare('SELECT type, COUNT(*) AS n FROM eng_event GROUP BY type').all().map((r) => r.type);
-  check(['business.profile_set', 'tax_lock.set', 'party.revised', 'quotation.revised', 'quotation.accepted', 'credit_note.issued', 'credit.allocated', 'credit.refunded', 'credit_note.voided', 'debit_note.issued', 'overpayment.refunded', 'expense.recorded', 'expense.voided', 'item.created', 'item.revised', 'location.created', 'stock.received', 'stock.issued', 'stock.transferred_out', 'stock.transferred_in', 'stock.adjusted', 'stock.move_reversed', 'stock.reserved', 'stock.released', 'stock.counted'].every((t) => events.includes(t)), 'its history really uses every one of the new event types, stock included');
+  check(['business.profile_set', 'tax_lock.set', 'party.revised', 'quotation.revised', 'quotation.accepted', 'credit_note.issued', 'credit.allocated', 'credit.refunded', 'credit_note.voided', 'debit_note.issued', 'overpayment.refunded', 'expense.recorded', 'expense.voided', 'item.created', 'item.revised', 'location.created', 'stock.received', 'stock.issued', 'stock.transferred_out', 'stock.transferred_in', 'stock.adjusted', 'stock.move_reversed', 'stock.reserved', 'stock.released', 'stock.counted', 'item.priced', 'stock.returned'].every((t) => events.includes(t)), 'its history really uses every one of the new event types, stock included');
   const before = await derive(w, ids), engineBefore = fingerprint(w.db, ENG);
   const seqBefore = JSON.stringify(w.db.prepare('SELECT name, seq FROM sqlite_sequence ORDER BY name').all());
   const D = JSON.parse(before);

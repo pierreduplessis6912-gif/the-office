@@ -81,6 +81,20 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
     const iid = q("itemId");
     return answer(await invokeRead(env, member, "stock.reservations", { ...(iid !== null ? { itemId: /^\d+$/.test(iid) ? Number(iid) : iid } : {}), ...(q("status") !== null ? { status: q("status") } : {}) }));
   }
+  if (request.method === "GET" && path === "/engine/prices") {
+    const q = (k: string) => url.searchParams.get(k);
+    const iid = q("itemId");
+    return answer(await invokeRead(env, member, "prices.find", { ...(iid !== null ? { itemId: /^\d+$/.test(iid) ? Number(iid) : iid } : {}), ...(q("asOf") !== null ? { asOf: q("asOf") } : {}) }));
+  }
+  if (request.method === "GET" && path === "/engine/stock/fulfilment") {
+    const cid = url.searchParams.get("customerId");
+    return answer(await invokeRead(env, member, "stock.fulfilment", cid !== null ? { customerId: /^\d+$/.test(cid) ? Number(cid) : cid } : {}));
+  }
+  if (request.method === "GET" && path === "/engine/margin") {
+    const q = (k: string) => url.searchParams.get(k);
+    const num = (k: string) => { const v = q(k); return v === null ? undefined : /^\d+$/.test(v) ? Number(v) : v; };
+    return answer(await invokeRead(env, member, "sales.margin", { ...(q("from") !== null ? { from: q("from") } : {}), ...(q("to") !== null ? { to: q("to") } : {}), ...(num("customerId") !== undefined ? { customerId: num("customerId") } : {}), ...(num("invoiceId") !== undefined ? { invoiceId: num("invoiceId") } : {}) }));
+  }
   if (request.method === "GET" && path === "/engine/goods-unbilled") {
     const sid = url.searchParams.get("supplierId");
     return answer(await invokeRead(env, member, "goods.unbilled", sid !== null ? { supplierId: /^\d+$/.test(sid) ? Number(sid) : sid } : {}));

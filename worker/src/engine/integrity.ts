@@ -73,11 +73,13 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "stock.counted": { creates: null, note: "a stocktake of one location: records every line counted, including those with no difference. The adjustments for the lines that differ are created by their own stock.adjusted events, which point back at this one" },
   "stock.reserved": { creates: null, note: "stock is held for a quotation, an invoice or a job: an event only, nothing moves (stock.ts derives what is reserved and what remains)" },
   "stock.released": { creates: null, note: "what remains of a reservation is given back" },
+  "item.priced": { creates: null, note: "a selling price is set for an item from an effective date: an event only, the price list is derived (stock.ts)" },
+  "stock.returned": { creates: "stock_move", note: "one eng_stock_move of kind adjust_in that returns issued goods at the original cost of the issue it reverses" },
   "operation.executed": { creates: null, note: "the record that an approved proposal executed; it creates no fact" },
 };
 const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal", item: "eng_item", location: "eng_location", stock_move: "eng_stock_move" };
 
-import { receiptLineSource } from "./purchasing";
+import { orderLineItems, receiptLineSource } from "./purchasing";
 const many = async <T>(env: Env, sql: string, ...binds: unknown[]): Promise<T[]> => ((await env.OFFICE_DB.prepare(sql).bind(...binds).all<T>()).results ?? []);
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const sortedRoles = (v: unknown): string[] | null => (Array.isArray(v) && v.every((r) => typeof r === "string") ? [...(v as string[])].sort() : null);
@@ -367,7 +369,7 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
   }
 
   // stock: every item, location and movement carries an event of the right kind that says what the row says; and the invariants of the ledger (docs/decisions/inventory.md section 5)
-  const stockEventFor: Record<string, string[]> = { receive: ["stock.received"], issue: ["stock.issued"], transfer_out: ["stock.transferred_out"], transfer_in: ["stock.transferred_in"], adjust_in: ["stock.adjusted"], adjust_out: ["stock.adjusted"], reversal_in: ["stock.move_reversed"], reversal_out: ["stock.move_reversed"] };
+  const stockEventFor: Record<string, string[]> = { receive: ["stock.received"], issue: ["stock.issued"], transfer_out: ["stock.transferred_out"], transfer_in: ["stock.transferred_in"], adjust_in: ["stock.adjusted", "stock.returned"], adjust_out: ["stock.adjusted"], reversal_in: ["stock.move_reversed"], reversal_out: ["stock.move_reversed"] };
   for (const it of await many<{ id: number; sku: string; name: string; unit: string; event_id: number }>(env, "SELECT id, sku, name, unit, event_id FROM eng_item")) {
     const ev = wrongEvent("item", it.id, it.event_id, ["item.created"]);
     if (ev && (!ev.payload || !same([ev.payload.sku, ev.payload.name, ev.payload.unit], [it.sku, it.name, it.unit]))) problems.push({ code: "fact_changed", detail: `item ${it.id} no longer matches what was recorded` });
@@ -403,6 +405,21 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
     if (m.source_document_id !== null && m.source_line_no !== null && (m.kind === "receive" || m.kind === "reversal_out")) { const k = `${m.source_document_id}:${m.source_line_no}`; stockedFromLine.set(k, (stockedFromLine.get(k) ?? 0) + (m.kind === "receive" ? m.quantity_milli : -m.quantity_milli)); }
   }
   for (const m of moves) if (m.kind === "receive" && m.source_document_id !== null && m.source_line_no !== null) { const src = await receiptLineSource(env, m.source_document_id, m.source_line_no); if (src && src.itemId !== null && src.itemId !== m.item_id) problems.push({ code: "stock_invariant", detail: `stock movement ${m.id} took goods receipt ${m.source_document_id} line ${m.source_line_no} into stock as item ${m.item_id}, a different item than the order line names (${src.itemId})` }); }
+  // the sales link: stock issued against an invoice line that names its item is that item and never more than was invoiced (net of reversals), and goods returned never exceed the issue they reverse
+  const issuedLine = new Map<string, number>(); const issueByIdq = new Map<number, number>(); const returnedQ = new Map<number, number>();
+  for (const m of moves) {
+    if (m.kind === "issue") { issueByIdq.set(m.id, m.quantity_milli); if (m.source_document_id !== null && m.source_line_no !== null) { const k = `${m.source_document_id}:${m.source_line_no}`; issuedLine.set(k, (issuedLine.get(k) ?? 0) + m.quantity_milli); const forItem = (await orderLineItems(env, m.source_document_id)).get(m.source_line_no); if (forItem !== undefined && forItem !== m.item_id) problems.push({ code: "stock_invariant", detail: `stock movement ${m.id} was issued against invoice ${m.source_document_id} line ${m.source_line_no} as item ${m.item_id}, a different item than the line names (${forItem})` }); } }
+    if (m.kind === "reversal_in" && m.reverses_move_id !== null) { const o = byId.get(m.reverses_move_id); if (o && o.kind === "issue" && o.source_document_id !== null && o.source_line_no !== null) { const k = `${o.source_document_id}:${o.source_line_no}`; issuedLine.set(k, (issuedLine.get(k) ?? 0) - m.quantity_milli); } }
+  }
+  for (const [k, n] of issuedLine) { const [d, l] = k.split(":").map(Number); if ((await orderLineItems(env, d)).has(l)) { const line = (await many<{ quantity_milli: number }>(env, "SELECT quantity_milli FROM eng_document_line WHERE document_id = ? AND line_no = ?", d, l))[0]; if (!line || n > line.quantity_milli) problems.push({ code: "stock_invariant", detail: `invoice ${d} line ${l}: more was issued (${n}) than the invoice line (${line?.quantity_milli ?? 0})` }); } }
+  for (const e of await many<{ id: number; payload_json: string }>(env, "SELECT id, payload_json FROM eng_event WHERE type = 'stock.returned' ORDER BY id")) {
+    let p: Record<string, unknown> = {};
+    try { p = JSON.parse(e.payload_json) ?? {}; } catch { /* reported elsewhere */ }
+    const o = typeof p.returnsMoveId === "number" ? byId.get(p.returnsMoveId) : undefined;
+    if (!o || o.kind !== "issue" || o.item_id !== Number(p.itemId)) { problems.push({ code: "stock_invariant", detail: `event ${e.id} (stock.returned) returns movement ${String(p.returnsMoveId)}, which is not an issue of that item` }); continue; }
+    returnedQ.set(o.id, (returnedQ.get(o.id) ?? 0) + (Number(p.quantityMilli) || 0));
+    if ((returnedQ.get(o.id) ?? 0) > o.quantity_milli) problems.push({ code: "stock_invariant", detail: `issue ${o.id}: more was returned (${returnedQ.get(o.id)}) than was issued (${o.quantity_milli})` });
+  }
   for (const m of moves) if (m.kind === "transfer_out" && (transferIn.get(m.id) ?? 0) !== 1) problems.push({ code: "stock_invariant", detail: `transfer out ${m.id} has ${transferIn.get(m.id) ?? 0} matching transfers in, expected exactly one` });
   for (const [k, n] of stockedFromLine) { const [d, l] = k.split(":").map(Number); const line = (await many<{ quantity_milli: number }>(env, "SELECT quantity_milli FROM eng_document_line WHERE document_id = ? AND line_no = ?", d, l))[0]; if (!line || n > line.quantity_milli) problems.push({ code: "stock_invariant", detail: `goods receipt ${d} line ${l}: more was put into stock (${n}) than the line received (${line?.quantity_milli ?? 0})` }); }
 

@@ -77,6 +77,11 @@ const HINTS: Record<string, string> = {
   "stock.count": "payload {locationId, countedOn, complete?: true | false, note?, lines: [{itemId, countedMilli, unitCostMinor? (only for stock found where none was on the books)}]}: a stocktake of one location. The engine works out the variances and shows them for approval; complete: true counts the items not listed that have stock there as zero.",
   "stock.receive_delivery": "payload {receiptId, locationId, receivedOn, lines?: [{lineNo, quantityMilli}]}: put a goods receipt into stock: each line whose order line names an item goes in at that line's cost (all that is left, or the quantities named).",
   "goods.unbilled": "params {supplierId?: number}: goods received and not yet invoiced, by order line, at the order's own price before tax.",
+  "prices.find": "params {itemId?: number, asOf?: date}: the selling price list: the latest price per item (and the price in force on asOf), with every change and why.",
+  "stock.fulfilment": "params {customerId?: number}: invoiced stock still to issue, by invoice line, with what is available now and how many are short.",
+  "sales.margin": "params {from?, to?: dates, customerId?, invoiceId?: numbers}: revenue, cost of sales and margin per invoice line (margin only for lines issued in full). Needs permission to see costs.",
+  "item.price": "payload {itemId, unitPriceMinor, currency, effectiveFrom, note?}: set the selling price of an item from a date (the latest effective date is the price in force).",
+  "stock.return": "payload {issueMoveId, quantityMilli, locationId, returnedOn, creditNoteId?, note?}: goods a customer sent back go into stock at the ORIGINAL cost of the issue they were taken from, never more than was issued.",
   "business.profile.set": "payload {legalName?, tradingName?, address?, vatRegistered?, vatNumber?, companyRegistrationNumber?}: the business's own details.",
   "tax_lock.set": "payload {lockDate}: lock the tax period up to a date (it only moves forward).",
 };
