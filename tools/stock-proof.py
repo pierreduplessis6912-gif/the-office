@@ -128,12 +128,14 @@ def main():
     inv1 = res("inv1", "accountant", "/engine/records/document/1"); l1 = ((inv1.get("collections") or {}).get("lines") or [{}])[0]; qty1 = l1.get("quantityMilli"); price1 = l1.get("unitPriceMinor")
     c, d, c2, d2 = do("sale-issue", "accountant", "stock.issue", {"itemId": ply, "locationId": main_, "quantityMilli": qty1, "issuedOn": "2026-11-15", "reason": "sale", "documentId": 1, "lineNo": 1}); sale = (d2.get("outcome") or {}).get("moveId")
     mg = res("margin", "accountant", "/engine/margin?invoiceId=1"); ml = next((x for x in (mg.get("lines") or []) if x.get("lineNo") == 1), {})
-    checks["margin_is_revenue_less_the_cost_of_what_was_issued_against_the_line"] = c2 == 200 and ml.get("costed") == "full" and ml.get("costMinor") == (d2.get("outcome") or {}).get("valueMinor") and ml.get("marginMinor") == (ml.get("netMinor") or 0) - (ml.get("costMinor") or 0)
+    against = [m for m in ledger(ply).get("moves", []) if m.get("kind") == "issue" and m.get("sourceDocumentId") == 1 and m.get("sourceLineNo") == 1]
+              expected_cost = sum(m.get("valueMinor") or 0 for m in against)
+              checks["margin_is_revenue_less_the_cost_of_what_was_issued_against_the_line"] = c2 == 200 and len(against) == 2 and ml.get("costed") == "full" and ml.get("costMinor") == expected_cost and ml.get("netMinor") == round((qty1 or 0) * (price1 or 0) / 1000) and ml.get("marginMinor") == (ml.get("netMinor") or 0) - (ml.get("costMinor") or 0)
     mv2 = next((m for m in ledger(ply).get("moves", []) if m.get("id") == sale), {})
     rq = max(1, (qty1 or 2) // 2)
     c, d, c2, d2 = do("return", "accountant", "stock.return", {"issueMoveId": sale, "quantityMilli": rq, "locationId": main_, "returnedOn": "2026-11-16", "note": "stock proof return"})
     rmv = next((m for m in ledger(ply).get("moves", []) if m.get("reason") == "customer return"), {})
-    checks["a_return_comes_back_at_the_original_cost_of_the_issue"] = c2 == 200 and rmv.get("valueMinor") == round((mv2.get("valueMinor") or 0) * rq / (mv2.get("quantityMilli") or 1)) and rmv.get("quantityMilli") == rq
+    checks["a_return_comes_back_at_the_original_cost_of_the_issue"] = c2 == 200 and rmv.get("valueMinor") == (2 * (mv2.get("valueMinor") or 0) * rq + (mv2.get("quantityMilli") or 1)) // (2 * (mv2.get("quantityMilli") or 1)) and rmv.get("quantityMilli") == rq
     c, d, _ = propose("over-return", "accountant", "stock.return", {"issueMoveId": sale, "quantityMilli": (qty1 or 2), "locationId": main_, "returnedOn": "2026-11-16"}); checks["a_return_can_never_exceed_what_was_issued"] = c == 409 and d.get("error") == "invalid_state"
     fu = res("fulfilment", "accountant", "/engine/stock/fulfilment"); checks["fulfilment_lists_nothing_when_no_invoice_line_names_an_item"] = isinstance(fu.get("lines"), list) and fu.get("count") == 0
     ii = call("inst-margin", "GET", "/engine/margin", None, "installer")[0]; checks["costs_and_margins_are_refused_to_those_who_may_not_see_costs_or_shown_by_the_same_mapping_as_the_harness"] = ii in (200, 403)
