@@ -1,9 +1,9 @@
 {
- "when": "2026-11-12T11:56:00.358596+00:00",
- "run": "43213146304",
- "commit": "b20ec06",
+ "when": "2026-11-12T12:02:23.582864+00:00",
+ "run": "43214001468",
+ "commit": "2e1b0bf",
  "mode": "stock-proof",
- "business": "staging-stock-43213146304",
+ "business": "staging-stock-43214001468",
  "started_in": {
   "mode": "legacy",
   "rows": 0
@@ -134,16 +134,13 @@
   "the_same_delivery_cannot_be_put_into_stock_twice": true,
   "goods_received_and_not_invoiced_is_reported_at_the_orders_price": true,
   "the_price_list_is_events_and_shows_the_price_in_force": true,
-  "margin_is_revenue_less_the_cost_of_what_was_issued_against_the_line": false,
-  "a_return_comes_back_at_the_original_cost_of_the_issue": false,
+  "margin_is_revenue_less_the_cost_of_what_was_issued_against_the_line": true,
+  "a_return_comes_back_at_the_original_cost_of_the_issue": true,
   "a_return_can_never_exceed_what_was_issued": true,
   "fulfilment_lists_nothing_when_no_invoice_line_names_an_item": true,
   "costs_and_margins_are_refused_to_those_who_may_not_see_costs_or_shown_by_the_same_mapping_as_the_harness": true,
   "the_integrity_verifier_is_clean_at_the_end": true
  },
- "passed": false,
- "failed": [
-  "margin_is_revenue_less_the_cost_of_what_was_issued_against_the_line",
-  "a_return_comes_back_at_the_original_cost_of_the_issue"
- ]
+ "passed": true,
+ "failed": []
 }
