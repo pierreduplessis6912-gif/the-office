@@ -31,13 +31,13 @@ function catalogue(): Entry[] {
     { id: "expenses.find", describes: "Look up expenses the business has recorded.", arguments: { category: `one of ${EXPENSE_CATEGORIES.join(", ")}, only if the person said`, period: "this_month or last_month, only if the person said" }, permissions: READS.find((r) => r.id === "expenses.find")?.permissions ?? [] },
     { id: "expense.record", describes: "Record something the business bought and has already paid for (it is only proposed; a person approves it).", arguments: { supplier: "the supplier's name, as the person said it", amountCents: "the amount paid as a whole number of cents", vat: "plus_vat if the amount is before VAT, incl_vat if it includes VAT, no_vat if there is no VAT: ONLY if the sentence says so, otherwise leave it out", description: "what was bought, in a few words", category: `one of ${EXPENSE_CATEGORIES.join(", ")}`, method: `how it was paid: one of ${EXPENSE_METHODS.join(", ")}`, invoiceHeld: "the JSON boolean true, only if the person said they have the tax invoice; otherwise leave it out", when: "the word today or yesterday, never a date; leave it out unless the person said" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "expense.record")?.permissions ?? [] },
     // ---- stock (docs/decisions/interpreter-stock.md): an item, a place and a job are WORDS, a quantity is a plain number; the engine resolves the names, converts to thousandths and dates it (today) ----
-    { id: "stock.on_hand", describes: "How much of a stock item the business has, or all the stock.", arguments: { item: "the item's name or code, as the person said it, only if they named one" }, permissions: READS.find((r) => r.id === "stock.on_hand")?.permissions ?? [] },
+    { id: "stock.on_hand", describes: "How much of a stock item the business has, or all the stock.", arguments: { item: "only if they named one: the product name only (or its code), as the person said it, without the unit or a quantity (screws, not boxes of screws)" }, permissions: READS.find((r) => r.id === "stock.on_hand")?.permissions ?? [] },
     { id: "stock.reorder_suggestions", describes: "What stock needs to be reordered.", arguments: {}, permissions: READS.find((r) => r.id === "stock.reorder_suggestions")?.permissions ?? [] },
-    { id: "prices.find", describes: "What a stock item sells for.", arguments: { item: "the item's name or code, as the person said it" }, permissions: READS.find((r) => r.id === "prices.find")?.permissions ?? [] },
-    { id: "stock.issue", describes: "Take stock out for a job or for use (it is only proposed; a person approves it).", arguments: { item: "the item's name or code, as the person said it", quantity: "how many were taken, as a plain number such as 3 or 2.5, without units: required", job: "the job or customer it was for, only if the person said", location: "the place it was taken from, only if the person said" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "stock.issue")?.permissions ?? [] },
-    { id: "stock.transfer", describes: "Move stock from one place to another (it is only proposed; a person approves it).", arguments: { item: "the item's name or code, as the person said it", quantity: "how many were moved, as a plain number: required", from: "the place it was moved from: required", to: "the place it was moved to: required" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "stock.transfer")?.permissions ?? [] },
-    { id: "stock.count", describes: "Record how many of an item were counted at a place (it is only proposed; a person approves it).", arguments: { item: "the item's name or code, as the person said it", counted: "how many were counted, as a plain number (0 if none): required", location: "the place counted, only if the person said" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "stock.count")?.permissions ?? [] },
-    { id: "stock.reserve", describes: "Set stock aside for a job (it is only proposed; a person approves it).", arguments: { item: "the item's name or code, as the person said it", quantity: "how many to set aside, as a plain number: required", job: "the job or customer it is for: required" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "stock.reserve")?.permissions ?? [] },
+    { id: "prices.find", describes: "What a stock item sells for.", arguments: { item: "the product name only (or its code), as the person said it, without the unit or a quantity (screws, not boxes of screws)" }, permissions: READS.find((r) => r.id === "prices.find")?.permissions ?? [] },
+    { id: "stock.issue", describes: "Take stock out for a job or for use (it is only proposed; a person approves it).", arguments: { item: "the product name only (or its code), as the person said it, without the unit or a quantity (screws, not boxes of screws)", quantity: "how many were taken, as a plain number such as 3 or 2.5, without units: required", job: "the job or customer it was for, only if the person said", location: "the place it was taken from, only if the person said" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "stock.issue")?.permissions ?? [] },
+    { id: "stock.transfer", describes: "Move stock from one place to another (it is only proposed; a person approves it).", arguments: { item: "the product name only (or its code), as the person said it, without the unit or a quantity (screws, not boxes of screws)", quantity: "how many were moved, as a plain number: required", from: "the place it was moved from: required", to: "the place it was moved to: required" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "stock.transfer")?.permissions ?? [] },
+    { id: "stock.count", describes: "Record how many of an item were counted at a place (it is only proposed; a person approves it).", arguments: { item: "the product name only (or its code), as the person said it, without the unit or a quantity (screws, not boxes of screws)", counted: "how many were counted, as a plain number (0 if none): required", location: "the place counted, only if the person said" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "stock.count")?.permissions ?? [] },
+    { id: "stock.reserve", describes: "Set stock aside for a job (it is only proposed; a person approves it).", arguments: { item: "the product name only (or its code), as the person said it, without the unit or a quantity (screws, not boxes of screws)", quantity: "how many to set aside, as a plain number: required", job: "the job or customer it is for: required" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "stock.reserve")?.permissions ?? [] },
     { id: "vat.summary", describes: "The VAT position for a month.", arguments: { period: "this_month or last_month: required" }, permissions: READS.find((r) => r.id === "vat.summary")?.permissions ?? [] },
   ];
 }
@@ -70,30 +70,52 @@ function toMilli(v: unknown, allowZero = false): number | null {
   const m = Math.round(v * 1000);
   return Math.abs(v * 1000 - m) < 1e-6 ? m : null;
 }
+/** What people call a kind of place (the engine's kinds are warehouse, vehicle, site and in_transit): words only, never ids. */
+const PLACE_WORDS: Record<string, string[]> = { vehicle: ["van", "vans", "truck", "trucks", "bakkie", "bakkies", "vehicle", "vehicles", "car", "ldv"], warehouse: ["store", "stores", "storeroom", "shed", "sheds", "warehouse", "warehouses", "depot"], site: ["site", "sites"] };
+/** A sentence that says minus or negative (or has a minus sign before a number) gives no quantity to read, whatever number a model returns: the engine reads the sentence too. A hyphen inside a name or code (PLY-18, Smith-Jones) is not a minus sign. */
+const saysNegative = (text: string): boolean => /\b(?:minus|negative)\b/i.test(text) || /(?:^|[\s(])-\s?\d/.test(text);
 const isShort = (v: unknown, max = 60): v is string => isName(v) && v.trim().length <= max;
 const sqz = (v: string) => v.trim().replace(/\s+/g, " ").toLowerCase();
 async function resolveItem(env: Env, member: Member, name: string): Promise<Resolved> {
-  const pick = (outcome: ReadOutcome) => ((outcome as { result?: { items?: Array<{ id: number; name: string; sku: string; active: boolean }> } }).result?.items ?? []).filter((i) => i.active);
-  let r = await invokeRead(env, member, "items.find", { name });
-  if (r.status === "refused") return { kind: "refused", code: r.code, message: r.message };
-  let list = pick(r);
-  if (list.length === 0) { r = await invokeRead(env, member, "items.find", { sku: name }); if (r.status === "refused") return { kind: "refused", code: r.code, message: r.message }; list = pick(r); }
-  const exact = list.filter((i) => sqz(i.name) === sqz(name) || sqz(i.sku) === sqz(name));
-  const one = exact.length === 1 ? exact : list.length === 1 ? list : [];
-  if (one.length === 1) return { kind: "one", id: one[0].id, name: one[0].name };
-  return list.length === 0 ? { kind: "none" } : { kind: "many", outcome: r };
+  const pick = (outcome: ReadOutcome) => ((outcome as { result?: { items?: Array<{ id: number; name: string; sku: string; unit: string; active: boolean }> } }).result?.items ?? []).filter((i) => i.active);
+  const attempt = async (words: string): Promise<{ resolved: Resolved; units: Set<string> }> => {
+    let r = await invokeRead(env, member, "items.find", { name: words });
+    if (r.status === "refused") return { resolved: { kind: "refused", code: r.code, message: r.message }, units: new Set() };
+    let list = pick(r);
+    if (list.length === 0) { r = await invokeRead(env, member, "items.find", { sku: words }); if (r.status === "refused") return { resolved: { kind: "refused", code: r.code, message: r.message }, units: new Set() }; list = pick(r); }
+    const exact = list.filter((i) => sqz(i.name) === sqz(words) || sqz(i.sku) === sqz(words));
+    const one = exact.length === 1 ? exact : list.length === 1 ? list : [];
+    if (one.length === 1) return { resolved: { kind: "one", id: one[0].id, name: one[0].name }, units: new Set() };
+    return { resolved: list.length === 0 ? { kind: "none" } : { kind: "many", outcome: r }, units: new Set() };
+  };
+  const first = await attempt(name);
+  if (first.resolved.kind !== "none") return first.resolved;
+  // A model often puts the unit into the item words ("boxes of screws"). When nothing matches as said, and the words begin with a unit phrase the business ITSELF uses for one of its items ("box", "sheet": singular or plural, then "of"), set that phrase aside and look again. A unit the business does not use is never set aside, so this can only find what is there.
+  const all = await invokeRead(env, member, "items.find", {});
+  if (all.status === "refused") return { kind: "refused", code: all.code, message: all.message };
+  const units = new Set(pick(all).map((i) => sqz(i.unit)));
+  const m = /^(?:the\s+)?([a-z]+)\s+of\s+(.+)$/i.exec(name.trim());
+  if (m) { const w = sqz(m[1]); if ([...units].some((u) => w === u || w === `${u}s` || w === `${u}es`)) return (await attempt(m[2].trim())).resolved; }
+  return first.resolved;
 }
 /** A place by name; with none named: the only place the business has, else the only place that holds the item, else ask which. */
 async function resolvePlace(env: Env, member: Member, name: string | undefined, itemId: number | null): Promise<{ id: number } | { refused: { code: string; message: string } }> {
   const all = await invokeRead(env, member, "stock.on_hand", {});
   if (all.status === "refused") return { refused: { code: all.code, message: all.message } };
-  const places = ((all as { result?: { locations?: Array<{ id: number; name: string }> } }).result?.locations) ?? [];
+  const places = ((all as { result?: { locations?: Array<{ id: number; name: string; kind: string }> } }).result?.locations) ?? [];
   const ask = (names: string[]) => ({ refused: { code: "invalid_input", message: `Which location? ${names.join(", ")}.` } });
   if (name !== undefined) {
     const exact = places.filter((l) => sqz(l.name) === sqz(name)), part = places.filter((l) => sqz(l.name).includes(sqz(name)));
     const pick = exact.length === 1 ? exact : part.length === 1 ? part : [];
     if (pick.length === 1) return { id: pick[0].id };
-    return part.length > 1 ? ask(part.map((l) => l.name)) : { refused: { code: "not_found", message: `There is no location called ${name}.` } };
+    if (part.length > 1) return ask(part.map((l) => l.name));
+    // a place said by what it is ("the van", "the shed"): the KIND of place, used only when exactly one place of that kind exists, else ask which; a word that names no kind is not guessed at
+    const word = sqz(name).replace(/^(?:the|our|my)\s+/, "");
+    const kind = (Object.keys(PLACE_WORDS) as string[]).find((k) => PLACE_WORDS[k].includes(word));
+    const ofKind = kind ? places.filter((l) => l.kind === kind) : [];
+    if (ofKind.length === 1) return { id: ofKind[0].id };
+    if (ofKind.length > 1) return ask(ofKind.map((l) => l.name));
+    return { refused: { code: "not_found", message: `There is no location called ${name}.` } };
   }
   if (places.length === 1) return { id: places[0].id };
   if (itemId !== null) {
@@ -287,7 +309,7 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
   if (chosen.id === "stock.reorder_suggestions") return { kind: "read", understood, outcome: await invokeRead(env, member, "stock.reorder_suggestions", {}) };
   if (chosen.id === "stock.issue" || chosen.id === "stock.transfer" || chosen.id === "stock.count" || chosen.id === "stock.reserve") {
     const milli = toMilli(chosen.id === "stock.count" ? args.counted : args.quantity, chosen.id === "stock.count");
-    if (!isName(args.item) || milli === null) return notUnderstood(env, member, text);
+    if (!isName(args.item) || milli === null || saysNegative(text)) return notUnderstood(env, member, text);
     if (chosen.id === "stock.issue" && ((args.job !== undefined && !isShort(args.job)) || (args.location !== undefined && !isName(args.location)))) return notUnderstood(env, member, text);
     if (chosen.id === "stock.transfer" && (!isName(args.from) || !isName(args.to))) return notUnderstood(env, member, text);
     if (chosen.id === "stock.count" && args.location !== undefined && !isName(args.location)) return notUnderstood(env, member, text);

@@ -29,10 +29,11 @@ module.exports = kit.guard('engine interpret (stock)', async ({ check }) => {
     say(/Used 2 boxes of screws/, call('stock.issue', { item: 'Screws 50mm', quantity: 2 })),
     say(/Used 2 sheets of plywood 18mm without saying where from/, call('stock.issue', { item: 'Plywood 18mm', quantity: 2 })),
     say(/Used 2.5 boxes of screws/, call('stock.issue', { item: 'Screws 50mm', quantity: 2.5 })),
-    say(/Used 3 sheets of Plywood 18mm from the shed/, call('stock.issue', { item: 'Plywood 18mm', quantity: 3, location: 'the shed' })),
+    say(/Used 3 sheets of Plywood 18mm from the garage/, call('stock.issue', { item: 'Plywood 18mm', quantity: 3, location: 'the garage' })),
     say(/Used 0.0005 of screws/, call('stock.issue', { item: 'Screws 50mm', quantity: 0.0005 })),
     say(/Used no sheets of screws/, call('stock.issue', { item: 'Screws 50mm', quantity: 0 })),
     say(/Used minus two screws/, call('stock.issue', { item: 'Screws 50mm', quantity: -2 })),
+    say(/Used a couple of screws with a bad reading/, call('stock.issue', { item: 'Screws 50mm', quantity: -2 })),
     say(/Used some screws/, call('stock.issue', { item: 'Screws 50mm' })),
     say(/Used two screws written out/, call('stock.issue', { item: 'Screws 50mm', quantity: 'two' })),
     say(/Used a million and one screws/, call('stock.issue', { item: 'Screws 50mm', quantity: 1000001 })),
@@ -69,6 +70,20 @@ module.exports = kit.guard('engine interpret (stock)', async ({ check }) => {
     say(/Release the reservation/, call('stock.release', { reservationId: 1 })),
     say(/Used 1 of the retired screws/, call('stock.issue', { item: 'Retired screws', quantity: 1, location: 'Main store' })),
     say(/Used 1 of plywood 12mm with no stock/, call('stock.issue', { item: 'Plywood 12mm', quantity: 1 })),
+    say(/Used 2 boxes of screws as the unit phrase/, call('stock.issue', { item: 'boxes of screws', quantity: 2 })),
+    say(/Used 3 sheets of plywood 18mm as the unit phrase/, call('stock.issue', { item: 'sheets of Plywood 18mm', quantity: 3, location: 'Main store' })),
+    say(/Used 2 crates of screws/, call('stock.issue', { item: 'crates of screws', quantity: 2 })),
+    say(/Used 2 boxes of unobtainium/, call('stock.issue', { item: 'boxes of unobtainium', quantity: 2 })),
+    say(/Moved 2 sheets of Plywood 18mm from the main store to the van/, call('stock.transfer', { item: 'Plywood 18mm', quantity: 2, from: 'main store', to: 'van' })),
+    say(/Took 4 sheets of Plywood 18mm from the van/, call('stock.issue', { item: 'Plywood 18mm', quantity: 4, job: 'Mokoena lounge', location: 'van' })),
+    say(/Took 2 sheets of Plywood 18mm from the truck/, call('stock.issue', { item: 'Plywood 18mm', quantity: 2, location: 'the truck' })),
+    say(/Took 2 boxes of screws from the shed/, call('stock.issue', { item: 'Screws 50mm', quantity: 2, location: 'the shed' })),
+    say(/Used minus 3 sheets of Plywood 18mm from the main store/, call('stock.issue', { item: 'Plywood 18mm', quantity: 3, location: 'Main store' })),
+    say(/Used negative 2 boxes of screws/, call('stock.issue', { item: 'Screws 50mm', quantity: 2 })),
+    say(/Used -3 sheets of Plywood 18mm from the main store/, call('stock.issue', { item: 'Plywood 18mm', quantity: 3, location: 'Main store' })),
+    say(/Used 2 sheets of Plywood 18mm for the Smith-Jones job from the main store/, call('stock.issue', { item: 'Plywood 18mm', quantity: 2, job: 'Smith-Jones', location: 'Main store' })),
+    say(/Counted minus 5 of the screws in the main store/, call('stock.count', { item: 'Screws 50mm', counted: 5, location: 'Main store' })),
+    say(/Set aside minus 1 sheet of Plywood 18mm for the Naidoo kitchen/, call('stock.reserve', { item: 'Plywood 18mm', quantity: 1, job: 'Naidoo kitchen' })),
     say(/Approve the stock issue/, call('stock.confirm', { actionId: 1 })),
   ];
   const interpret = (text, opts = {}) => kit.route({ env: ENV_A, ai: opts.ai || SCRIPT, before: [SEED, ...(opts.before || WORLD)], method: 'POST', path: '/engine/interpret', role: opts.role || 'accountant', body: opts.body || { text } });
@@ -98,8 +113,9 @@ module.exports = kit.guard('engine interpret (stock)', async ({ check }) => {
   r = await interpret('Used 2 sheets of plywood 18mm without saying where from');
   check(status(r) === 422 && body(r).error === 'invalid_input' && /Which location/.test(body(r).message) && /Main store/.test(body(r).message) && /Bakkie 1/.test(body(r).message) && noFacts(r) && !tables(r).includes('pending_actions'), 'with the item in TWO places and none named, the engine asks which (listing them) and holds nothing');
   h = await heldPayload('Used 2.5 boxes of screws'); check(h.quantityMilli === 2500, 'a decimal quantity is turned into thousandths: 2.5 is 2500');
-  r = await interpret('Used 3 sheets of Plywood 18mm from the shed'); check(status(r) === 404 && body(r).error === 'not_found' && /shed/.test(body(r).message) && noFacts(r) && !tables(r).includes('pending_actions'), 'a place that does not exist is not_found, naming it, and nothing is held');
+  r = await interpret('Used 3 sheets of Plywood 18mm from the garage'); check(status(r) === 404 && body(r).error === 'not_found' && /garage/.test(body(r).message) && noFacts(r) && !tables(r).includes('pending_actions'), 'a place that does not exist is not_found, naming it, and nothing is held');
   for (const [text, why] of [['Used 0.0005 of screws', 'a quantity finer than a thousandth'], ['Used no sheets of screws', 'a quantity of zero'], ['Used minus two screws', 'a negative quantity'], ['Used some screws', 'no quantity at all'], ['Used two screws written out', 'a quantity written as a word'], ['Used a million and one screws', 'a quantity above a million']]) { r = await interpret(text); check(NOT(r), `${why} is NOT UNDERSTOOD (a capture and an observation only)`); }
+  r = await interpret('Used a couple of screws with a bad reading'); check(NOT(r), 'a negative number from the model is NOT UNDERSTOOD even when the sentence itself never says minus (the number is checked as well as the sentence)');
   h = await heldPayload('Used 2 of PLY-18 by its code'); check(h.itemId === 1, 'an item can be named by its code, in any case');
   r = await interpret('Used 2 of plywood');
   check(status(r) === 200 && body(r).understood.capability === 'stock.issue' && !tables(r).includes('pending_actions') && JSON.stringify(body(r)).includes('Plywood 18mm') && JSON.stringify(body(r)).includes('Plywood 12mm') && noFacts(r), 'two items match "plywood": the engine returns BOTH to choose from and holds nothing (never a guess)');
@@ -117,6 +133,39 @@ module.exports = kit.guard('engine interpret (stock)', async ({ check }) => {
   r = await interpret('Used 1 of plywood 12mm with no stock'); check(status(r) === 422 && body(r).error === 'invalid_input' && /Which location/.test(body(r).message), 'an item held nowhere, in a business with two places, asks which place (it does not guess one)');
   const ONE = [prop('item.create', { sku: 'PLY-12', name: 'Plywood 12mm', unit: 'sheet' }), confirm(1), prop('location.create', { name: 'Only store', kind: 'warehouse' }), confirm(2)];
   r = await interpret('Used 1 of plywood 12mm with no stock', { before: ONE }); check(status(r) === 409 && body(r).error === 'invalid_state' && noFacts(r) && !tables(r).includes('pending_actions'), 'a business with ONE place uses it without asking (the engine then refuses because nothing is there): it does not ask "which location"');
+  // ---- 2b. WHAT THE FIRST REAL-MODEL RUN FOUND (docs/decisions/interpreter-stock.md, run 43267454565): the unit in the item words, a place said by what it is, and a sign the model dropped ----
+  h = await heldPayload('Used 2 boxes of screws as the unit phrase'); check(h.itemId === 3 && h.quantityMilli === 2000, 'a model that puts the unit in the item words ("boxes of screws") still finds the item: the leading unit phrase the business itself uses is set aside when nothing matches as said');
+  h = await heldPayload('Used 3 sheets of plywood 18mm as the unit phrase'); check(h.itemId === 1 && h.quantityMilli === 3000, 'and so is "sheets of Plywood 18mm"');
+  r = await interpret('Used 2 crates of screws'); check(status(r) === 404 && body(r).error === 'not_found' && noFacts(r) && !tables(r).includes('pending_actions'), 'a unit the business does not use is NOT set aside: "crates of screws" is not found (the rule never guesses)');
+  r = await interpret('Used 2 boxes of unobtainium'); check(status(r) === 404 && body(r).error === 'not_found' && /unobtainium/i.test(body(r).message) && noFacts(r), 'setting a unit phrase aside does not make a missing item exist: "boxes of unobtainium" is not found, naming what the person said');
+  h = await heldPayload('Moved 2 sheets of Plywood 18mm from the main store to the van'); check(h.fromLocationId === 1 && h.toLocationId === 2, 'a place said by what it is ("the van") is the one vehicle the business has (Bakkie 1)');
+  h = await heldPayload('Took 4 sheets of Plywood 18mm from the van'); check(h.locationId === 2 && h.quantityMilli === 4000, 'an issue from "the van" is from Bakkie 1');
+  h = await heldPayload('Took 2 sheets of Plywood 18mm from the truck'); check(h.locationId === 2, 'a truck is a vehicle too');
+  h = await heldPayload('Took 2 boxes of screws from the shed'); check(h.locationId === 1, 'a shed is the one warehouse the business has (the main store)');
+  const TWO_VANS = [...WORLD, prop('location.create', { name: 'Bakkie 2', kind: 'vehicle' }), confirm(n + 1)];
+  r = await interpret('Took 4 sheets of Plywood 18mm from the van', { before: TWO_VANS }); check(status(r) === 422 && body(r).error === 'invalid_input' && /Which location/.test(body(r).message) && /Bakkie 1/.test(body(r).message) && /Bakkie 2/.test(body(r).message) && noFacts(r) && !tables(r).includes('pending_actions'), 'with TWO vehicles, "the van" is not a guess: the engine asks which and lists both, holding nothing');
+  for (const text of ['Used minus 3 sheets of Plywood 18mm from the main store', 'Used negative 2 boxes of screws', 'Used -3 sheets of Plywood 18mm from the main store', 'Counted minus 5 of the screws in the main store', 'Set aside minus 1 sheet of Plywood 18mm for the Naidoo kitchen']) { r = await interpret(text); check(NOT(r), `"${text}": the sentence says minus or negative, so no quantity can be read from it and it is NOT UNDERSTOOD, whatever number the model returned (the engine reads the sentence, not just the model)`); }
+  h = await heldPayload('Used 2 sheets of Plywood 18mm for the Smith-Jones job from the main store'); check(h.itemId === 1 && h.quantityMilli === 2000 && h.jobRef === 'Smith-Jones', 'a hyphen inside a name or a code is not a minus sign (a job called Smith-Jones is held)');
+  h = await heldPayload('Used 2 of PLY-18 by its code'); check(h.itemId === 1, 'nor is the hyphen in a code like PLY-18');
+  const seen = []; r = await interpret('Used 2 boxes of screws', { ai: [{ match: /./, reply: (input) => { seen.push(JSON.stringify(input)); return call('stock.issue', { item: 'Screws 50mm', quantity: 2 }); } }] });
+  check(seen.length === 1 && /product name only/.test(seen[0]) && /without the unit/.test(seen[0]), 'the model is told that an item is the product name only, without the unit or a quantity');
+  // ---- 2c. REPLAY: the real model's own recorded replies from run 43267454565 (ops/staging-stock-model-run-last.json), word for word, through the engine as it is now. S13's reply was not recorded (a held answer carries no debug), so it is the reading the held payload proves: quantity 3. ----
+  const REAL = {
+    'Take 2 boxes of screws for the Dlamini job': '{"capability": "stock.issue", "arguments": {"item": "boxes of screws", "quantity": 2, "job": "Dlamini"}}',
+    'Moved 2 sheets of Plywood 18mm from the main store to the van': '{"capability":"stock.transfer","arguments":{"item":"Plywood 18mm","quantity":2,"from":"main store","to":"van"}}',
+    'We counted 20 boxes of screws': '{"capability": "stock.count", "arguments": {"item": "boxes of screws", "counted": 20}}',
+    'Use 2.5 boxes of screws for Patel': '{"capability": "stock.issue", "arguments": {"item": "boxes of screws", "quantity": 2.5, "job": "Patel"}}',
+    'Take 4 sheets of Plywood 18mm from the van for the Mokoena lounge': '{"capability": "stock.issue", "arguments": {"item": "Plywood 18mm", "quantity": 4, "job": "Mokoena lounge", "location": "van"}}',
+    'Used minus 3 sheets of Plywood 18mm from the main store': '{"capability": "stock.issue", "arguments": {"item": "Plywood 18mm", "quantity": 3, "location": "main store"}}',
+  };
+  const REPLAY = Object.entries(REAL).map(([text, reply]) => ({ match: new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), reply: () => reply }));
+  const replayed = async (text) => { const res = await kit.route({ env: ENV_A, ai: REPLAY, before: [SEED, ...WORLD, { method: 'POST', path: '/engine/interpret', role: 'accountant', body: { text } }], method: 'GET', path: '/actions/pending', role: 'accountant' }); try { const p = body(res).pending || []; return JSON.parse(p[p.length - 1].payload); } catch (e) { return {}; } };
+  let rp = await replayed('Take 2 boxes of screws for the Dlamini job'); check(rp.itemId === 3 && rp.locationId === 1 && rp.quantityMilli === 2000 && rp.jobRef === 'Dlamini' && rp.reason === 'job', 'REPLAY of the real model\'s reply for "Take 2 boxes of screws for the Dlamini job" (item "boxes of screws"): the issue is now held, for the screws, from the main store, 2000 thousandths, for Dlamini');
+  rp = await replayed('Moved 2 sheets of Plywood 18mm from the main store to the van'); check(rp.itemId === 1 && rp.fromLocationId === 1 && rp.toLocationId === 2 && rp.quantityMilli === 2000, 'REPLAY of the real reply (to: "van"): the transfer is now held from the main store to Bakkie 1');
+  rp = await replayed('We counted 20 boxes of screws'); check(rp.locationId === 1 && rp.lines && rp.lines[0].itemId === 3 && rp.lines[0].countedMilli === 20000, 'REPLAY of the real reply for the screws count (item "boxes of screws"): held, in the main store (the only place that holds them), 20000 thousandths');
+  rp = await replayed('Use 2.5 boxes of screws for Patel'); check(rp.itemId === 3 && rp.quantityMilli === 2500 && rp.jobRef === 'Patel', 'REPLAY of the real reply for 2.5 boxes: held, 2500 thousandths, for Patel');
+  rp = await replayed('Take 4 sheets of Plywood 18mm from the van for the Mokoena lounge'); check(rp.itemId === 1 && rp.locationId === 2 && rp.quantityMilli === 4000 && rp.jobRef === 'Mokoena lounge', 'REPLAY of the real reply (location: "van"): held from Bakkie 1, 4000 thousandths, for the Mokoena lounge');
+  r = await kit.route({ env: ENV_A, ai: REPLAY, before: [SEED, ...WORLD], method: 'POST', path: '/engine/interpret', role: 'accountant', body: { text: 'Used minus 3 sheets of Plywood 18mm from the main store' } }); check(NOT(r), 'REPLAY of the reading that was HELD in the real run ("minus 3" read as quantity 3): it is now NOT UNDERSTOOD, nothing held');
   // ---- 3. MOVING STOCK ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   r = await interpret('Moved 2 sheets of Plywood 18mm from the main store to the van'); check(isHeld(r, 'stock.transfer'), 'a transfer is HELD and moves nothing');
   h = await heldPayload('Moved 2 sheets of Plywood 18mm from the main store to the van'); check(h.itemId === 1 && h.fromLocationId === 1 && h.toLocationId === 2 && h.quantityMilli === 2000 && TODAY.test(h.movedOn) && Object.keys(h).sort().join() === 'fromLocationId,itemId,movedOn,quantityMilli,toLocationId', 'the held transfer: item and both places resolved, 2000 thousandths, today\'s date');

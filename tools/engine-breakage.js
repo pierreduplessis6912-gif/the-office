@@ -448,7 +448,7 @@ const MUTATIONS = [
   { name: 'interpreter stock: a quantity above a million is accepted', suite: ISTOCK, file: E('interpret.ts'), find: '|| v > MAX_UNITS) return null;', replace: '|| v > 1e12) return null;' },
   { name: 'interpreter stock: an ambiguous item name picks the first match', suite: ISTOCK, file: E('interpret.ts'), find: 'const one = exact.length === 1 ? exact : list.length === 1 ? list : [];', replace: 'const one = exact.length === 1 ? exact : list.length >= 1 ? [list[0]] : [];' },
   { name: 'interpreter stock: an inactive item is offered', suite: ISTOCK, file: E('interpret.ts'), find: '.filter((i) => i.active);', replace: '.filter(() => true);' },
-  { name: 'interpreter stock: an item cannot be named by its code', suite: ISTOCK, file: E('interpret.ts'), find: 'if (list.length === 0) { r = await invokeRead(env, member, "items.find", { sku: name });', replace: 'if (false) { r = await invokeRead(env, member, "items.find", { sku: name });' },
+  { name: 'interpreter stock: an item cannot be named by its code', suite: ISTOCK, file: E('interpret.ts'), find: 'if (list.length === 0) { r = await invokeRead(env, member, "items.find", { sku: words });', replace: 'if (false) { r = await invokeRead(env, member, "items.find", { sku: words });' },
   { name: 'interpreter stock: the only place the business has is not used', suite: ISTOCK, file: E('interpret.ts'), find: 'if (places.length === 1) return { id: places[0].id };', replace: 'if (false) return { id: places[0].id };' },
   { name: 'interpreter stock: the only place that holds the item is not used', suite: ISTOCK, file: E('interpret.ts'), find: 'if (where.length === 1) return { id: where[0].locationId };', replace: 'if (false) return { id: where[0].locationId };' },
   { name: 'interpreter stock: an issue is always a job', suite: ISTOCK, file: E('interpret.ts'), find: 'reason: job ? "job" : "use"', replace: 'reason: "job"' },
@@ -459,7 +459,15 @@ const MUTATIONS = [
   { name: 'interpreter stock: an issue is dated by something other than today', suite: ISTOCK, file: E('interpret.ts'), find: 'issuedOn: today, reason:', replace: 'issuedOn: "2020-01-01", reason:' },
   { name: 'interpreter stock: what to reorder reads the wrong thing', suite: ISTOCK, file: E('interpret.ts'), find: 'outcome: await invokeRead(env, member, "stock.reorder_suggestions", {}) };', replace: 'outcome: await invokeRead(env, member, "stock.on_hand", {}) };' },
   { name: 'interpreter stock: prices read the wrong thing', suite: ISTOCK, file: E('interpret.ts'), find: 'outcome: await invokeRead(env, member, chosen.id, { itemId: it.id }) };', replace: 'outcome: await invokeRead(env, member, "stock.on_hand", { itemId: it.id }) };' },
-  { name: 'interpreter stock: a place that does not exist is guessed', suite: ISTOCK, file: E('interpret.ts'), find: 'return part.length > 1 ? ask(part.map((l) => l.name)) : { refused: { code: "not_found", message: `There is no location called ${name}.` } };', replace: 'return part.length > 1 ? ask(part.map((l) => l.name)) : { id: places[0].id };' },
+  { name: 'interpreter stock: a place that does not exist is guessed', suite: ISTOCK, file: E('interpret.ts'), find: 'return { refused: { code: "not_found", message: `There is no location called ${name}.` } };', replace: 'return { id: places[0].id };' },
+  { name: 'interpreter stock: a leading unit phrase is never set aside', suite: ISTOCK, file: E('interpret.ts'), find: 'if (m) { const w = sqz(m[1]);', replace: 'if (false) { const w = sqz(m[1]);' },
+  { name: 'interpreter stock: any word before "of" is set aside, not only the business\'s own units', suite: ISTOCK, file: E('interpret.ts'), find: 'if ([...units].some((u) => w === u || w === `${u}s` || w === `${u}es`)) return', replace: 'if (true) return' },
+  { name: 'interpreter stock: a place said by its kind is never resolved', suite: ISTOCK, file: E('interpret.ts'), find: 'if (ofKind.length === 1) return { id: ofKind[0].id };', replace: 'if (false) return { id: ofKind[0].id };' },
+  { name: 'interpreter stock: with several places of a kind the first is taken', suite: ISTOCK, file: E('interpret.ts'), find: 'if (ofKind.length > 1) return ask(ofKind.map((l) => l.name));', replace: 'if (ofKind.length > 1) return { id: ofKind[0].id };' },
+  { name: 'interpreter stock: a van is taken for a warehouse', suite: ISTOCK, file: E('interpret.ts'), find: 'vehicle: ["van", "vans", "truck",', replace: 'vehicle: ["truck",' },
+  { name: 'interpreter stock: the sentence is not checked for minus or negative', suite: ISTOCK, file: E('interpret.ts'), find: 'milli === null || saysNegative(text)) return notUnderstood', replace: 'milli === null) return notUnderstood' },
+  { name: 'interpreter stock: any hyphen counts as a minus sign', suite: ISTOCK, file: E('interpret.ts'), find: '/(?:^|[\\s(])-\\s?\\d/.test(text)', replace: '/-\\s?\\d/.test(text)' },
+  { name: 'interpreter stock: the words minus and negative are not recognised', suite: ISTOCK, file: E('interpret.ts'), find: '/\\b(?:minus|negative)\\b/i.test(text) ||', replace: 'false ||' },
 ];
 
 let opts;
