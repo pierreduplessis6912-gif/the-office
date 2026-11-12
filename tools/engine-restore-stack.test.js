@@ -59,11 +59,15 @@ module.exports = kit.guard('engine restore (stack)', async ({ check }) => {
     await facts.transferStock(w.env, { itemId: item, fromLocationId: main, toLocationId: van, quantityMilli: 4000, movedOn: '2026-10-09' }, CTX);
     await facts.adjustStock(w.env, { itemId: item, locationId: van, direction: 'out', quantityMilli: 500, adjustedOn: '2026-10-10', reason: 'damage', note: 'dropped' }, CTX);
     await facts.reverseStockMove(w.env, { moveId: iss.moveId, reason: 'wrong job', reversedOn: '2026-10-11' }, CTX);
+    // procurement link: an order that names its item, goods received against it, and the delivery put into stock
+    const poS = await facts.recordPurchaseOrder(w.env, { supplierId: sup, orderedOn: '2026-10-02', currency: 'ZAR', lines: [{ description: 'Plywood', quantityMilli: 12000, unit: 'sheet', unitPriceMinor: 20000, taxBp: 1500 }], lineItems: [{ lineNo: 1, itemId: item }] }, CTX);
+    const grS = await facts.receiveGoods(w.env, { orderId: poS.documentId, receivedOn: '2026-10-03', lines: [{ lineNo: 1, quantityMilli: 5000 }] }, CTX);
+    await facts.receiveDelivery(w.env, { receiptId: grS.documentId, locationId: main, receivedOn: '2026-10-04' }, CTX);
     const hold = await facts.reserveStock(w.env, { itemId: item, quantityMilli: 4000, reservedOn: '2026-10-12', forRef: 'Mokoena lounge' }, CTX);
     await facts.issueStock(w.env, { itemId: item, locationId: main, quantityMilli: 1000, issuedOn: '2026-10-13', reason: 'job', jobRef: 'Mokoena lounge', reservationId: hold.reservationId }, CTX);
     await facts.countStock(w.env, { locationId: main, countedOn: '2026-10-14', lines: [{ itemId: item, countedMilli: 14000 }] }, CTX);
     await facts.releaseReservation(w.env, { reservationId: hold.reservationId, reason: 'rest not needed', releasedOn: '2026-10-15' }, CTX);
-    return { cust, sup, inv1, inv2, q1, q2, cn1, cn2, dn, over, e1, item };
+    return { cust, sup, inv1, inv2, q1, q2, cn1, cn2, dn, over, e1, item, poS };
   };
 
   // every answer the business derives from its facts and events, as the app and the assistants read them
@@ -76,7 +80,7 @@ module.exports = kit.guard('engine restore (stack)', async ({ check }) => {
     owes: await ledger.outstandingForParty(w.env, ids.cust), credit: await ledger.unappliedCreditForParty(w.env, ids.cust),
     cn1: await eng.credits.creditAvailable(w.env, ids.cn1.documentId), cn2: await eng.credits.creditAvailable(w.env, ids.cn2.documentId),
     particulars: [await eng.business.documentParticulars(w.env, ids.inv1.id), await eng.business.documentParticulars(w.env, ids.cn1.documentId)],
-    stock: await eng.stock.stockReport(w.env), ledger: await eng.stock.stockLedger(w.env, ids.item), locations: await eng.stock.allLocations(w.env), profile1: await eng.stock.itemProfile(w.env, ids.item), reservations: await eng.stock.allReservations(w.env, { status: 'any' }), reorder: await eng.stock.reorderSuggestions(w.env),
+    stock: await eng.stock.stockReport(w.env), ledger: await eng.stock.stockLedger(w.env, ids.item), locations: await eng.stock.allLocations(w.env), profile1: await eng.stock.itemProfile(w.env, ids.item), reservations: await eng.stock.allReservations(w.env, { status: 'any' }), reorder: await eng.stock.reorderSuggestions(w.env), onOrder: [...(await eng.purchasing.onOrderByItem(w.env)).entries()], unbilled: await eng.bills.goodsUnbilled(w.env), poProgress: await eng.purchasing.orderProgress(w.env, ids.poS.documentId),
   });
 
   const w = kit.makeWorld({ backups: true });

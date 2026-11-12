@@ -7,6 +7,7 @@ import { EngineError } from "./errors";
 import { checkDate } from "./quotations";
 import { partyProfile } from "./parties";
 import { quotationSummary } from "./quotations";
+import { onOrderByItem, receiptLineSource } from "./purchasing";
 
 export const LOCATION_KINDS = ["warehouse", "vehicle", "site", "in_transit"] as const;
 export const ADJUST_REASONS = ["damage", "loss", "theft", "found", "correction", "write_off"] as const;
@@ -218,6 +219,73 @@ export async function reservedFor(env: Env, itemId: number, locationId?: number)
   return (await allReservations(env, { itemId })).filter((r) => locationId === undefined || r.locationId === locationId).reduce((s, r) => s + r.remainingMilli, 0);
 }
 
+export interface OrderLineItem { lineNo: number; itemId: number }
+export function checkLineItems(v: unknown, lineCount: number): Checked<OrderLineItem[]> {
+  if (!Array.isArray(v) || v.length === 0) return { ok: false, reason: "lineItems must be a list of {lineNo, itemId}, or left out" };
+  const out: OrderLineItem[] = [];
+  for (const [i, e] of v.entries()) {
+    if (!isObj(e) || strayOf(e, ["lineNo", "itemId"])) return { ok: false, reason: `lineItems entry ${i + 1} must be {lineNo, itemId}` };
+    if (!whole(e.lineNo, 1, lineCount)) return { ok: false, reason: `lineItems entry ${i + 1}: lineNo must be one of the order's ${lineCount} line(s)` };
+    if (!whole(e.itemId, 1, Number.MAX_SAFE_INTEGER)) return { ok: false, reason: `lineItems entry ${i + 1}: itemId must be a record number` };
+    out.push({ lineNo: e.lineNo, itemId: e.itemId });
+  }
+  if (new Set(out.map((x) => x.lineNo)).size !== out.length) return { ok: false, reason: "the same order line is named twice in lineItems" };
+  return { ok: true, value: out };
+}
+/** Every named item must exist and be active, and its unit must be the unit of the line it is named on. */
+export async function planLineItems(env: Env, items: OrderLineItem[], lines: Array<{ unit: string | null }>) {
+  for (const e of items) {
+    const item = await requireItem(env, e.itemId);
+    const u = lines[e.lineNo - 1]?.unit ?? null;
+    if (u !== null && u !== item.unit) throw new EngineError("invalid_input", `Line ${e.lineNo} is in ${u} but ${item.name} is stocked in ${item.unit}.`);
+  }
+}
+export interface DeliveryInput { receiptId: number; locationId: number; receivedOn: string; lines?: Array<{ lineNo: number; quantityMilli: number }>; plan?: unknown }
+export function checkDeliveryInput(v: unknown): Checked<DeliveryInput> {
+  if (!isObj(v)) return { ok: false, reason: "the delivery must be an object" };
+  const s = strayOf(v, ["receiptId", "locationId", "receivedOn", "lines", "plan"]); if (s) return { ok: false, reason: `${s} is not a field of a delivery` };
+  if (!whole(v.receiptId, 1, Number.MAX_SAFE_INTEGER) || !whole(v.locationId, 1, Number.MAX_SAFE_INTEGER)) return { ok: false, reason: "receiptId and locationId must be record numbers" };
+  const d = checkDate(v.receivedOn, "receivedOn"); if (!d.ok) return d;
+  const out: DeliveryInput = { receiptId: v.receiptId, locationId: v.locationId, receivedOn: d.value };
+  if (v.lines !== undefined) {
+    if (!Array.isArray(v.lines) || v.lines.length === 0) return { ok: false, reason: "lines must be a list of {lineNo, quantityMilli}, or left out to put in everything that is left" };
+    const ls: Array<{ lineNo: number; quantityMilli: number }> = [];
+    for (const [i, l] of v.lines.entries()) { if (!isObj(l) || strayOf(l, ["lineNo", "quantityMilli"]) || !whole(l.lineNo, 1, 100000) || !whole(l.quantityMilli, 1, MAX_QTY)) return { ok: false, reason: `line ${i + 1} must be {lineNo, quantityMilli} with whole numbers, at least 1` }; ls.push({ lineNo: l.lineNo, quantityMilli: l.quantityMilli }); }
+    if (new Set(ls.map((l) => l.lineNo)).size !== ls.length) return { ok: false, reason: "the same goods receipt line is named twice" };
+    out.lines = ls;
+  }
+  if (v.plan !== undefined) out.plan = v.plan;   // shown to the approver, never trusted: it is worked out again at approval
+  return { ok: true, value: out };
+}
+/** The lines of a delivery that can go into stock: those whose order line names an item, up to what the receipt line brought in less what is already stocked (or the quantities the person named). */
+export async function planDelivery(env: Env, input: DeliveryInput) {
+  await requireLocation(env, input.locationId);
+  const d = await one<{ id: number; kind: string; issued_on: string }>(env, "SELECT id, kind, issued_on FROM eng_document WHERE id = ?", input.receiptId);
+  if (!d) throw new EngineError("not_found", "There is no such goods receipt.");
+  if (d.kind !== "goods_receipt") throw new EngineError("invalid_state", "That document is not a goods receipt.");
+  if (input.receivedOn < d.issued_on) throw new EngineError("invalid_input", `Stock cannot be received before the goods arrived (${d.issued_on}).`);
+  const rows = await many<{ line_no: number; quantity_milli: number; unit_price_minor: number }>(env, "SELECT line_no, quantity_milli, unit_price_minor FROM eng_document_line WHERE document_id = ? ORDER BY line_no", d.id);
+  if (input.lines) for (const l of input.lines) if (!rows.some((r) => r.line_no === l.lineNo)) throw new EngineError("invalid_input", `That goods receipt has no line ${l.lineNo}.`);
+  const lines: Array<{ lineNo: number; itemId: number; itemName: string; quantityMilli: number; unitCostMinor: number; valueMinor: number }> = [];
+  let namedAnyItem = false;
+  for (const r of rows) {
+    const named = input.lines?.find((l) => l.lineNo === r.line_no);
+    if (input.lines && !named) continue;
+    const src = await receiptLineSource(env, d.id, r.line_no);
+    if (!src || src.itemId === null) { if (named) throw new EngineError("invalid_state", `Line ${r.line_no} of that goods receipt names no item on its order, so it cannot be put into stock this way: receive it as a chosen item instead.`); continue; }
+    namedAnyItem = true;
+    const item = await requireItem(env, src.itemId);
+    const stocked = await one<{ q: number | null }>(env, "SELECT SUM(CASE WHEN kind = 'receive' THEN quantity_milli ELSE -quantity_milli END) AS q FROM eng_stock_move WHERE source_document_id = ? AND source_line_no = ? AND kind IN ('receive', 'reversal_out')", d.id, r.line_no);
+    const left = r.quantity_milli - Number(stocked?.q ?? 0);
+    const qty1 = named ? named.quantityMilli : left;
+    if (named && qty1 > left) throw new EngineError("invalid_state", `Line ${r.line_no} (${item.name}) brought in ${milli(r.quantity_milli)} and ${milli(Number(stocked?.q ?? 0))} has already been put into stock, so only ${milli(left)} can be.`);
+    if (qty1 <= 0) continue;
+    lines.push({ lineNo: r.line_no, itemId: item.id, itemName: item.name, quantityMilli: qty1, unitCostMinor: r.unit_price_minor, valueMinor: valueOf(qty1, r.unit_price_minor) });
+  }
+  if (lines.length === 0) throw new EngineError("invalid_state", namedAnyItem ? "Everything on that goods receipt that names an item has already been put into stock: nothing is left to put in." : "No line of that goods receipt names an item on its order, so nothing can be put into stock this way.");
+  return { lines };
+}
+
 // ---- reading (derived) -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 export interface ItemProfile { id: number; sku: string; name: string; unit: string; reorderLevelMilli: number | null; reorderQtyMilli: number | null; preferredSupplierId: number | null; active: boolean; eventId: number }
 /** An item as it is NOW: the row it was created as, with its creating event's attributes, then every item.revised event in order. */
@@ -318,6 +386,8 @@ export async function planReceive(env: Env, input: ReceiveInput) {
     const stocked = await one<{ q: number | null }>(env, "SELECT SUM(CASE WHEN kind = 'receive' THEN quantity_milli ELSE -quantity_milli END) AS q FROM eng_stock_move WHERE source_document_id = ? AND source_line_no = ? AND kind IN ('receive', 'reversal_out')", d.id, input.receipt.lineNo);
     const left = line.quantity_milli - Number(stocked?.q ?? 0);
     if (input.quantityMilli > left) throw new EngineError("invalid_state", `That goods receipt line brought in ${milli(line.quantity_milli)} and ${milli(Number(stocked?.q ?? 0))} has already been put into stock, so only ${milli(left)} can be.`);
+    const src = await receiptLineSource(env, d.id, input.receipt.lineNo);
+    if (src && src.itemId !== null && src.itemId !== item.id) { const named = await itemProfile(env, src.itemId); throw new EngineError("invalid_input", `That line is for ${named ? named.name : "another item"}, so it cannot be put into stock as ${item.name}.`); }
     unitCost = line.unit_price_minor; source = input.receipt;
   }
   return { item, location: loc, unitCostMinor: unitCost, valueMinor: valueOf(input.quantityMilli, unitCost), source };
@@ -419,15 +489,15 @@ export async function planCount(env: Env, input: CountInput) {
   }
   return { variances, moves };
 }
-export interface ReorderSuggestion { itemId: number; sku: string; name: string; unit: string; onHandMilli: number; reservedMilli: number; availableMilli: number; reorderLevelMilli: number; suggestedQtyMilli: number; shortfallMilli: number; preferredSupplierId: number | null; preferredSupplierName: string | null }
+export interface ReorderSuggestion { itemId: number; sku: string; name: string; unit: string; onHandMilli: number; reservedMilli: number; availableMilli: number; onOrderMilli: number; positionMilli: number; reorderLevelMilli: number; suggestedQtyMilli: number; shortfallMilli: number; preferredSupplierId: number | null; preferredSupplierName: string | null }
 export async function reorderSuggestions(env: Env): Promise<ReorderSuggestion[]> {
-  const out: ReorderSuggestion[] = [];
+  const out: ReorderSuggestion[] = []; const coming = await onOrderByItem(env);
   for (const id of await allItemIds(env)) {
     const p = await itemProfile(env, id); if (!p || !p.active || p.reorderLevelMilli === null) continue;
-    const onh = (await onHand(env, id)).quantityMilli, held = await reservedFor(env, id), avail = onh - held;
-    if (avail > p.reorderLevelMilli) continue;
+    const onh = (await onHand(env, id)).quantityMilli, held = await reservedFor(env, id), avail = onh - held, onOrder = coming.get(id) ?? 0, position = avail + onOrder;
+    if (position > p.reorderLevelMilli) continue;
     const sup = p.preferredSupplierId === null ? null : await partyProfile(env, p.preferredSupplierId);
-    out.push({ itemId: id, sku: p.sku, name: p.name, unit: p.unit, onHandMilli: onh, reservedMilli: held, availableMilli: avail, reorderLevelMilli: p.reorderLevelMilli, suggestedQtyMilli: p.reorderQtyMilli ?? Math.max(1, p.reorderLevelMilli - avail), shortfallMilli: p.reorderLevelMilli - avail, preferredSupplierId: p.preferredSupplierId, preferredSupplierName: sup ? sup.name : null });
+    out.push({ itemId: id, sku: p.sku, name: p.name, unit: p.unit, onHandMilli: onh, reservedMilli: held, availableMilli: avail, onOrderMilli: onOrder, positionMilli: position, reorderLevelMilli: p.reorderLevelMilli, suggestedQtyMilli: p.reorderQtyMilli ?? Math.max(1, p.reorderLevelMilli - position), shortfallMilli: p.reorderLevelMilli - position, preferredSupplierId: p.preferredSupplierId, preferredSupplierName: sup ? sup.name : null });
   }
   return out.sort((a, b) => b.shortfallMilli - a.shortfallMilli || a.itemId - b.itemId);
 }

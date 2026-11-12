@@ -9,7 +9,7 @@ import { partyProfile } from "./parties";
 import { checkDate } from "./quotations";
 
 export type OrderStatus = "open" | "part_received" | "received" | "cancelled" | "closed";
-export interface LineProgress { lineNo: number; description: string; unit: string | null; unitPriceMinor: number; taxBp: number; orderedMilli: number; receivedMilli: number; remainingMilli: number }
+export interface LineProgress { lineNo: number; description: string; unit: string | null; unitPriceMinor: number; taxBp: number; orderedMilli: number; receivedMilli: number; remainingMilli: number; itemId: number | null; stockedMilli: number }
 export interface PurchaseOrderSummary {
   id: number; number: number | null; supplierId: number; currency: string; orderedOn: string; expectedOn: string | null; reference: string | null;
   netMinor: number; taxMinor: number; grossMinor: number; status: OrderStatus; receivedValueMinor: number; outstandingValueMinor: number; receipts: number[]; cancelled: boolean;
@@ -64,10 +64,48 @@ export async function cancellationOf(env: Env, orderId: number): Promise<{ event
   const p = parse(r[0].payload_json);
   return { eventId: r[0].id, reason: String(p.reason ?? ""), cancelledOn: String(p.cancelledOn ?? "") };
 }
+/** The item each order line is for, from the order's own terms (lineItems): a line with no entry names no item. */
+export async function orderLineItems(env: Env, orderId: number): Promise<Map<number, number>> {
+  const d = await env.OFFICE_DB.prepare("SELECT terms_json FROM eng_document WHERE id = ?").bind(orderId).first<{ terms_json: string }>();
+  const out = new Map<number, number>();
+  const li = d ? parse(d.terms_json).lineItems : null;
+  if (Array.isArray(li)) for (const e of li as Array<{ lineNo?: unknown; itemId?: unknown }>) if (typeof e.lineNo === "number" && typeof e.itemId === "number") out.set(e.lineNo, e.itemId);
+  return out;
+}
+/** What has been put into stock from this order's goods receipts, by ORDER line: a receipt's own line numbers run 1, 2, 3 in the order the goods were listed, and the goods.received event says which order line each was. */
+async function stockedByOrderLine(env: Env, orderId: number): Promise<Map<number, number>> {
+  const out = new Map<number, number>();
+  for (const r of await receiptsOf(env, orderId)) {
+    const moves = await many<{ source_line_no: number; q: number }>(env, "SELECT source_line_no, SUM(CASE WHEN kind = 'receive' THEN quantity_milli ELSE -quantity_milli END) AS q FROM eng_stock_move WHERE source_document_id = ? AND kind IN ('receive', 'reversal_out') GROUP BY source_line_no", r.documentId);
+    for (const m of moves) { const orderLine = r.lines[m.source_line_no - 1]?.lineNo; if (orderLine !== undefined) out.set(orderLine, (out.get(orderLine) ?? 0) + Number(m.q)); }
+  }
+  return out;
+}
+/** For a goods receipt line: the order and order line it came from, and the item that line is for (null when the order names none). */
+export async function receiptLineSource(env: Env, receiptId: number, lineNo: number): Promise<{ orderId: number; orderLineNo: number; itemId: number | null } | null> {
+  const info = await receiptInfo(env, receiptId);
+  if (!info) return null;
+  const ev = (await many<{ payload_json: string }>(env, "SELECT payload_json FROM eng_event WHERE type = 'goods.received' AND json_extract(payload_json, '$.documentId') = ? ORDER BY id LIMIT 1", receiptId))[0];
+  const lines = ev ? parse(ev.payload_json).lines : null;
+  const orderLineNo = Array.isArray(lines) ? (lines as Array<{ lineNo?: unknown }>)[lineNo - 1]?.lineNo : undefined;
+  if (typeof orderLineNo !== "number") return null;
+  return { orderId: info.orderId, orderLineNo, itemId: (await orderLineItems(env, info.orderId)).get(orderLineNo) ?? null };
+}
+/** Stock still to come, by item: for every order not cancelled, what was ordered (or, once the rest is cancelled, what arrived) less what has been put into stock. Goods that have arrived but are not yet in stock still count: they are not on the shelf. */
+export async function onOrderByItem(env: Env): Promise<Map<number, number>> {
+  const out = new Map<number, number>();
+  for (const { id } of await many<{ id: number }>(env, "SELECT id FROM eng_document WHERE kind = 'purchase_order' ORDER BY id")) {
+    if (!(await isEffective(env, "document", id))) continue;
+    const s = await orderSummary(env, id); if (!s) continue;
+    for (const l of await orderProgress(env, id)) { if (l.itemId === null) continue; const expected = (s.cancelled ? l.receivedMilli : l.orderedMilli) - l.stockedMilli; if (expected > 0) out.set(l.itemId, (out.get(l.itemId) ?? 0) + expected); }
+  }
+  return out;
+}
 export async function orderProgress(env: Env, orderId: number): Promise<LineProgress[]> {
   const received = new Map<number, number>();
   for (const r of await receiptsOf(env, orderId)) for (const l of r.lines) received.set(l.lineNo, (received.get(l.lineNo) ?? 0) + l.quantityMilli);
-  return (await orderLines(env, orderId)).map((l) => { const got = received.get(l.line_no) ?? 0; return { lineNo: l.line_no, description: l.description, unit: l.unit, unitPriceMinor: l.unit_price_minor, taxBp: l.tax_bp, orderedMilli: l.quantity_milli, receivedMilli: got, remainingMilli: Math.max(0, l.quantity_milli - got) }; });
+  const items = await orderLineItems(env, orderId), stocked = await stockedByOrderLine(env, orderId);
+  return (await orderLines(env, orderId)).map((l) => { const got = received.get(l.line_no) ?? 0; return { lineNo: l.line_no, description: l.description, unit: l.unit, unitPriceMinor: l.unit_price_minor, taxBp: l.tax_bp, orderedMilli: l.quantity_milli, receivedMilli: got, remainingMilli: Math.max(0, l.quantity_milli - got), itemId: items.get(l.line_no) ?? null, stockedMilli: stocked.get(l.line_no) ?? 0 }; });
 }
 export async function orderSummary(env: Env, id: number): Promise<PurchaseOrderSummary | null> {
   const d = await env.OFFICE_DB.prepare("SELECT d.id, d.party_id, d.currency, d.issued_on, d.reference, d.terms_json, n.number AS number FROM eng_document d LEFT JOIN eng_document_number n ON n.document_id = d.id WHERE d.id = ? AND d.kind = 'purchase_order'").bind(id).first<{ id: number; party_id: number; currency: string; issued_on: string; reference: string | null; terms_json: string; number: number | null }>();

@@ -13,6 +13,7 @@ import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from
 import { planQuotationAcceptance, planQuotationRevision } from "./quotations";
 import { planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { planCancel, planOrder, planReceipt, type ReceiptLineInput } from "./purchasing";
+import { planDelivery, planLineItems, type DeliveryInput, type OrderLineItem } from "./stock";
 import { planCount, planRelease, planReserve, type CountInput, type ReleaseInput, type ReserveInput } from "./stock";
 import { planAdjust, planIssue, planItem, planItemRevision, planLocation, planReceive, planReverse, planTransfer, type AdjustInput, type IssueInput, type ItemInput, type ItemRevision, type LocationInput, type ReceiveInput, type StockReverseInput, type TransferInput } from "./stock";
 import { planBill, planBillVoid, planSupplierPayment, type BillInput, type PaymentInput } from "./bills";
@@ -296,11 +297,12 @@ export async function voidExpense(env: Env, input: { expenseId: number; reason: 
 
 // A PURCHASE ORDER is a document of kind purchase_order (a commitment: no payable, not a tax document, no money); a GOODS RECEIPT is a document of kind goods_receipt tied to ONE order by a goods.received event; a CANCELLATION of the
 // remainder is a purchase_order.cancelled event. Nothing is edited: what state an order is in is derived (purchasing.ts). The receipt takes the order's own price and tax rate for each line, never a new one.
-export async function recordPurchaseOrder(env: Env, input: { supplierId: number; orderedOn: string; currency: string; expectedOn?: string; reference?: string | null; lines: DocumentLineInput[] }, ctx: Ctx): Promise<{ documentId: number; number: number; eventId: number; totals: Totals }> {
+export async function recordPurchaseOrder(env: Env, input: { supplierId: number; orderedOn: string; currency: string; expectedOn?: string; reference?: string | null; lines: DocumentLineInput[]; lineItems?: OrderLineItem[] }, ctx: Ctx): Promise<{ documentId: number; number: number; eventId: number; totals: Totals }> {
   const supplierId = id(input.supplierId, "supplier");
   return inTransaction(env, async (tx) => {
     await planOrder(tx, { supplierId, orderedOn: input.orderedOn, expectedOn: input.expectedOn });
-    const doc = await recordDocument(tx, { kind: "purchase_order", direction: "buy", partyId: supplierId, currency: input.currency, reference: input.reference ?? null, issuedOn: input.orderedOn, terms: input.expectedOn ? { expectedOn: input.expectedOn } : {}, lines: input.lines }, ctx);
+    if (input.lineItems) await planLineItems(tx, input.lineItems, input.lines.map((l) => ({ unit: l.unit ?? null })));
+    const doc = await recordDocument(tx, { kind: "purchase_order", direction: "buy", partyId: supplierId, currency: input.currency, reference: input.reference ?? null, issuedOn: input.orderedOn, terms: { ...(input.expectedOn ? { expectedOn: input.expectedOn } : {}), ...(input.lineItems ? { lineItems: input.lineItems } : {}) }, lines: input.lines }, ctx);
     return { documentId: doc.id, number: doc.number, eventId: doc.eventId, totals: doc.totals };
   });
 }
@@ -447,6 +449,20 @@ export async function countStock(env: Env, input: CountInput, ctx: Ctx): Promise
       moveIds.push(await insertMove(tx, { itemId: m.itemId, locationId: input.locationId, kind: m.direction === "in" ? "adjust_in" : "adjust_out", quantityMilli: m.quantityMilli, valueMinor: m.valueMinor, occurredOn: input.countedOn, reason: "stocktake", eventId }));
     }
     return { countEventId, moveIds, variances: plan.variances.map((v) => ({ itemId: v.itemId, differenceMilli: v.differenceMilli })) };
+  });
+}
+
+// A DELIVERY into stock: every line of a goods receipt whose order line names an item goes into stock at that line's cost, as one transaction of ordinary stock.received movements, each pointing back at the receipt line it came from.
+export async function receiveDelivery(env: Env, input: DeliveryInput, ctx: Ctx): Promise<{ moveIds: number[]; eventIds: number[] }> {
+  return inTransaction(env, async (tx) => {
+    const plan = await planDelivery(tx, input);
+    const moveIds: number[] = [], eventIds: number[] = [];
+    for (const l of plan.lines) {
+      const eventId = await appendEvent(tx, "stock.received", ctx, { itemId: l.itemId, locationId: input.locationId, quantityMilli: l.quantityMilli, valueMinor: l.valueMinor, occurredOn: input.receivedOn, receipt: { documentId: input.receiptId, lineNo: l.lineNo } });
+      eventIds.push(eventId);
+      moveIds.push(await insertMove(tx, { itemId: l.itemId, locationId: input.locationId, kind: "receive", quantityMilli: l.quantityMilli, valueMinor: l.valueMinor, occurredOn: input.receivedOn, sourceDocumentId: input.receiptId, sourceLineNo: l.lineNo, reason: "goods receipt", eventId }));
+    }
+    return { moveIds, eventIds };
   });
 }
 

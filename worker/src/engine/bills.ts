@@ -99,7 +99,7 @@ export async function allBills(env: Env, f: { supplierId?: number; status?: stri
 }
 
 // ---- planning --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-async function billedSoFar(env: Env, orderId: number): Promise<Map<number, number>> {
+export async function billedSoFar(env: Env, orderId: number): Promise<Map<number, number>> {
   const out = new Map<number, number>();
   for (const e of await many<{ id: number; payload_json: string }>(env, "SELECT id, payload_json FROM eng_event WHERE type = 'supplier_invoice.recorded' AND json_extract(payload_json, '$.orderId') = ? ORDER BY id", orderId)) {
     const i = infoOf(e);
@@ -201,3 +201,19 @@ export async function planSupplierPayment(env: Env, input: PaymentInput) {
   return { supplier, paidOn: date.value, allocations };
 }
 export { orderSummary };
+
+export interface UnbilledLine { orderId: number; orderNumber: number | null; supplierId: number; supplierName: string | null; lineNo: number; description: string; unit: string | null; receivedMilli: number; billedMilli: number; unbilledMilli: number; unitPriceMinor: number; valueMinor: number }
+/** Goods received and not yet invoiced, by order line: what has arrived less what bills have billed, at the order's own price (before tax). The supplier will still invoice goods that arrived, even if the rest of the order was cancelled. */
+export async function goodsUnbilled(env: Env, f: { supplierId?: number } = {}): Promise<UnbilledLine[]> {
+  const out: UnbilledLine[] = [];
+  for (const o of await many<{ id: number; party_id: number; number: number | null }>(env, "SELECT d.id, d.party_id, n.number AS number FROM eng_document d LEFT JOIN eng_document_number n ON n.document_id = d.id WHERE d.kind = 'purchase_order' ORDER BY d.id")) {
+    if (f.supplierId !== undefined && o.party_id !== f.supplierId) continue;
+    if (!(await isEffective(env, "document", o.id))) continue;
+    const billed = await billedSoFar(env, o.id), sup = await partyProfile(env, o.party_id);
+    for (const l of await orderProgress(env, o.id)) {
+      const b = billed.get(l.lineNo) ?? 0, un = l.receivedMilli - b;
+      if (un > 0) out.push({ orderId: o.id, orderNumber: o.number, supplierId: o.party_id, supplierName: sup ? sup.name : null, lineNo: l.lineNo, description: l.description, unit: l.unit, receivedMilli: l.receivedMilli, billedMilli: b, unbilledMilli: un, unitPriceMinor: l.unitPriceMinor, valueMinor: Math.round((un * l.unitPriceMinor) / 1000) });
+    }
+  }
+  return out;
+}

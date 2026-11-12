@@ -77,6 +77,7 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
 };
 const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal", item: "eng_item", location: "eng_location", stock_move: "eng_stock_move" };
 
+import { receiptLineSource } from "./purchasing";
 const many = async <T>(env: Env, sql: string, ...binds: unknown[]): Promise<T[]> => ((await env.OFFICE_DB.prepare(sql).bind(...binds).all<T>()).results ?? []);
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const sortedRoles = (v: unknown): string[] | null => (Array.isArray(v) && v.every((r) => typeof r === "string") ? [...(v as string[])].sort() : null);
@@ -401,6 +402,7 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
     }
     if (m.source_document_id !== null && m.source_line_no !== null && (m.kind === "receive" || m.kind === "reversal_out")) { const k = `${m.source_document_id}:${m.source_line_no}`; stockedFromLine.set(k, (stockedFromLine.get(k) ?? 0) + (m.kind === "receive" ? m.quantity_milli : -m.quantity_milli)); }
   }
+  for (const m of moves) if (m.kind === "receive" && m.source_document_id !== null && m.source_line_no !== null) { const src = await receiptLineSource(env, m.source_document_id, m.source_line_no); if (src && src.itemId !== null && src.itemId !== m.item_id) problems.push({ code: "stock_invariant", detail: `stock movement ${m.id} took goods receipt ${m.source_document_id} line ${m.source_line_no} into stock as item ${m.item_id}, a different item than the order line names (${src.itemId})` }); }
   for (const m of moves) if (m.kind === "transfer_out" && (transferIn.get(m.id) ?? 0) !== 1) problems.push({ code: "stock_invariant", detail: `transfer out ${m.id} has ${transferIn.get(m.id) ?? 0} matching transfers in, expected exactly one` });
   for (const [k, n] of stockedFromLine) { const [d, l] = k.split(":").map(Number); const line = (await many<{ quantity_milli: number }>(env, "SELECT quantity_milli FROM eng_document_line WHERE document_id = ? AND line_no = ?", d, l))[0]; if (!line || n > line.quantity_milli) problems.push({ code: "stock_invariant", detail: `goods receipt ${d} line ${l}: more was put into stock (${n}) than the line received (${line?.quantity_milli ?? 0})` }); }
 

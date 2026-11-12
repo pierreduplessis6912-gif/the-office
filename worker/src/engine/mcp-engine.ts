@@ -52,7 +52,7 @@ const HINTS: Record<string, string> = {
   "expense.record": "payload {supplierId, incurredOn, method: eft | cash | card | cheque | other, category, currency, amountsIncludeTax: true | false, lines: [{description, amountMinor, taxBp}], amountPaidMinor, taxInvoiceHeld: true | false, supplierInvoiceNumber?, receiptRef?, capital?}: something bought and already paid.",
   "expense.void": "payload {expenseId, reason, voidedOn}: void an expense.",
   "purchase_orders.find": "params {supplierId?: number, status?: open | part_received | received | cancelled | closed | outstanding | any}: purchase orders with what has arrived and what is still to receive (outstanding orders by default).",
-  "purchase_order.create": "payload {supplierId, orderedOn, currency, expectedOn?, reference?, lines: [{description, quantityMilli (1000 = one), unit?, unitPriceMinor, taxBp (required)}]}: an order placed with a supplier (a commitment, not a debt).",
+  "purchase_order.create": "payload {supplierId, orderedOn, currency, expectedOn?, reference?, lines: [{description, quantityMilli (1000 = one), unit?, unitPriceMinor, taxBp (required)}], lineItems?: [{lineNo, itemId}]}: an order placed with a supplier (a commitment, not a debt). lineItems names the stock item each line is for, so deliveries can go into stock and stock on order counts towards a reorder.",
   "purchase_order.cancel": "payload {orderId, reason, cancelledOn}: cancel what has not yet arrived on an order (closes it short if part arrived).",
   "goods.receive": "payload {orderId, receivedOn, lines: [{lineNo, quantityMilli}], deliveryNote?, note?}: goods that arrived against an order (never more than remains; a person with a money role approves it).",
   "supplier_invoices.find": "params {supplierId?: number, status?: unpaid | part_paid | paid | voided | outstanding | any}: supplier bills with their three-way match, whether they may be paid, and what is still owed (outstanding bills by default).",
@@ -75,6 +75,8 @@ const HINTS: Record<string, string> = {
   "stock.reserve": "payload {itemId, quantityMilli, reservedOn, forDocumentId? (a quotation or invoice) and/or forRef? (a job name), locationId?, note?}: hold stock for something (an event: nothing moves). Never more than is available.",
   "stock.release": "payload {reservationId, reason, releasedOn}: give back what remains of a reservation.",
   "stock.count": "payload {locationId, countedOn, complete?: true | false, note?, lines: [{itemId, countedMilli, unitCostMinor? (only for stock found where none was on the books)}]}: a stocktake of one location. The engine works out the variances and shows them for approval; complete: true counts the items not listed that have stock there as zero.",
+  "stock.receive_delivery": "payload {receiptId, locationId, receivedOn, lines?: [{lineNo, quantityMilli}]}: put a goods receipt into stock: each line whose order line names an item goes in at that line's cost (all that is left, or the quantities named).",
+  "goods.unbilled": "params {supplierId?: number}: goods received and not yet invoiced, by order line, at the order's own price before tax.",
   "business.profile.set": "payload {legalName?, tradingName?, address?, vatRegistered?, vatNumber?, companyRegistrationNumber?}: the business's own details.",
   "tax_lock.set": "payload {lockDate}: lock the tax period up to a date (it only moves forward).",
 };

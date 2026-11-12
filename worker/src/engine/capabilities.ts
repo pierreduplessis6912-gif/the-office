@@ -15,6 +15,8 @@ import { allQuotations, checkDate, checkLines, checkReference, planQuotationAcce
 import { documentTotals as sumTotals } from "./money";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, vatSummary, type ProfileChange } from "./business";
 import { movementAvailable, planPaymentAllocation, planPaymentRefund, refundMovementOrThrow } from "./credits";
+import { checkDeliveryInput, checkLineItems, planDelivery, planLineItems, type DeliveryInput, type OrderLineItem } from "./stock";
+import { goodsUnbilled } from "./bills";
 import { allReservations, checkCountInput, checkReleaseInput, checkReserveInput, planCount, planRelease, planReserve, reorderSuggestions, reservationDocument, type CountInput, type ReleaseInput, type ReserveInput } from "./stock";
 import { ADJUST_REASONS, allItemIds, allLocations, checkAdjustInput, checkIssueInput, checkItemInput, checkItemRevision, checkLocationInput, checkReceiveInput, checkReverseInput as checkStockReverse, checkTransferInput, itemProfile, planAdjust, planIssue, planItem, planItemRevision, planLocation, planReceive, planReverse, planTransfer, stockLedger, stockReport, type AdjustInput, type IssueInput, type ItemInput, type ItemRevision, type LocationInput, type ReceiveInput, type StockReverseInput, type TransferInput } from "./stock";
 import { history as recordHistory } from "./records";
@@ -783,12 +785,12 @@ export const expensesFind: ReadCapability<{ from?: string; to?: string; category
 };
 
 // ---- purchase orders and goods received (docs/decisions/purchase-orders.md) ---------------------------------------------------------------------------------------------------------------------------
-interface OrderCreatePayload { supplierId: number; orderedOn: string; currency: string; expectedOn?: string; reference?: string; lines: QuoteLine[]; totals?: { netMinor: number; taxMinor: number; grossMinor: number } }
+interface OrderCreatePayload { supplierId: number; orderedOn: string; currency: string; expectedOn?: string; reference?: string; lines: QuoteLine[]; lineItems?: OrderLineItem[]; totals?: { netMinor: number; taxMinor: number; grossMinor: number } }
 export const purchaseOrderCreate: CapabilityContract<OrderCreatePayload> = {
   id: "purchase_order.create", heldType: "engine.purchase_order.create", label: "Placing a purchase order", requires: [], permissions: ["purchase.manage"], version: 1, recordsExecution: true,
   validate(payload) {
     if (!isObj(payload)) return { ok: false, reason: "the order must be an object" };
-    const s = stray(payload, ["supplierId", "orderedOn", "currency", "expectedOn", "reference", "lines", "totals"]);
+    const s = stray(payload, ["supplierId", "orderedOn", "currency", "expectedOn", "reference", "lines", "lineItems", "totals"]);
     if (s) return { ok: false, reason: `${s} is not a field of an order` };
     if (!whole(payload.supplierId)) return { ok: false, reason: "supplierId must be a record number" };
     const on = checkDate(payload.orderedOn, "orderedOn"); if (!on.ok) return on;
@@ -797,16 +799,18 @@ export const purchaseOrderCreate: CapabilityContract<OrderCreatePayload> = {
     if (payload.expectedOn !== undefined) { const e = checkDate(payload.expectedOn, "expectedOn"); if (!e.ok) return e; if (e.value < on.value) return { ok: false, reason: "expectedOn cannot be before the order date" }; out.expectedOn = e.value; }
     if (payload.reference !== undefined) { const r = checkReference(payload.reference); if (!r.ok) return r; out.reference = r.value; }
     const lines = checkLines(payload.lines); if (!lines.ok) return lines; out.lines = lines.value;
+    if (payload.lineItems !== undefined) { const li = checkLineItems(payload.lineItems, lines.value.length); if (!li.ok) return li; out.lineItems = li.value; }
     if (payload.totals !== undefined) { const t = payload.totals; if (!isObj(t) || !whole(t.netMinor, 0) || !whole(t.taxMinor, 0) || !whole(t.grossMinor, 0)) return { ok: false, reason: "totals must be the engine's worked-out totals" }; out.totals = { netMinor: t.netMinor, taxMinor: t.taxMinor, grossMinor: t.grossMinor }; }
     return { ok: true, value: out };
   },
   async stamp(_env, value) { return { ...value, totals: totalsOf(value.lines) }; },
   async check(env, value) {
     await planOrder(env, value);
+    if (value.lineItems) await planLineItems(env, value.lineItems, value.lines);
     if (value.totals && JSON.stringify(value.totals) !== JSON.stringify(totalsOf(value.lines))) throw new EngineError("invalid_state", "The totals shown do not match the lines, so this needs to be proposed again.");
   },
   async execute(env, v, c) {
-    const r = await facts.recordPurchaseOrder(env, { supplierId: v.supplierId, orderedOn: v.orderedOn, currency: v.currency, expectedOn: v.expectedOn, reference: v.reference ?? null, lines: v.lines }, ctxOf(c, "purchase_order.create"));
+    const r = await facts.recordPurchaseOrder(env, { supplierId: v.supplierId, orderedOn: v.orderedOn, currency: v.currency, expectedOn: v.expectedOn, reference: v.reference ?? null, lines: v.lines, lineItems: v.lineItems }, ctxOf(c, "purchase_order.create"));
     return { documentId: r.documentId, number: r.number, eventId: r.eventId };
   },
 };
@@ -1075,11 +1079,33 @@ export const stockReorderRead: ReadCapability<Record<string, never>> = {
   validate(params) { if (!isObj(params)) return { ok: false, reason: "the request must be an object" }; const s = Object.keys(params)[0]; return s ? { ok: false, reason: `${s} is not a field of this request` } : { ok: true, value: {} }; },
   async run(env) {
     const list = await reorderSuggestions(env);
-    return { suggestions: list, count: list.length, notes: ["Available stock is what is on hand less what is reserved. Stock already on order is NOT subtracted yet: items are not named on purchase order lines until the procurement link is built, so check open orders before ordering."], derivedBy: "stock.reorderSuggestions" };
+    return { suggestions: list, count: list.length, notes: ["Available stock is what is on hand less what is reserved. Stock still on order is added before deciding: for items named on purchase-order lines, what was ordered (or, once the rest is cancelled, what arrived) less what has been put into stock. Orders that do not name an item are not seen, so check them before ordering."], derivedBy: "stock.reorderSuggestions" };
   },
 };
 
-export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead];
+// ---- the procurement link (docs/decisions/inventory-integration.md): a delivery into stock and what has arrived but not been billed -------------------------------------------------------------------------------
+export const stockReceiveDelivery: CapabilityContract<DeliveryInput> = {
+  id: "stock.receive_delivery", heldType: "engine.stock.receive_delivery", label: "Putting a delivery into stock", requires: [], permissions: ["stock.manage"], version: 1, recordsExecution: true,
+  validate: (payload) => checkDeliveryInput(payload),
+  async stamp(env, value) { const p = await planDelivery(env, value); return { ...value, plan: p.lines }; },
+  async check(env, value) { await planDelivery(env, value); },
+  async execute(env, v, c) { const { plan: _shown, ...input } = v; const r = await facts.receiveDelivery(env, input, ctxOf(c, "stock.receive_delivery")); return { moveIds: r.moveIds, eventIds: r.eventIds }; },
+};
+export const goodsUnbilledRead: ReadCapability<{ supplierId?: number }> = {
+  id: "goods.unbilled", label: "Goods received and not yet invoiced", permissions: ["bill.read"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["supplierId"]); if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (params.supplierId !== undefined && !whole(params.supplierId)) return { ok: false, reason: "supplierId must be a record number" };
+    return { ok: true, value: params.supplierId === undefined ? {} : { supplierId: params.supplierId as number } };
+  },
+  async run(env, _viewer, v) {
+    const lines = await goodsUnbilled(env, v);
+    return { lines: lines.slice(0, 500), count: lines.length, totalValueMinor: lines.reduce((s, l) => s + l.valueMinor, 0), truncated: lines.length > 500, notes: ["Values are at the order's own price, before tax. Goods that arrived are listed even if the rest of the order was cancelled: the supplier will still invoice them."], derivedBy: "bills.goodsUnbilled" };
+  },
+};
+
+export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
@@ -1087,5 +1113,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];
