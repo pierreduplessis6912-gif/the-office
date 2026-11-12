@@ -34,7 +34,9 @@ async function build() {
     { match: /Lock the tax period/, reply: () => callJson(null) },
   ];
   const sayTo = (text, role = 'accountant') => ({ method: 'POST', path: '/engine/interpret', role, body: { text } });
-  const asked = (text, extra = {}) => run({ ai: AI, ...sayTo(text, extra.role), before: extra.before });
+  // every default role can now ask about stock (the materials capability), so the refused-installer scenario (a member with nothing to ask) is built with the owner's own mechanism: the capability overrides revoke the materials capabilities
+  const REVOKE_MATERIALS = (db) => { db.exec("CREATE TABLE IF NOT EXISTS role_capability_overrides (role TEXT NOT NULL, capability TEXT NOT NULL, granted INTEGER NOT NULL, updated_by TEXT, updated_at TEXT, PRIMARY KEY (role, capability))"); const ins = db.prepare("INSERT OR REPLACE INTO role_capability_overrides (role, capability, granted) VALUES (?, ?, 0)"); for (const c of ['can_know_materials', 'can_know_material_prices']) ins.run('installer', c); };
+  const asked = (text, extra = {}) => run({ ai: AI, ...sayTo(text, extra.role), before: extra.before, ...(extra.seed ? { seed: extra.seed } : {}) });
   const SUP = [{ method: 'POST', path: '/engine/proposals', role: 'accountant', body: { capability: 'party.create', payload: { kind: 'organisation', name: 'Timber Supplies', roles: ['supplier'], contact: { vatNumber: '4111111111' } }, transcript: 'setup' } }, confirm('accountant', 1)];
   const WORDS = { patel: 'Who is Patel?', vat: 'What is my VAT this month?', fuel: 'What did I spend on fuel last month?', party: 'Add Dlamini Timber as a supplier', expense: 'Bought plywood from Timber Supplies for R230 including VAT, paid by EFT, I have the invoice', nobody: 'Bought glue from Nobody Ltd for R100 including VAT', lock: 'Lock the tax period up to the end of last month' };
   const pendingAfter = (before) => run({ ai: AI, before, method: 'GET', path: '/actions/pending', role: 'accountant' });
@@ -46,7 +48,7 @@ async function build() {
     'assistant-held-expense': (await asked(WORDS.expense, { before: SUP })).result,
     'assistant-not-understood': (await asked(WORDS.lock)).result,
     'assistant-refused': (await asked(WORDS.nobody, { before: SUP })).result,
-    'assistant-refused-installer': (await asked(WORDS.patel, { role: 'installer' })).result,
+    'assistant-refused-installer': (await asked(WORDS.patel, { role: 'installer', seed: REVOKE_MATERIALS })).result,
     'assistant-pending-party': (await pendingAfter([sayTo(WORDS.party)])).result,
     'assistant-pending-expense': (await pendingAfter([...SUP, sayTo(WORDS.expense)])).result,
     'assistant-confirm-party': (await run({ ai: AI, before: [sayTo(WORDS.party)], ...confirm('accountant', 1) })).result,

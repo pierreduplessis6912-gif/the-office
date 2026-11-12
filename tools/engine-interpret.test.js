@@ -30,7 +30,9 @@ module.exports = kit.guard('engine interpret', async ({ check }) => {
     say(/extra fields/, JSON.stringify({ capability: 'receivables.query', arguments: { customer: 'Mokoena', partyId: 1 } })),
     say(/missing amount/, call('payment.record', { customer: 'Mokoena' })),
   ];
-  const interpret = (text, opts = {}) => kit.route({ env: ENV_A, ai: opts.ai || SCRIPT, before: [SEED, ...(opts.before || [])], method: 'POST', path: '/engine/interpret', role: opts.role || 'accountant', body: opts.body || { text } });
+  // Every default role can now ask about stock (the materials capability), so "a role with nothing to do here" is built by the owner's own mechanism: the capability overrides revoke the materials capabilities from the installer.
+  const REVOKE_MATERIALS = (db) => { db.exec("CREATE TABLE IF NOT EXISTS role_capability_overrides (role TEXT NOT NULL, capability TEXT NOT NULL, granted INTEGER NOT NULL, updated_by TEXT, updated_at TEXT, PRIMARY KEY (role, capability))"); const ins = db.prepare("INSERT OR REPLACE INTO role_capability_overrides (role, capability, granted) VALUES (?, ?, 0)"); for (const c of ['can_know_materials', 'can_know_material_prices']) ins.run('installer', c); };
+  const interpret = (text, opts = {}) => kit.route({ env: ENV_A, ai: opts.ai || SCRIPT, ...(opts.seed ? { seed: opts.seed } : {}), before: [SEED, ...(opts.before || [])], method: 'POST', path: '/engine/interpret', role: opts.role || 'accountant', body: opts.body || { text } });
   const pending = (opts = {}) => ({ method: 'GET', path: '/actions/pending', role: 'accountant' });
   const added = (res, t) => ((res.writes && res.writes[t] && res.writes[t].added) || []).length;
   const tables = (res) => Object.keys(res.writes || {}).filter((t) => added(res, t) > 0).sort();
@@ -99,7 +101,7 @@ module.exports = kit.guard('engine interpret', async ({ check }) => {
 
   // ---- who may use it, and what exists --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const installerProbe = [];
-  r = await interpret('What does Mokoena owe me?', { role: 'installer', ai: [{ match: /./, reply: (input) => { installerProbe.push(input); return call('receivables.query', { customer: 'Mokoena' }); } }] });
+  r = await interpret('What does Mokoena owe me?', { role: 'installer', seed: REVOKE_MATERIALS, ai: [{ match: /./, reply: (input) => { installerProbe.push(input); return call('receivables.query', { customer: 'Mokoena' }); } }] });
   check(installerProbe.length === 0 && (status(r) === 403 || (status(r) === 403 || body(r).error === 'not available for your role')), 'a role with nothing to do here (an installer) is refused at the gate and the model is never called');
   const offB = kit.asEngineBusiness((db) => db.prepare("INSERT INTO eng_config (key, value_json) VALUES ('available', '[]')").run());
   const bProbe = [];
