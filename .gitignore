@@ -9,3 +9,7 @@ app/web/
 worker/node_modules/
 worker/.wrangler/
 .DS_Store
+
+# Python bytecode (a compile check creates these; they must never be committed)
+__pycache__/
+*.pyc
