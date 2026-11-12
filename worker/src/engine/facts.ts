@@ -13,6 +13,7 @@ import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from
 import { planQuotationAcceptance, planQuotationRevision } from "./quotations";
 import { planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { planCancel, planOrder, planReceipt, type ReceiptLineInput } from "./purchasing";
+import { planCount, planRelease, planReserve, type CountInput, type ReleaseInput, type ReserveInput } from "./stock";
 import { planAdjust, planIssue, planItem, planItemRevision, planLocation, planReceive, planReverse, planTransfer, type AdjustInput, type IssueInput, type ItemInput, type ItemRevision, type LocationInput, type ReceiveInput, type StockReverseInput, type TransferInput } from "./stock";
 import { planBill, planBillVoid, planSupplierPayment, type BillInput, type PaymentInput } from "./bills";
 import { planCreditApplication, planCreditNote, planDebitNote, planPaymentAllocation, planPaymentRefund, planRefund, planVoid, refundMovementOrThrow, checkReason, type CreditLineInput } from "./credits";
@@ -389,7 +390,7 @@ export async function receiveStock(env: Env, input: ReceiveInput, ctx: Ctx): Pro
 export async function issueStock(env: Env, input: IssueInput, ctx: Ctx): Promise<{ moveId: number; valueMinor: number; eventId: number }> {
   return inTransaction(env, async (tx) => {
     const plan = await planIssue(tx, input);
-    const eventId = await appendEvent(tx, "stock.issued", ctx, { itemId: input.itemId, locationId: input.locationId, quantityMilli: input.quantityMilli, valueMinor: plan.valueMinor, occurredOn: input.issuedOn, reason: input.reason, ...(input.jobRef ? { jobRef: input.jobRef } : {}), ...(input.documentId !== undefined ? { documentId: input.documentId, lineNo: input.lineNo } : {}) });
+    const eventId = await appendEvent(tx, "stock.issued", ctx, { itemId: input.itemId, locationId: input.locationId, quantityMilli: input.quantityMilli, valueMinor: plan.valueMinor, occurredOn: input.issuedOn, reason: input.reason, ...(input.jobRef ? { jobRef: input.jobRef } : {}), ...(input.documentId !== undefined ? { documentId: input.documentId, lineNo: input.lineNo } : {}), ...(input.reservationId !== undefined ? { reservationId: input.reservationId } : {}) });
     const moveId = await insertMove(tx, { itemId: input.itemId, locationId: input.locationId, kind: "issue", quantityMilli: input.quantityMilli, valueMinor: plan.valueMinor, occurredOn: input.issuedOn, sourceDocumentId: input.documentId, sourceLineNo: input.lineNo, reason: input.reason, jobRef: input.jobRef, eventId });
     return { moveId, valueMinor: plan.valueMinor, eventId };
   });
@@ -419,6 +420,33 @@ export async function reverseStockMove(env: Env, input: StockReverseInput, ctx: 
     const eventId = await appendEvent(tx, "stock.move_reversed", ctx, { itemId: m.item_id, locationId: m.location_id, quantityMilli: m.quantity_milli, valueMinor: m.value_minor, occurredOn: input.reversedOn, reversesMoveId: m.id, reason: input.reason, direction: plan.kind === "reversal_in" ? "in" : "out" }, input.reason);
     const moveId = await insertMove(tx, { itemId: m.item_id, locationId: m.location_id, kind: plan.kind, quantityMilli: m.quantity_milli, valueMinor: m.value_minor, occurredOn: input.reversedOn, reason: input.reason, reversesMoveId: m.id, eventId });
     return { moveId, eventId };
+  });
+}
+
+export async function reserveStock(env: Env, input: ReserveInput, ctx: Ctx): Promise<{ reservationId: number; eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    await planReserve(tx, input);
+    const eventId = await appendEvent(tx, "stock.reserved", ctx, { itemId: input.itemId, quantityMilli: input.quantityMilli, reservedOn: input.reservedOn, ...(input.locationId !== undefined ? { locationId: input.locationId } : {}), ...(input.forDocumentId !== undefined ? { forDocumentId: input.forDocumentId } : {}), ...(input.forRef ? { forRef: input.forRef } : {}), ...(input.note ? { note: input.note } : {}) });
+    return { reservationId: eventId, eventId };
+  });
+}
+export async function releaseReservation(env: Env, input: ReleaseInput, ctx: Ctx): Promise<{ eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    const plan = await planRelease(tx, input);
+    return { eventId: await appendEvent(tx, "stock.released", ctx, { reservationId: input.reservationId, itemId: plan.reservation.itemId, quantityMilli: plan.reservation.remainingMilli, reason: input.reason, releasedOn: input.releasedOn }, input.reason) };
+  });
+}
+// A COUNT: ONE stock.counted event for the whole count (every line, including those with no difference), then an ordinary adjustment movement (reason stocktake) for each line that differs, each pointing back at the count.
+export async function countStock(env: Env, input: CountInput, ctx: Ctx): Promise<{ countEventId: number; moveIds: number[]; variances: Array<{ itemId: number; differenceMilli: number }> }> {
+  return inTransaction(env, async (tx) => {
+    const plan = await planCount(tx, input);
+    const countEventId = await appendEvent(tx, "stock.counted", ctx, { locationId: input.locationId, countedOn: input.countedOn, complete: input.complete === true, ...(input.note ? { note: input.note } : {}), lines: plan.variances.map((v) => ({ itemId: v.itemId, bookMilli: v.bookMilli, countedMilli: v.countedMilli, differenceMilli: v.differenceMilli, valueMinor: v.valueMinor })) }, input.note ?? "stocktake");
+    const moveIds: number[] = [];
+    for (const m of plan.moves) {
+      const eventId = await appendEvent(tx, "stock.adjusted", ctx, { itemId: m.itemId, locationId: input.locationId, direction: m.direction, quantityMilli: m.quantityMilli, valueMinor: m.valueMinor, occurredOn: input.countedOn, reason: "stocktake", countEventId });
+      moveIds.push(await insertMove(tx, { itemId: m.itemId, locationId: input.locationId, kind: m.direction === "in" ? "adjust_in" : "adjust_out", quantityMilli: m.quantityMilli, valueMinor: m.valueMinor, occurredOn: input.countedOn, reason: "stocktake", eventId }));
+    }
+    return { countEventId, moveIds, variances: plan.variances.map((v) => ({ itemId: v.itemId, differenceMilli: v.differenceMilli })) };
   });
 }
 

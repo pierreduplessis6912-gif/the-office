@@ -70,6 +70,11 @@ const HINTS: Record<string, string> = {
   "stock.transfer": "payload {itemId, fromLocationId, toLocationId, quantityMilli, movedOn}: move stock between locations (no change in value).",
   "stock.adjust": "payload {itemId, locationId, direction: in | out, quantityMilli, adjustedOn, reason: damage | loss | theft | found | correction | write_off, note?, unitCostMinor? (stock going in)}: a correction, always explained.",
   "stock.reverse": "payload {moveId, reason, reversedOn}: reverse a receipt, issue or adjustment (a transfer is corrected by transferring back).",
+  "stock.reservations": "params {itemId?: number, status?: open | part_consumed | consumed | released | outstanding | any}: stock held for quotations, invoices and jobs, with what has been used and what remains (outstanding ones by default).",
+  "stock.reorder_suggestions": "params {}: items whose AVAILABLE stock (on hand less reserved) is at or below their reorder level, with a suggested quantity and preferred supplier. Stock already on order is not subtracted yet.",
+  "stock.reserve": "payload {itemId, quantityMilli, reservedOn, forDocumentId? (a quotation or invoice) and/or forRef? (a job name), locationId?, note?}: hold stock for something (an event: nothing moves). Never more than is available.",
+  "stock.release": "payload {reservationId, reason, releasedOn}: give back what remains of a reservation.",
+  "stock.count": "payload {locationId, countedOn, complete?: true | false, note?, lines: [{itemId, countedMilli, unitCostMinor? (only for stock found where none was on the books)}]}: a stocktake of one location. The engine works out the variances and shows them for approval; complete: true counts the items not listed that have stock there as zero.",
   "business.profile.set": "payload {legalName?, tradingName?, address?, vatRegistered?, vatNumber?, companyRegistrationNumber?}: the business's own details.",
   "tax_lock.set": "payload {lockDate}: lock the tax period up to a date (it only moves forward).",
 };

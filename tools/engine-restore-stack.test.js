@@ -59,6 +59,10 @@ module.exports = kit.guard('engine restore (stack)', async ({ check }) => {
     await facts.transferStock(w.env, { itemId: item, fromLocationId: main, toLocationId: van, quantityMilli: 4000, movedOn: '2026-10-09' }, CTX);
     await facts.adjustStock(w.env, { itemId: item, locationId: van, direction: 'out', quantityMilli: 500, adjustedOn: '2026-10-10', reason: 'damage', note: 'dropped' }, CTX);
     await facts.reverseStockMove(w.env, { moveId: iss.moveId, reason: 'wrong job', reversedOn: '2026-10-11' }, CTX);
+    const hold = await facts.reserveStock(w.env, { itemId: item, quantityMilli: 4000, reservedOn: '2026-10-12', forRef: 'Mokoena lounge' }, CTX);
+    await facts.issueStock(w.env, { itemId: item, locationId: main, quantityMilli: 1000, issuedOn: '2026-10-13', reason: 'job', jobRef: 'Mokoena lounge', reservationId: hold.reservationId }, CTX);
+    await facts.countStock(w.env, { locationId: main, countedOn: '2026-10-14', lines: [{ itemId: item, countedMilli: 14000 }] }, CTX);
+    await facts.releaseReservation(w.env, { reservationId: hold.reservationId, reason: 'rest not needed', releasedOn: '2026-10-15' }, CTX);
     return { cust, sup, inv1, inv2, q1, q2, cn1, cn2, dn, over, e1, item };
   };
 
@@ -72,7 +76,7 @@ module.exports = kit.guard('engine restore (stack)', async ({ check }) => {
     owes: await ledger.outstandingForParty(w.env, ids.cust), credit: await ledger.unappliedCreditForParty(w.env, ids.cust),
     cn1: await eng.credits.creditAvailable(w.env, ids.cn1.documentId), cn2: await eng.credits.creditAvailable(w.env, ids.cn2.documentId),
     particulars: [await eng.business.documentParticulars(w.env, ids.inv1.id), await eng.business.documentParticulars(w.env, ids.cn1.documentId)],
-    stock: await eng.stock.stockReport(w.env), ledger: await eng.stock.stockLedger(w.env, ids.item), locations: await eng.stock.allLocations(w.env), profile1: await eng.stock.itemProfile(w.env, ids.item),
+    stock: await eng.stock.stockReport(w.env), ledger: await eng.stock.stockLedger(w.env, ids.item), locations: await eng.stock.allLocations(w.env), profile1: await eng.stock.itemProfile(w.env, ids.item), reservations: await eng.stock.allReservations(w.env, { status: 'any' }), reorder: await eng.stock.reorderSuggestions(w.env),
   });
 
   const w = kit.makeWorld({ backups: true });
@@ -80,12 +84,12 @@ module.exports = kit.guard('engine restore (stack)', async ({ check }) => {
   const integ = await eng.verifyIntegrity(w.env);
   check(integ.ok === true && integ.problems.length === 0 && integ.warnings.length === 0, 'the business built through every capability since the first slice verifies clean before the snapshot (no problem, no unmodelled event)');
   const events = w.db.prepare('SELECT type, COUNT(*) AS n FROM eng_event GROUP BY type').all().map((r) => r.type);
-  check(['business.profile_set', 'tax_lock.set', 'party.revised', 'quotation.revised', 'quotation.accepted', 'credit_note.issued', 'credit.allocated', 'credit.refunded', 'credit_note.voided', 'debit_note.issued', 'overpayment.refunded', 'expense.recorded', 'expense.voided', 'item.created', 'item.revised', 'location.created', 'stock.received', 'stock.issued', 'stock.transferred_out', 'stock.transferred_in', 'stock.adjusted', 'stock.move_reversed'].every((t) => events.includes(t)), 'its history really uses every one of the new event types, stock included');
+  check(['business.profile_set', 'tax_lock.set', 'party.revised', 'quotation.revised', 'quotation.accepted', 'credit_note.issued', 'credit.allocated', 'credit.refunded', 'credit_note.voided', 'debit_note.issued', 'overpayment.refunded', 'expense.recorded', 'expense.voided', 'item.created', 'item.revised', 'location.created', 'stock.received', 'stock.issued', 'stock.transferred_out', 'stock.transferred_in', 'stock.adjusted', 'stock.move_reversed', 'stock.reserved', 'stock.released', 'stock.counted'].every((t) => events.includes(t)), 'its history really uses every one of the new event types, stock included');
   const before = await derive(w, ids), engineBefore = fingerprint(w.db, ENG);
   const seqBefore = JSON.stringify(w.db.prepare('SELECT name, seq FROM sqlite_sequence ORDER BY name').all());
   const D = JSON.parse(before);
   check(D.vatNov.field15Minor === 1500 && D.vatOct.field14Minor === 15000 && D.vatOct.field15Minor === 3000 && D.credit > 0 && D.cn1 >= 0, 'set-up sanity: the derived answers are the ones the history implies (the late October expense claimed in November, capital goods in field 14, credit still owed back)');
-  check(D.stock.length === 1 && D.stock[0].quantityMilli === 19500 && D.stock[0].valueMinor === 487500 && D.profile1.name === 'Plywood 18mm board', 'set-up sanity (stock): 20 sheets in, 5 issued then the issue reversed, 0.5 written off, so 19.5 are on hand, under the revised name');
+  check(D.stock.length === 1 && D.stock[0].quantityMilli === 17500 && D.reservations.length === 1 && D.reservations[0].status === 'released' && D.profile1.name === 'Plywood 18mm board', 'set-up sanity (stock): 20 sheets in, 5 issued then the issue reversed, 0.5 written off, then a reservation drawn on and released and a count at Main store down to 14 (so 17.5 on hand in all), under the revised name');
   const snap = await bk.takeSnapshot(w.env, new Date('2026-11-16T03:00:00Z'));
   check(snap && snap.complete === true && ENG.every((t) => snap.tables.some((x) => x.name === t)), 'a snapshot is taken, complete, and lists every engine table');
 

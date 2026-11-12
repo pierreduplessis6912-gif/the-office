@@ -70,6 +70,9 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "stock.transferred_in": { creates: "stock_move", note: "one eng_stock_move of kind transfer_in, paired with its transfer_out" },
   "stock.adjusted": { creates: "stock_move", note: "one eng_stock_move of kind adjust_in or adjust_out, always with a reason" },
   "stock.move_reversed": { creates: "stock_move", note: "one eng_stock_move of kind reversal_in or reversal_out that mirrors the movement it reverses" },
+  "stock.counted": { creates: null, note: "a stocktake of one location: records every line counted, including those with no difference. The adjustments for the lines that differ are created by their own stock.adjusted events, which point back at this one" },
+  "stock.reserved": { creates: null, note: "stock is held for a quotation, an invoice or a job: an event only, nothing moves (stock.ts derives what is reserved and what remains)" },
+  "stock.released": { creates: null, note: "what remains of a reservation is given back" },
   "operation.executed": { creates: null, note: "the record that an approved proposal executed; it creates no fact" },
 };
 const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal", item: "eng_item", location: "eng_location", stock_move: "eng_stock_move" };
@@ -400,6 +403,32 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
   }
   for (const m of moves) if (m.kind === "transfer_out" && (transferIn.get(m.id) ?? 0) !== 1) problems.push({ code: "stock_invariant", detail: `transfer out ${m.id} has ${transferIn.get(m.id) ?? 0} matching transfers in, expected exactly one` });
   for (const [k, n] of stockedFromLine) { const [d, l] = k.split(":").map(Number); const line = (await many<{ quantity_milli: number }>(env, "SELECT quantity_milli FROM eng_document_line WHERE document_id = ? AND line_no = ?", d, l))[0]; if (!line || n > line.quantity_milli) problems.push({ code: "stock_invariant", detail: `goods receipt ${d} line ${l}: more was put into stock (${n}) than the line received (${line?.quantity_milli ?? 0})` }); }
+
+  // stock reservations and counts: an issue that draws on a reservation names one that exists for the same item, a reservation is never drawn on or released for more than it held, and a count agrees with the adjustments it made
+  const reserved = new Map<number, { itemId: number; q: number }>(); const drawn = new Map<number, number>(), given = new Map<number, number>();
+  for (const e of await many<{ id: number; type: string; payload_json: string }>(env, "SELECT id, type, payload_json FROM eng_event WHERE type IN ('stock.reserved', 'stock.released', 'stock.issued', 'stock.counted', 'stock.adjusted') ORDER BY id")) {
+    let p: Record<string, unknown> = {};
+    try { p = JSON.parse(e.payload_json) ?? {}; } catch { /* a malformed payload is reported by the payload check */ }
+    if (e.type === "stock.reserved") reserved.set(e.id, { itemId: Number(p.itemId), q: Number(p.quantityMilli) || 0 });
+    else if (e.type === "stock.released") { const id = Number(p.reservationId); if (!reserved.has(id)) problems.push({ code: "stock_invariant", detail: `event ${e.id} (stock.released) releases reservation ${id}, which does not exist` }); given.set(id, (given.get(id) ?? 0) + (Number(p.quantityMilli) || 0)); }
+    else if (e.type === "stock.issued" && p.reservationId !== undefined) {
+      const id = Number(p.reservationId), r = reserved.get(id);
+      if (!r) problems.push({ code: "stock_invariant", detail: `event ${e.id} (stock.issued) draws on reservation ${id}, which does not exist` });
+      else if (r.itemId !== Number(p.itemId)) problems.push({ code: "stock_invariant", detail: `event ${e.id} (stock.issued) draws on reservation ${id}, which is for a different item` });
+      drawn.set(id, (drawn.get(id) ?? 0) + (Number(p.quantityMilli) || 0));
+    }
+  }
+  for (const [id, r] of reserved) if ((drawn.get(id) ?? 0) + (given.get(id) ?? 0) > r.q) problems.push({ code: "stock_invariant", detail: `reservation ${id}: it was drawn on or released for more than it held (${(drawn.get(id) ?? 0) + (given.get(id) ?? 0)} against ${r.q})` });
+  for (const c of await many<{ id: number; payload_json: string }>(env, "SELECT id, payload_json FROM eng_event WHERE type = 'stock.counted' ORDER BY id")) {
+    let p: Record<string, unknown> = {};
+    try { p = JSON.parse(c.payload_json) ?? {}; } catch { /* reported elsewhere */ }
+    const adj = (await many<{ payload_json: string }>(env, "SELECT payload_json FROM eng_event WHERE type = 'stock.adjusted' AND json_extract(payload_json, '$.countEventId') = ?", c.id)).map((a) => { try { return JSON.parse(a.payload_json) as Record<string, unknown>; } catch { return {}; } });
+    for (const l of Array.isArray(p.lines) ? (p.lines as Array<Record<string, unknown>>) : []) {
+      const diff = Number(l.differenceMilli) || 0, mine = adj.filter((a) => Number(a.itemId) === Number(l.itemId));
+      if (Number(l.countedMilli) - Number(l.bookMilli) !== diff) problems.push({ code: "stock_invariant", detail: `count ${c.id}: item ${String(l.itemId)} counted ${String(l.countedMilli)} against a book of ${String(l.bookMilli)} is not a difference of ${diff}` });
+      else if (diff === 0 ? mine.length !== 0 : mine.length !== 1 || Number(mine[0].quantityMilli) !== Math.abs(diff) || mine[0].direction !== (diff > 0 ? "in" : "out")) problems.push({ code: "stock_invariant", detail: `count ${c.id}: item ${String(l.itemId)} differs by ${diff} but the adjustments made for it do not agree` });
+    }
+  }
 
   return { ok: problems.length === 0, problems, warnings };
 }

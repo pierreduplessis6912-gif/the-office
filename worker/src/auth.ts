@@ -520,6 +520,9 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   "engine.stock.transfer": ["can_manage_invoices"],
   "engine.stock.adjust": ["can_manage_invoices"],
   "engine.stock.reverse": ["can_manage_invoices"],
+  "engine.stock.reserve": ["can_manage_invoices"],
+  "engine.stock.release": ["can_manage_invoices"],
+  "engine.stock.count": ["can_manage_invoices"],
   "engine.supplier_invoice.record": ["can_manage_invoices"],
   "engine.supplier_invoice.void": ["can_manage_invoices"],
   "engine.supplier_payment.record": ["can_manage_invoices"],
@@ -819,6 +822,8 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "GET", path: /^\/engine\/items$/, anyOf: ["can_manage_invoices", "can_know_materials"] },
   { method: "GET", path: /^\/engine\/stock$/, anyOf: ["can_manage_invoices", "can_know_materials"] },
   { method: "GET", path: /^\/engine\/stock\/ledger$/, anyOf: ["can_manage_invoices", "can_know_materials"] },
+  { method: "GET", path: /^\/engine\/stock\/reservations$/, anyOf: ["can_manage_invoices", "can_know_materials"] },
+  { method: "GET", path: /^\/engine\/stock\/reorder$/, anyOf: ["can_manage_invoices", "can_know_materials"] },
   { method: "GET", path: /^\/engine\/supplier-invoices$/, anyOf: ["can_manage_invoices", "can_know_supplier_balances"] },
   { method: "GET", path: /^\/engine\/quotations$/, anyOf: ["can_manage_invoices", "can_make_quotes"] },
   // Money — accountant and owner.

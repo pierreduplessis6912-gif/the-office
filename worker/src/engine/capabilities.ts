@@ -15,6 +15,7 @@ import { allQuotations, checkDate, checkLines, checkReference, planQuotationAcce
 import { documentTotals as sumTotals } from "./money";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, vatSummary, type ProfileChange } from "./business";
 import { movementAvailable, planPaymentAllocation, planPaymentRefund, refundMovementOrThrow } from "./credits";
+import { allReservations, checkCountInput, checkReleaseInput, checkReserveInput, planCount, planRelease, planReserve, reorderSuggestions, reservationDocument, type CountInput, type ReleaseInput, type ReserveInput } from "./stock";
 import { ADJUST_REASONS, allItemIds, allLocations, checkAdjustInput, checkIssueInput, checkItemInput, checkItemRevision, checkLocationInput, checkReceiveInput, checkReverseInput as checkStockReverse, checkTransferInput, itemProfile, planAdjust, planIssue, planItem, planItemRevision, planLocation, planReceive, planReverse, planTransfer, stockLedger, stockReport, type AdjustInput, type IssueInput, type ItemInput, type ItemRevision, type LocationInput, type ReceiveInput, type StockReverseInput, type TransferInput } from "./stock";
 import { history as recordHistory } from "./records";
 import { allBills, checkBillInput, planBill, planBillVoid, planSupplierPayment, type BillInput } from "./bills";
@@ -998,7 +999,7 @@ export const itemsFind: ReadCapability<{ name?: string; sku?: string; active?: b
   async run(env, viewer, v) {
     const rows = (await stockReport(env)).filter((r) => (v.name === undefined || r.name.toLowerCase().includes(v.name.toLowerCase())) && (v.sku === undefined || r.sku.toLowerCase() === v.sku.toLowerCase()) && (v.active === undefined || r.active === v.active) && (v.belowReorder === undefined || r.belowReorder === v.belowReorder));
     const money = showValue(viewer);
-    return { items: rows.slice(0, 200).map((r) => ({ ref: { kind: "item", id: r.itemId }, id: r.itemId, sku: r.sku, name: r.name, unit: r.unit, active: r.active, quantityMilli: r.quantityMilli, reorderLevelMilli: r.reorderLevelMilli, belowReorder: r.belowReorder, valueMinor: money ? r.valueMinor : null, averageCostMinor: money ? r.averageCostMinor : null, locations: r.locations })), count: rows.length, truncated: rows.length > 200, derivedBy: "stock.stockReport" };
+    return { items: rows.slice(0, 200).map((r) => ({ ref: { kind: "item", id: r.itemId }, id: r.itemId, sku: r.sku, name: r.name, unit: r.unit, active: r.active, quantityMilli: r.quantityMilli, reservedMilli: r.reservedMilli, availableMilli: r.availableMilli, reorderLevelMilli: r.reorderLevelMilli, belowReorder: r.belowReorder, valueMinor: money ? r.valueMinor : null, averageCostMinor: money ? r.averageCostMinor : null, locations: r.locations })), count: rows.length, truncated: rows.length > 200, derivedBy: "stock.stockReport" };
   },
 };
 export const stockOnHand: ReadCapability<{ itemId?: number; locationId?: number }> = {
@@ -1013,7 +1014,7 @@ export const stockOnHand: ReadCapability<{ itemId?: number; locationId?: number 
   async run(env, viewer, v) {
     if (v.itemId !== undefined && !(await itemProfile(env, v.itemId))) throw new EngineError("not_found", "There is no such item.");
     const rows = await stockReport(env, v); const money = showValue(viewer);
-    return { stock: rows.map((r) => ({ itemId: r.itemId, sku: r.sku, name: r.name, unit: r.unit, quantityMilli: r.quantityMilli, belowReorder: r.belowReorder, valueMinor: money ? r.valueMinor : null, averageCostMinor: money ? r.averageCostMinor : null, locations: r.locations })), locations: await allLocations(env), totalValueMinor: money ? rows.reduce((s, r) => s + r.valueMinor, 0) : null, derivedBy: "stock.stockReport" };
+    return { stock: rows.map((r) => ({ itemId: r.itemId, sku: r.sku, name: r.name, unit: r.unit, quantityMilli: r.quantityMilli, reservedMilli: r.reservedMilli, availableMilli: r.availableMilli, shortfallMilli: r.shortfallMilli, belowReorder: r.belowReorder, valueMinor: money ? r.valueMinor : null, averageCostMinor: money ? r.averageCostMinor : null, locations: r.locations })), locations: await allLocations(env), totalValueMinor: money ? rows.reduce((s, r) => s + r.valueMinor, 0) : null, derivedBy: "stock.stockReport" };
   },
 };
 export const stockLedgerRead: ReadCapability<{ itemId: number; from?: string; to?: string }> = {
@@ -1036,7 +1037,49 @@ export const stockLedgerRead: ReadCapability<{ itemId: number; from?: string; to
   },
 };
 
-export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead];
+// ---- stock control: counts, reservations and reorder suggestions (docs/decisions/inventory.md, increment 2) -----------------------------------------------------------------------------------------------------
+export const stockReserve = stockContract<ReserveInput>("stock.reserve", "Holding stock", "stock.move", checkReserveInput, (e, v) => planReserve(e, v), async (e, v, c) => { const r = await facts.reserveStock(e, v, ctxOf(c, "stock.reserve")); return { reservationId: r.reservationId, eventId: r.eventId }; });
+export const stockRelease = stockContract<ReleaseInput>("stock.release", "Releasing held stock", "stock.move", checkReleaseInput, (e, v) => planRelease(e, v), async (e, v, c) => { const r = await facts.releaseReservation(e, v, ctxOf(c, "stock.release")); return { eventId: r.eventId }; });
+// A count is valid only for the book it was made against: the variance is worked out and stamped on the proposal, and worked out again at approval; if it differs, the approval is refused as stale.
+export const stockCount: CapabilityContract<CountInput> = {
+  id: "stock.count", heldType: "engine.stock.count", label: "Counting stock", requires: [], permissions: ["stock.move"], version: 1, recordsExecution: true,
+  validate: (payload) => checkCountInput(payload),
+  async stamp(env, value) { const plan = await planCount(env, value); return { ...value, variances: plan.variances }; },
+  async check(env, value) {
+    const plan = await planCount(env, value);
+    if (value.variances !== undefined && JSON.stringify(value.variances) !== JSON.stringify(plan.variances)) throw new EngineError("stale", "The stock changed after this count was made (the book is no longer what it was counted against), so it needs to be counted again.");
+  },
+  async execute(env, v, c) { const { variances: _shown, ...input } = v; const r = await facts.countStock(env, input, ctxOf(c, "stock.count")); return { countEventId: r.countEventId, moveIds: r.moveIds }; },
+};
+export const stockReservationsFind: ReadCapability<{ itemId?: number; status?: string }> = {
+  id: "stock.reservations", label: "Stock held for quotations and jobs", permissions: ["stock.read"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["itemId", "status"]); if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const out: { itemId?: number; status?: string } = {};
+    if (params.itemId !== undefined) { if (!whole(params.itemId)) return { ok: false, reason: "itemId must be a record number" }; out.itemId = params.itemId; }
+    if (params.status !== undefined) { if (typeof params.status !== "string" || !["open", "part_consumed", "consumed", "released", "outstanding", "any"].includes(params.status)) return { ok: false, reason: "status must be open, part_consumed, consumed, released, outstanding or any" }; out.status = params.status; }
+    return { ok: true, value: out };
+  },
+  async run(env, _viewer, v) {
+    if (v.itemId !== undefined && !(await itemProfile(env, v.itemId))) throw new EngineError("not_found", "There is no such item.");
+    const list = await allReservations(env, v); const locs = new Map((await allLocations(env)).map((l) => [l.id, l.name]));
+    const explained = await recordHistory(env, list.map((r) => r.eventId));
+    const rows = [];
+    for (const r of list.slice(0, 200)) { const it = await itemProfile(env, r.itemId); rows.push({ ...r, sku: it?.sku ?? null, name: it?.name ?? null, unit: it?.unit ?? null, locationName: r.locationId === null ? null : locs.get(r.locationId) ?? null, forDocument: r.forDocumentId === null ? null : await reservationDocument(env, r.forDocumentId), explained: explained.find((h) => h.eventId === r.eventId) ?? null }); }
+    return { reservations: rows, count: list.length, truncated: list.length > 200, derivedBy: "stock.allReservations" };
+  },
+};
+export const stockReorderRead: ReadCapability<Record<string, never>> = {
+  id: "stock.reorder_suggestions", label: "Stock to reorder", permissions: ["stock.read"],
+  validate(params) { if (!isObj(params)) return { ok: false, reason: "the request must be an object" }; const s = Object.keys(params)[0]; return s ? { ok: false, reason: `${s} is not a field of this request` } : { ok: true, value: {} }; },
+  async run(env) {
+    const list = await reorderSuggestions(env);
+    return { suggestions: list, count: list.length, notes: ["Available stock is what is on hand less what is reserved. Stock already on order is NOT subtracted yet: items are not named on purchase order lines until the procurement link is built, so check open orders before ordering."], derivedBy: "stock.reorderSuggestions" };
+  },
+};
+
+export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
@@ -1044,5 +1087,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

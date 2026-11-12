@@ -76,6 +76,12 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
     const num = (k: string) => { const v = q(k); return v === null ? undefined : /^\d+$/.test(v) ? Number(v) : v; };
     return answer(await invokeRead(env, member, "stock.on_hand", { ...(num("itemId") !== undefined ? { itemId: num("itemId") } : {}), ...(num("locationId") !== undefined ? { locationId: num("locationId") } : {}) }));
   }
+  if (request.method === "GET" && path === "/engine/stock/reservations") {
+    const q = (k: string) => url.searchParams.get(k);
+    const iid = q("itemId");
+    return answer(await invokeRead(env, member, "stock.reservations", { ...(iid !== null ? { itemId: /^\d+$/.test(iid) ? Number(iid) : iid } : {}), ...(q("status") !== null ? { status: q("status") } : {}) }));
+  }
+  if (request.method === "GET" && path === "/engine/stock/reorder") return answer(await invokeRead(env, member, "stock.reorder_suggestions", {}));
   if (request.method === "GET" && path === "/engine/stock/ledger") {
     const q = (k: string) => url.searchParams.get(k);
     const iid = q("itemId");
