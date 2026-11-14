@@ -38,7 +38,7 @@
 - Should the model be offered `stock.receive` with a cost and an explicit VAT word? Should "yesterday" be allowed for a stock movement?
 - Procurement: match tolerance, supplier credit notes and returns, approval limits, costing an accepted price variance onto stock, landed cost, a one-step reorder-to-order.
 
-**Suggested order next (my view, Pierre chooses):** (a) the app-connection design document, for his approval, before any code; (b) the model for procurement sentences (orders, bills, payments) with the same pass rule as stock; (c) small engine gaps: a route that creates a draft invoice over HTTP (so invoices that name their items can be proven on a real object), quotation and credit-note lines that name items; (d) an app stock screen in the demo.
+**Suggested order next (my view, Pierre chooses):** (a) the app-connection design document, for his approval, before any code (WRITTEN 2026-11-14, awaiting his approval: `docs/decisions/app-connection.md`); (b) the model for procurement sentences (orders, bills, payments) with the same pass rule as stock; (c) small engine gaps: a route that creates a draft invoice over HTTP (so invoices that name their items can be proven on a real object), quotation and credit-note lines that name items; (d) an app stock screen in the demo.
 
 **Parked on purpose (do not spend tokens until asked):** the pilot business and the migration plan (`docs/decisions/engine-legacy-coexistence-scoping.md`), the table-size guard, the recovery-gate acceptance, FIFO, lots and serials.
 
