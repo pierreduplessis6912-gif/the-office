@@ -34,6 +34,7 @@ on:
           - stack-model-run
           - stock-proof
           - stock-model-run
+          - capture-proof
         default: rehearsal
       ramp_sizes:
         description: "Ramp mode only: the marker-row counts to try, ascending, separated by spaces (each at most 2000000); the ramp stops at the first size that fails"
@@ -941,6 +942,44 @@ jobs:
             sleep 3
           done
           python3 -c "import json,sys; sys.exit(0 if json.load(open('$RESULTS/stock-model-run.json'))['passed'] else 1)"
+
+      - name: Capture proof (mode capture-proof, a fresh staging business only)
+        if: env.MODE == 'capture-proof'
+        run: |
+          # The REAL proof of capture (docs/decisions/capture-proof.md, pass rule written before the run), judged by tools/capture-proof.py: real R2, a real speech model and a real vision model on a FRESH staging business; every answer is scored.
+          # Safety set: every case must pass. Understanding set: at least 4 of 5. NOTHING IS APPROVED: every action the run causes to be held is rejected by the run afterwards; the only approval is the SETUP supplier.
+          set +e
+          sudo apt-get install -y -qq espeak-ng >/dev/null 2>&1 || true
+          python3 -m pip install --quiet pillow >/dev/null 2>&1 || true
+          export BASE="https://${SLUG}.websitehub.co.za"
+          export RUN="${{ github.run_id }}"
+          export BIZ="staging-capture-${RUN}"
+          mkdir -p "$RESULTS"
+          cat > "$RESULTS/mkcookie.py" <<'PY'
+          import os, json, hmac, hashlib, base64, time
+          b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode()
+          body = {"email": os.environ["EMAIL"], "exp": int(time.time() * 1000) + 3600000, "b": os.environ["BIZ"]}
+          p = b(json.dumps(body, separators=(",", ":")).encode())
+          s = b(hmac.new(os.environ["STAGING_SESSION_SECRET"].encode(), p.encode(), hashlib.sha256).digest())
+          print("office_session=" + p + "." + s)
+          PY
+          export ACCT_C=$(EMAIL="staging-capture-accountant-${RUN}@example.com" python3 "$RESULTS/mkcookie.py")
+          echo "::add-mask::$ACCT_C"
+          PYTHONDONTWRITEBYTECODE=1 python3 tools/capture-proof.py > "$RESULTS/capture-proof.json"
+          cat "$RESULTS/capture-proof.json" | head -c 6000
+          mkdir -p ops
+          cp "$RESULTS/capture-proof.json" ops/staging-capture-proof-last.json
+          git config user.name "staging-workflow"
+          git config user.email "noreply@github.com"
+          git checkout -- worker/src/schema-steps.ts worker/src/baseline-sql.ts 2>/dev/null
+          git add ops/staging-capture-proof-last.json
+          git commit -m "Staging capture proof record (cases, the engine's answers, scores and pass or fail only)" || echo "nothing to record"
+          PUSHRC=1
+          for attempt in 1 2 3; do
+            git pull --rebase origin "$GITHUB_REF_NAME" && git push origin HEAD:"$GITHUB_REF_NAME" && { PUSHRC=0; break; }
+            sleep 3
+          done
+          python3 -c "import json,sys; sys.exit(0 if json.load(open('$RESULTS/capture-proof.json'))['passed'] else 1)"
 
       - name: Stack model run (mode stack-model-run, a fresh staging business only)
         if: env.MODE == 'stack-model-run'
