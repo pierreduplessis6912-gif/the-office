@@ -46,5 +46,5 @@ Stage 1 touches no real data. Stage 2 is reversible by restore plus a mode reset
 ## Questions for Pierre (each has a default)
 1. Approve decisions 1 to 4 as recommended? **Default: yes.**
 2. Is the preview-first order (stage 1 on staging sample data, then your flooring business) right? **Default: yes.**
-3. Is voice and photo capture into the engine required for the pilot, or can the pilot start typed-and-spoken-text only? **Default: required; design it next after this.**
+3. Is voice and photo capture into the engine required for the pilot? **ANSWERED by Pierre 2026-11-14: yes, required.** Designed in [engine-capture.md](engine-capture.md), awaiting his approval.
 4. May I build the mode read (decision 2) and widen the client (decision 5) tests-first once you approve, without a further question for each screen? **Default: yes, one capability at a time, map updated each time.**

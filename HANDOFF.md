@@ -13,6 +13,7 @@ Anything decided in a chat must be committed to this repository in that session.
 
 ## App connection (2026-11-14)
 Design for approval, no code: [docs/decisions/app-connection.md](docs/decisions/app-connection.md) (sign-in unchanged, mode read, three stages: staging preview, pilot, merge; voice and photo capture is the main open gap). Pierre has not approved it yet.
+Capture (voice, photo, document) is REQUIRED for the pilot (Pierre, 2026-11-14): design for approval in [docs/decisions/engine-capture.md](docs/decisions/engine-capture.md), not approved yet.
 
 ## What is next: the first slice, where it stands (2026-11-09)
 **The Mokoena receivables slice:** [docs/decisions/first-slice.md](docs/decisions/first-slice.md) (approved by Pierre 2026-11-09). A person asks "What does Mokoena owe me?", gets an answer with its provenance, drills to the invoices and one invoice, returns to the conversation, records R500 (held, then approved or declined), and a second business without the capability is answered honestly, shown in the app with the persistent orb. **Part D of that file is the status of each of the 13 criteria; read it, not this summary.** In short: criteria 1 to 6 and 12 are met in tests; 7 (the twelve invariants) is all covered; 8 to 10 rest on the existing suites and CI; 11 is met on a real staging object; 13 is met as recorded (a real model run, 9 of 10 sentences). Nothing has been confirmed on a phone by Pierre.
