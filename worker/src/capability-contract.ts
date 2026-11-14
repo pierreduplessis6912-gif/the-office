@@ -26,7 +26,7 @@ export interface ContractContext {
   captureId?: number | null;
 }
 
-export interface ContractMember { email: string | null; caps: readonly string[] }
+export interface ContractMember { email: string | null; caps: readonly string[]; captureId?: number }
 
 export interface CapabilityContract<P = unknown> {
   id: string;
@@ -104,7 +104,7 @@ async function proposeCapabilityInner(
   request: { capability: unknown; payload: unknown; transcript: string; source?: string; interpreter?: string; member?: ContractMember }
 ): Promise<ProposeResult> {
   // 1. What was said is kept FIRST, whatever happens next. It is a capture, not a business record.
-  const captureId = await logCapture(env, request.transcript, request.source || "text");
+  const captureId = request.member?.captureId ?? (await logCapture(env, request.transcript, request.source || "text"));   // a voice note already has its capture row (engine-capture.ts)
   // 2. Then the request is answered honestly. Nothing below writes anything until it is held.
   const contract = typeof request.capability === "string" ? contractById(request.capability) : null;
   if (!contract) return { status: "refused", code: "unknown_capability", message: "There is no such capability, so nothing was done." };

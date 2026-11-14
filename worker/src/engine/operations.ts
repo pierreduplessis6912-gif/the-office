@@ -8,7 +8,7 @@ import { EngineError } from "./errors";
 import { permissionsFor } from "./permissions";
 import { Ambiguous, CAPABILITY_IDS, READS } from "./capabilities";
 
-export interface Member { email: string | null; caps: readonly string[] }
+export interface Member { email: string | null; caps: readonly string[]; captureId?: number }   // captureId: a capture row that already holds what was said (a voice note), so the door does not make a second one
 export type ReadOutcome =
   | { status: "ok"; result: unknown }
   | { status: "ambiguous"; candidates: Array<{ id: number; name: string }> }

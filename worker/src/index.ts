@@ -27,6 +27,7 @@ import { atomically } from "./atomic";
 import { contractForHeldType, executeThroughContract } from "./capability-contract";
 import { actionModeRefusal, engineModeGate, isEngineMode } from "./engine/boundary";
 import { handleEngineRoute } from "./engine/routes";
+import { engineCaptureAudio } from "./engine-capture";
 import { capAfter, capBefore, isCountable } from "./limits";
 import { recordModelUsage } from "./usage";
 import { takeSnapshot } from "./backup";
@@ -487,6 +488,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     if (url.pathname === "/engine" || url.pathname.startsWith("/engine/")) {
       const engineMember = await getMemberContext(request, env);
       if (!engineMember) return Response.json({ error: "sign in required" }, { status: 401 });
+      if (url.pathname === "/engine/capture/audio" && request.method === "POST") return engineCaptureAudio(request, env, { email: engineMember.email, caps: engineMember.caps });   // voice (engine-capture.ts)
       return handleEngineRoute(request, env, url, { email: engineMember.email, caps: engineMember.caps });
     }
 

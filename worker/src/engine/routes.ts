@@ -133,12 +133,17 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
     const body = (await request.json().catch(() => null)) as { text?: unknown } | null;
     if (!body || typeof body !== "object") return Response.json({ error: "invalid_payload", message: "the request must be a JSON object" }, { status: 422 });
     const r = await interpretSentence(env, member, body.text, new Date().toISOString().slice(0, 10));
-    if (r.kind === "held") return Response.json({ status: "held", actionId: r.actionId, message: r.message, understood: r.understood });
-    if (r.kind === "read") return r.outcome.status === "ok" ? Response.json({ status: "ok", result: r.outcome.result, understood: r.understood }) : r.outcome.status === "ambiguous" ? Response.json({ status: "ambiguous", candidates: r.outcome.candidates, understood: r.understood }) : Response.json({ error: r.outcome.code, message: r.outcome.message }, { status: statusFor(r.outcome.code) });
-    const rehearsal = (env as unknown as { ENGINE_REHEARSAL?: string }).ENGINE_REHEARSAL === "1";                       // the model's own reply is shown ONLY in a rehearsal, never to a business
-    if (r.kind === "refused") return Response.json({ error: r.code, message: r.message, ...(rehearsal && r.debug ? { debug: { modelReply: r.debug } } : {}) }, { status: statusFor(r.code) });
-    if (r.kind === "not_understood") return Response.json({ error: "not_understood", message: r.message, ...(rehearsal && r.debug ? { debug: { modelReply: r.debug } } : {}) }, { status: 422 });
-    return Response.json({ error: "model_unavailable", message: r.message }, { status: 503 });
+    const a = interpretAnswer(r, (env as unknown as { ENGINE_REHEARSAL?: string }).ENGINE_REHEARSAL === "1");
+    return Response.json(a.body, { status: a.status });
   }
   return Response.json({ error: "not_found", message: "There is no such engine route." }, { status: 404 });
+}
+
+/** What the interpreter's outcome is answered with, shared by the typed route and the voice route (engine-capture.ts): the status and the body, nothing else. The model's own reply is shown ONLY in a rehearsal. */
+export function interpretAnswer(r: Awaited<ReturnType<typeof interpretSentence>>, rehearsal: boolean): { status: number; body: Record<string, unknown> } {
+  if (r.kind === "held") return { status: 200, body: { status: "held", actionId: r.actionId, message: r.message, understood: r.understood } };
+  if (r.kind === "read") return r.outcome.status === "ok" ? { status: 200, body: { status: "ok", result: r.outcome.result, understood: r.understood } } : r.outcome.status === "ambiguous" ? { status: 200, body: { status: "ambiguous", candidates: r.outcome.candidates, understood: r.understood } } : { status: statusFor(r.outcome.code), body: { error: r.outcome.code, message: r.outcome.message } };
+  if (r.kind === "refused") return { status: statusFor(r.code), body: { error: r.code, message: r.message, ...(rehearsal && r.debug ? { debug: { modelReply: r.debug } } : {}) } };
+  if (r.kind === "not_understood") return { status: 422, body: { error: "not_understood", message: r.message, ...(rehearsal && r.debug ? { debug: { modelReply: r.debug } } : {}) } };
+  return { status: 503, body: { error: "model_unavailable", message: r.message } };
 }

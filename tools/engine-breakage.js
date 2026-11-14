@@ -12,6 +12,14 @@ const ISTOCK = 'engine-interpret-stock.test.js', VAL = 'capability-stock-valuati
 const MUTATIONS = [
   // app connection: the app learns the business's mode from /auth/me
   { name: 'auth/me: always report legacy mode', suite: 'engine-mode-read.test.js', file: 'worker/src/index.ts', find: 'mode: (await isEngineMode(env)) ? "engine" : "legacy" });', replace: 'mode: "legacy" });' },
+  // voice capture (engine-capture.ts)
+  { name: 'capture: never store the file', suite: 'engine-capture-voice.test.js', file: 'worker/src/engine-capture.ts', find: '  await env.OFFICE_VAULT.put(key, bytes);', replace: '  void bytes;' },
+  { name: 'capture: treat a note that could not be heard as understood', suite: 'engine-capture-voice.test.js', file: 'worker/src/engine-capture.ts', find: '  if (!text) {', replace: '  if (false) {' },
+  { name: 'capture: skip the retry guard', suite: 'engine-capture-voice.test.js', file: 'worker/src/engine-capture.ts', find: '  const replay = await checkIdempotencyKey(env, idempotencyKey);', replace: '  const replay = null as Response | null;' },
+  { name: 'capture: no size limit', suite: 'engine-capture-voice.test.js', file: 'worker/src/engine-capture.ts', find: 'audio.size > MAX_AUDIO_BYTES', replace: 'false' },
+  { name: 'capture: accept a file that is not audio', suite: 'engine-capture-voice.test.js', file: 'worker/src/engine-capture.ts', find: '!/^audio\\//.test(audio.type)', replace: 'false' },
+  { name: 'capture: freeze a failure that may pass', suite: 'engine-capture-voice.test.js', file: 'worker/src/engine-capture.ts', find: 'if (status < 500) await completeIdempotencyKey', replace: 'if (true) await completeIdempotencyKey' },
+  { name: 'capture: the door makes a second capture row for a voice note', suite: 'engine-capture-voice.test.js', file: 'worker/src/capability-contract.ts', find: 'request.member?.captureId ?? (await logCapture(env, request.transcript, request.source || "text"))', replace: '(await logCapture(env, request.transcript, request.source || "text"))' },
   // money: exact integer arithmetic
   { name: 'money: round down instead of half up', suite: LEDGER, file: E('money.ts'), find: 'return (numerator * BigInt(2) + denominator) / (denominator * BigInt(2));', replace: 'return numerator / denominator;' },
   { name: 'money: accept a fractional amount', suite: LEDGER, file: E('money.ts'), find: 'typeof value !== "number" || !Number.isSafeInteger(value) || value < min', replace: 'typeof value !== "number" || !Number.isFinite(value) || value < min' },
