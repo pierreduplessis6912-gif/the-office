@@ -46,6 +46,9 @@ abstract class EngineApi {
   /// A sentence the person typed, read by the engine's interpreter: POST /engine/interpret. The engine answers a read, HOLDS a write (nothing is recorded until it is confirmed), or says it did not understand.
   Future<EngineResponse> interpret(String text);
 
+  /// A recorded voice note: POST /engine/capture/audio (multipart). The engine keeps the file first, hears it, then reads it like typed text (a read is answered, a write is HELD). [idempotencyKey] makes a resend after a dropped network safe.
+  Future<EngineResponse> captureAudio(List<int> bytes, {required String idempotencyKey, String filename = 'note.m4a', String contentType = 'audio/m4a'});
+
   /// Approves a held action: POST /actions/<id>/confirm.
   Future<EngineResponse> confirm(int actionId);
 
@@ -157,6 +160,10 @@ class FixtureEngineApi implements EngineApi {
     }
     return response;
   }
+
+  @override
+  Future<EngineResponse> captureAudio(List<int> bytes, {required String idempotencyKey, String filename = 'note.m4a', String contentType = 'audio/m4a'}) async =>
+      const EngineResponse(501, <String, Object?>{'error': 'not_available', 'message': 'Voice is not part of the recorded demo.'});
 
   @override
   Future<EngineResponse> pending() async => (_heldKind != null && !_heldResolved) ? (fixtures['assistant-pending-$_heldKind'] ?? _missing) : fixtures[_rejected ? 'pending-empty' : (overpay ? 'pending-held-over' : 'pending-held')] ?? _missing;

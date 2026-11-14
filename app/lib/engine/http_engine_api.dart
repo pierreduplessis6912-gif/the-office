@@ -4,6 +4,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' show MediaType;
 
 import 'engine_api.dart';
 
@@ -57,6 +58,18 @@ class HttpEngineApi implements EngineApi {
 
   @override
   Future<EngineResponse> interpret(String text) => _post('/engine/interpret', <String, Object?>{'text': text});
+
+  @override
+  Future<EngineResponse> captureAudio(List<int> bytes, {required String idempotencyKey, String filename = 'note.m4a', String contentType = 'audio/m4a'}) async {
+    // Checked here so nothing useless is sent: the engine checks the same again.
+    if (bytes.isEmpty) return const EngineResponse(422, <String, Object?>{'error': 'invalid_payload', 'message': 'There is no recording to send.'});
+    if (idempotencyKey.isEmpty || idempotencyKey.length > 100) return const EngineResponse(422, <String, Object?>{'error': 'invalid_payload', 'message': 'The recording needs a retry key of up to 100 characters.'});
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/engine/capture/audio'))
+      ..headers['Authorization'] = 'Bearer $sessionToken'
+      ..fields['idempotency_key'] = idempotencyKey
+      ..files.add(http.MultipartFile.fromBytes('audio', bytes, filename: filename, contentType: MediaType.parse(contentType)));
+    return _wrap(await http.Response.fromStream(await client.send(request).timeout(timeout)));
+  }
 
   @override
   Future<EngineResponse> pending() => _get('/actions/pending');
