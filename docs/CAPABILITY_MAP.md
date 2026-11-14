@@ -83,3 +83,4 @@ Every row changes in the commit that changes its truth, with the CI or staging r
 | Draft invoices over HTTP (open, read, save; issue stays a held proposal) | built, tested (`capability-engine-gaps.test.js`) | `docs/decisions/engine-gaps.md` |
 | Quotation lines naming items (create, revise) | built, tested (`capability-engine-gaps.test.js`) | `docs/decisions/engine-gaps.md` |
 | Photo and document capture (kept, read, caption through the interpreter; reading never a command) | built, tested (`engine-capture-image.test.js`) | `docs/decisions/engine-capture-image.md` |
+| Receipt photo to a HELD expense (explicit intent; interpreter narrowed to expense.record) | built, tested (`engine-capture-receipt.test.js`) | `docs/decisions/engine-capture-receipt.md` |
