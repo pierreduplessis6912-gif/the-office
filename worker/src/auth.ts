@@ -800,7 +800,8 @@ const MEMBER_OPEN_ROUTES: Array<{ method: string; path: RegExp }> = [
   { method: "POST", path: /^\/engine\/proposals$/ },
   // A model as one more interpreter (engine/interpret.ts): any member may ASK; the model is shown only what this member may already do, and what it chooses goes through the same door, so every permission is checked there.
   { method: "POST", path: /^\/engine\/interpret$/ },
-  { method: "POST", path: /^\/engine\/capture\/audio$/ },   // a voice note: stored, heard, then read through the same door as typed text (engine-capture.ts)
+  { method: "POST", path: /^\/engine\/capture\/audio$/ },
+  { method: "POST", path: /^\/engine\/capture\/(photo|document)$/ },   // a voice note: stored, heard, then read through the same door as typed text (engine-capture.ts)
   { method: "POST", path: /^\/messages\/text$/ },
   // The history of what the person said and what The Office did (history.ts): open to every member exactly like the message routes, because a member only ever receives their OWN turns; the owner's "everyone" view is checked inside the handler (can_manage_settings).
   { method: "GET", path: /^\/history$/ },

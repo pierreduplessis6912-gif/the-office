@@ -3,13 +3,14 @@
 // (engine/interpret.ts): a read is answered, a write is HELD for a person, nothing is approved and nothing is recorded as money here. This file lives outside the engine folder on purpose: the engine imports no legacy module
 // (tools/engine-ownership.test.js R3), and hearing (ai.ts), the retry guard (auth.ts) and capture rows (memory.ts) are legacy modules.
 import type { Env } from "./types";
-import { transcribe } from "./ai";
+import { describeImage, transcribe } from "./ai";
 import { checkIdempotencyKey, completeIdempotencyKey } from "./auth";
 import { logCapture } from "./memory";
 import { interpretSentence } from "./engine/interpret";
 import { interpretAnswer } from "./engine/routes";
 
 export const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const PENDING = "[voice note — not yet heard]";
 const UNHEARD = "[voice note — could not be heard]";
 
@@ -54,4 +55,56 @@ export async function engineCaptureAudio(request: Request, env: Env, member: { e
   const r = await interpretSentence(env, { ...member, captureId }, text, new Date().toISOString().slice(0, 10));
   const answer = interpretAnswer(r, (env as unknown as { ENGINE_REHEARSAL?: string }).ENGINE_REHEARSAL === "1");
   return await finish(answer.status, { ...answer.body, transcript: text, captureId });
+}
+
+// PHOTOS AND DOCUMENTS (docs/decisions/engine-capture-image.md, slice 1). Same receptacle-first shape as a voice note, with one more rule: WHAT A PICTURE SHOWS IS A READING, NEVER A COMMAND.
+// The reading is kept on the capture row and shown back; it is never given to the interpreter, so words inside a photograph cannot make a held action. Only a caption actually TYPED with the file goes through the interpreter,
+// exactly as typed text (the legacy caption rule: a subject comes only from something said, never guessed from the file). A PDF is kept and said to be not yet read (reading one is a later step).
+const bytesToBase64 = (buf: ArrayBuffer): string => { const u = new Uint8Array(buf); let bin = ""; for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(bin); };
+const NOT_READ = /^\[(image description failed|could not describe image)/;
+
+export async function engineCaptureImage(request: Request, env: Env, member: { email: string | null; caps: readonly string[] }, kind: "photo" | "document"): Promise<Response> {
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return refuse(422, "invalid_payload", `The upload must be a form with a ${kind} file.`);
+  }
+  const file = form.get(kind) as unknown as { size: number; type: string; arrayBuffer(): Promise<ArrayBuffer> } | string | null;
+  if (!file || typeof file === "string") return refuse(422, "invalid_payload", `No ${kind} file was sent, so nothing was done.`);
+  if (file.size === 0) return refuse(422, "invalid_payload", `The ${kind} file is empty, so nothing was done.`);
+  if (file.size > MAX_IMAGE_BYTES) return refuse(413, "too_large", `The ${kind} is too large (over 10 MB), so nothing was done.`);
+  const isImage = /^image\//.test(file.type), isPdf = file.type === "application/pdf";
+  if (!(isImage || (kind === "document" && isPdf))) return refuse(415, "unsupported_type", kind === "photo" ? "That is not an image, so nothing was done." : "That is not an image or a PDF, so nothing was done.");
+  const rawKey = form.get("idempotency_key");
+  const idempotencyKey = typeof rawKey === "string" && rawKey.length > 0 && rawKey.length <= 100 ? rawKey : null;
+  const rawCaption = form.get("caption");
+  const caption = typeof rawCaption === "string" ? rawCaption.trim().slice(0, 2000) : "";
+  const replay = await checkIdempotencyKey(env, idempotencyKey);
+  if (replay) return replay;
+  const release = async (): Promise<void> => { if (idempotencyKey) await env.OFFICE_DB.prepare("DELETE FROM idempotency_keys WHERE key = ?").bind(idempotencyKey).run(); };
+  const finish = async (status: number, body: Record<string, unknown>): Promise<Response> => {
+    const text = JSON.stringify(body);
+    if (status < 500) await completeIdempotencyKey(env, idempotencyKey, text); else await release();
+    return new Response(text, { status, headers: { "Content-Type": "application/json" } });
+  };
+
+  const bytes = await file.arrayBuffer();
+  const ext = isPdf ? "pdf" : file.type.includes("png") ? "png" : "jpg";
+  const key = `engine-captures/${kind}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+  await env.OFFICE_VAULT.put(key, bytes);
+  const captureId = await logCapture(env, `[${kind} — not yet read]`, kind, key);
+  if (captureId === null) return await finish(500, { error: "capture_failed", message: `The ${kind} could not be kept, so nothing was done. Please try again.` });
+
+  let description: string | null = null;
+  if (isImage) {
+    const d = await describeImage(env, bytesToBase64(bytes), file.type).catch(() => "");
+    description = d && !NOT_READ.test(d) ? d : null;
+  }
+  const label = description ? `[${kind} shows: ${description}]` : `[${kind} — not yet read]`;
+  await env.OFFICE_DB.prepare("UPDATE captures SET raw_text = ? WHERE id = ?").bind(caption ? `${caption}\n${label}` : label, captureId).run();
+  if (!caption) return await finish(200, { status: "captured", captureId, description, message: description ? `Your ${kind} was saved and read. Nothing was done with it: say what it is for and it can be acted on.` : `Your ${kind} was saved, but it was not read, so nothing was done.` });
+  const r = await interpretSentence(env, { ...member, captureId }, caption, new Date().toISOString().slice(0, 10));
+  const answer = interpretAnswer(r, (env as unknown as { ENGINE_REHEARSAL?: string }).ENGINE_REHEARSAL === "1");
+  return await finish(answer.status, { ...answer.body, description, captureId });
 }

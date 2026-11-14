@@ -432,6 +432,18 @@
   "class": "owner only"
  },
  {
+  "route": "GET /engine/capture/photo",
+  "pattern": "/engine/capture/photo",
+  "how": "exact path, any method",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "sales": 403,
+  "admin": 403,
+  "class": "owner only"
+ },
+ {
   "route": "GET /files/*",
   "pattern": "/files/*",
   "how": "any path under /files",
@@ -1059,6 +1071,18 @@
   "route": "POST /engine/capture/audio",
   "pattern": "/engine/capture/audio",
   "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "sales": "A",
+  "admin": "A",
+  "class": "any member"
+ },
+ {
+  "route": "POST /engine/capture/photo",
+  "pattern": "/engine/capture/photo",
+  "how": "exact path, any method",
   "none": 401,
   "owner": "A",
   "accountant": "A",
