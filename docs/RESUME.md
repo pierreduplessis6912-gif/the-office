@@ -46,3 +46,4 @@
 > Continue The Office (repo pierreduplessis6912-gif/the-office, branch engine-phase1). Read docs/RESUME.md (the takeover card), then HANDOFF.md, then docs/CAPABILITY_MAP.md. Do the five first-steps in RESUME.md, tell me in five lines where we are, and ask me which of the suggested next steps to do. I will give you a GitHub token in this chat; never store or print it. Keep replies short.
 
 Detail lives in `HANDOFF.md` (the newest notes sit just above its "How to run things" section) and in `docs/decisions/` (`inventory.md`, `interpreter-stock.md`, `purchase-orders.md`, `supplier-invoices.md` and the others).
+- Step (c) done (2026-11-14). Next in order: photo and document capture (docs/decisions/engine-capture.md). Staging proof of voice, real-model procurement run: only on Pierre's explicit word. Credit-note item naming waits for his decision.

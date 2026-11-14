@@ -10,7 +10,7 @@ import { documentTotals as sumTotals, positiveMinor, wholeNumber, type Totals } 
 import { readConfig } from "./config";
 import { isEffective, outstandingForDocument, unallocatedForMovement } from "./ledger";
 import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from "./parties";
-import { planQuotationAcceptance, planQuotationRevision } from "./quotations";
+import { planQuotationAcceptance, planQuotationRevision, quotationLineItems } from "./quotations";
 import { planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { planCancel, planOrder, planReceipt, type ReceiptLineInput } from "./purchasing";
 import { checkWriteDownInput, planWriteDown, type WriteDownInput } from "./stock";
@@ -145,11 +145,14 @@ export async function recordDocument(env: Env, input: DocumentInput, ctx: Ctx): 
 }
 
 // A REVISION of a quotation is a NEW document (its own number) plus a quotation.revised event saying which one it replaces; the old document is never touched. Customer, currency and direction stay as they were.
-export async function reviseQuotation(env: Env, input: { quotationId: number; lines?: DocumentLineInput[]; validUntil?: string | null; reference?: string | null; issuedOn?: string }, ctx: Ctx): Promise<{ documentId: number; number: number; eventId: number; totals: Totals }> {
+export async function reviseQuotation(env: Env, input: { quotationId: number; lines?: DocumentLineInput[]; lineItems?: OrderLineItem[]; validUntil?: string | null; reference?: string | null; issuedOn?: string }, ctx: Ctx): Promise<{ documentId: number; number: number; eventId: number; totals: Totals }> {
   const quotationId = id(input.quotationId, "quotation");
   return inTransaction(env, async (tx) => {
     const plan = await planQuotationRevision(tx, { ...input, quotationId });
-    const doc = await recordDocument(tx, { kind: "quotation", direction: plan.direction, partyId: plan.old.partyId, currency: plan.old.currency, reference: plan.reference, issuedOn: plan.issuedOn, terms: plan.validUntil ? { validUntil: plan.validUntil } : {}, lines: plan.lines }, ctx);
+    // item naming: new lines carry only what the revision says they name (the old line numbers may not mean the same lines now); lines left alone carry the old naming forward
+    const lineItems: OrderLineItem[] = input.lines !== undefined ? (input.lineItems ?? []) : await quotationLineItems(tx, quotationId);
+    if (input.lineItems && input.lines) await planLineItems(tx, input.lineItems, input.lines.map((l) => ({ unit: l.unit ?? null })));
+    const doc = await recordDocument(tx, { kind: "quotation", direction: plan.direction, partyId: plan.old.partyId, currency: plan.old.currency, reference: plan.reference, issuedOn: plan.issuedOn, terms: { ...(plan.validUntil ? { validUntil: plan.validUntil } : {}), ...(lineItems.length ? { lineItems } : {}) }, lines: plan.lines }, ctx);
     const eventId = await appendEvent(tx, "quotation.revised", ctx, { documentId: doc.id, supersedes: quotationId });
     return { documentId: doc.id, number: doc.number, eventId, totals: doc.totals };
   });

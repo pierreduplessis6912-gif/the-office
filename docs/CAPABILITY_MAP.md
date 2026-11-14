@@ -80,3 +80,5 @@ Each step ends with the app and conversation wired to the REAL client, which nee
 
 ## How this stays honest
 Every row changes in the commit that changes its truth, with the CI or staging record that shows it. A tick needs a record; "p" says what is missing. If a row cannot be shown true from the repository, it is a dash.
+| Draft invoices over HTTP (open, read, save; issue stays a held proposal) | built, tested (`capability-engine-gaps.test.js`) | `docs/decisions/engine-gaps.md` |
+| Quotation lines naming items (create, revise) | built, tested (`capability-engine-gaps.test.js`) | `docs/decisions/engine-gaps.md` |

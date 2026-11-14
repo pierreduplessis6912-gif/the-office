@@ -816,6 +816,10 @@ const MEMBER_OPEN_ROUTES: Array<{ method: string; path: RegExp }> = [
 
 export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] }> = [
   // What a customer owes, from the engine's ledger (worker/src/engine): the same knowledge the debtors report needs.
+  // Draft invoices: the same capability that issues an invoice (drafts.edit sits with can_manage_invoices in the engine's own permissions, checked again in the route).
+  { method: "POST", path: /^\/engine\/drafts$/, anyOf: ["can_manage_invoices"] },
+  { method: "GET", path: /^\/engine\/drafts\/\d+$/, anyOf: ["can_manage_invoices"] },
+  { method: "PUT", path: /^\/engine\/drafts\/\d+$/, anyOf: ["can_manage_invoices"] },
   { method: "GET", path: /^\/engine\/receivables$/, anyOf: ["can_know_debtors"] },
   // Finding customers and suppliers (the engine's parties.find): the same people who may read receivables; the contract checks its own engine permission (party.read) again.
   { method: "GET", path: /^\/engine\/parties$/, anyOf: ["can_know_debtors"] },

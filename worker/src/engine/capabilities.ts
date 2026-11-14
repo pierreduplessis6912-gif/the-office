@@ -324,12 +324,12 @@ export const partyEdit: CapabilityContract<PartyEdit> = {
 const QUOTE_STATUS = ["open", "accepted", "superseded", "any"] as const;
 const totalsOf = (lines: QuoteLine[]) => sumTotals(lines.map((l) => ({ description: l.description, quantityMilli: l.quantityMilli, unit: l.unit, unitPriceMinor: l.unitPriceMinor, taxBp: l.taxBp })));
 
-interface QuotationCreate { partyId: number; issuedOn: string; currency: string; validUntil?: string; reference?: string; lines: QuoteLine[]; totals?: { netMinor: number; taxMinor: number; grossMinor: number } }
+interface QuotationCreate { partyId: number; issuedOn: string; currency: string; validUntil?: string; reference?: string; lines: QuoteLine[]; lineItems?: OrderLineItem[]; totals?: { netMinor: number; taxMinor: number; grossMinor: number } }
 export const quotationCreate: CapabilityContract<QuotationCreate> = {
   id: "quotation.create", heldType: "engine.quotation.create", label: "Making a quotation", requires: [], permissions: ["quotation.manage"], version: 1, recordsExecution: true,
   validate(payload) {
     if (!isObj(payload)) return { ok: false, reason: "the quotation must be an object" };
-    const s = stray(payload, ["partyId", "issuedOn", "currency", "validUntil", "reference", "lines", "totals"]);
+    const s = stray(payload, ["partyId", "issuedOn", "currency", "validUntil", "reference", "lines", "lineItems", "totals"]);
     if (s) return { ok: false, reason: `${s} is not a field of a quotation` };
     if (!whole(payload.partyId)) return { ok: false, reason: "partyId must be a record number" };
     const issued = checkDate(payload.issuedOn, "issuedOn"); if (!issued.ok) return issued;
@@ -338,32 +338,35 @@ export const quotationCreate: CapabilityContract<QuotationCreate> = {
     if (payload.validUntil !== undefined) { const v = checkDate(payload.validUntil, "validUntil"); if (!v.ok) return v; if (v.value < issued.value) return { ok: false, reason: "validUntil cannot be before the issue date" }; out.validUntil = v.value; }
     if (payload.reference !== undefined) { const r = checkReference(payload.reference); if (!r.ok) return r; out.reference = r.value; }
     const lines = checkLines(payload.lines); if (!lines.ok) return lines; out.lines = lines.value;
+    if (payload.lineItems !== undefined) { const li = checkLineItems(payload.lineItems, lines.value.length); if (!li.ok) return li; out.lineItems = li.value; }   // the items the lines are for, as an order's lines name theirs
     if (payload.totals !== undefined) { const t = payload.totals; if (!isObj(t) || !whole(t.netMinor, 0) || !whole(t.taxMinor, 0) || !whole(t.grossMinor, 0)) return { ok: false, reason: "totals must be the engine's worked-out totals" }; out.totals = { netMinor: t.netMinor, taxMinor: t.taxMinor, grossMinor: t.grossMinor }; }
     return { ok: true, value: out };
   },
   async stamp(_env, value) { return { ...value, totals: totalsOf(value.lines) }; },
   async check(env, value) {
+    if (value.lineItems) await planLineItems(env, value.lineItems, value.lines);
     const p = await partyProfile(env, value.partyId);
     if (!p) throw new EngineError("not_found", "There is no such customer.");
     if (!p.roles.includes("customer")) throw new EngineError("invalid_state", `${p.name} is not a customer, so they cannot be quoted.`);
     if (value.totals && JSON.stringify(value.totals) !== JSON.stringify(totalsOf(value.lines))) throw new EngineError("invalid_state", "The totals shown do not match the lines, so this needs to be proposed again.");
   },
   async execute(env, v, c) {
-    const r = await facts.recordDocument(env, { kind: "quotation", direction: "sell", partyId: v.partyId, currency: v.currency, reference: v.reference ?? null, issuedOn: v.issuedOn, terms: v.validUntil ? { validUntil: v.validUntil } : {}, lines: v.lines }, ctxOf(c, "quotation.create"));
+    const r = await facts.recordDocument(env, { kind: "quotation", direction: "sell", partyId: v.partyId, currency: v.currency, reference: v.reference ?? null, issuedOn: v.issuedOn, terms: { ...(v.validUntil ? { validUntil: v.validUntil } : {}), ...(v.lineItems ? { lineItems: v.lineItems } : {}) }, lines: v.lines }, ctxOf(c, "quotation.create"));
     return { documentId: r.id, number: r.number, eventId: r.eventId };
   },
 };
 
-interface QuotationRevise { quotationId: number; lines?: QuoteLine[]; validUntil?: string | null; reference?: string | null; issuedOn?: string; basedOn?: { quotationVersion: number }; totals?: { netMinor: number; taxMinor: number; grossMinor: number } }
+interface QuotationRevise { quotationId: number; lines?: QuoteLine[]; lineItems?: OrderLineItem[]; validUntil?: string | null; reference?: string | null; issuedOn?: string; basedOn?: { quotationVersion: number }; totals?: { netMinor: number; taxMinor: number; grossMinor: number } }
 export const quotationRevise: CapabilityContract<QuotationRevise> = {
   id: "quotation.revise", heldType: "engine.quotation.revise", label: "Revising a quotation", requires: [], permissions: ["quotation.manage"], version: 1, recordsExecution: true,
   validate(payload) {
     if (!isObj(payload)) return { ok: false, reason: "the revision must be an object" };
-    const s = stray(payload, ["quotationId", "lines", "validUntil", "reference", "issuedOn", "basedOn", "totals"]);
+    const s = stray(payload, ["quotationId", "lines", "lineItems", "validUntil", "reference", "issuedOn", "basedOn", "totals"]);
     if (s) return { ok: false, reason: `${s} is not a field of a revision` };
     if (!whole(payload.quotationId)) return { ok: false, reason: "quotationId must be a record number" };
     const out: QuotationRevise = { quotationId: payload.quotationId };
     if (payload.lines !== undefined) { const l = checkLines(payload.lines); if (!l.ok) return l; out.lines = l.value; }
+    if (payload.lineItems !== undefined) { if (out.lines === undefined) return { ok: false, reason: "lineItems goes with lines: say the lines they name" }; const li = checkLineItems(payload.lineItems, out.lines.length); if (!li.ok) return li; out.lineItems = li.value; }
     if (payload.validUntil !== undefined) { if (payload.validUntil === null) out.validUntil = null; else { const v = checkDate(payload.validUntil, "validUntil"); if (!v.ok) return v; out.validUntil = v.value; } }
     if (payload.reference !== undefined) { if (payload.reference === null) out.reference = null; else { const r = checkReference(payload.reference); if (!r.ok) return r; out.reference = r.value; } }
     if (payload.issuedOn !== undefined) { const d = checkDate(payload.issuedOn, "issuedOn"); if (!d.ok) return d; out.issuedOn = d.value; }
@@ -378,11 +381,12 @@ export const quotationRevise: CapabilityContract<QuotationRevise> = {
   },
   async check(env, value) {
     if (value.basedOn && (await versionOf(env, { kind: "document", id: value.quotationId })) !== value.basedOn.quotationVersion) throw new EngineError("stale", "That quotation changed after this was proposed, so it needs to be proposed again.");
+    if (value.lineItems && value.lines) await planLineItems(env, value.lineItems, value.lines);
     const plan = await planQuotationRevision(env, value);
     if (value.totals && JSON.stringify(value.totals) !== JSON.stringify(totalsOf(plan.lines))) throw new EngineError("invalid_state", "The totals shown do not match the lines, so this needs to be proposed again.");
   },
   async execute(env, v, c) {
-    const r = await facts.reviseQuotation(env, { quotationId: v.quotationId, lines: v.lines, validUntil: v.validUntil, reference: v.reference, issuedOn: v.issuedOn }, ctxOf(c, "quotation.revise"));
+    const r = await facts.reviseQuotation(env, { quotationId: v.quotationId, lines: v.lines, lineItems: v.lineItems, validUntil: v.validUntil, reference: v.reference, issuedOn: v.issuedOn }, ctxOf(c, "quotation.revise"));
     return { documentId: r.documentId, number: r.number, eventId: r.eventId };
   },
 };

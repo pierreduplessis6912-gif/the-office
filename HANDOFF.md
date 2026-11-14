@@ -82,3 +82,4 @@ Never merge to `main` (that deploys production). Never deploy or touch productio
 
 ## Working rules
 Never retry a Git operation or a write after an uncertain timeout; check state first. Run long jobs detached; tool calls time out at about 5 minutes. Label evidence as code, test, staging record, documentation, inference or unknown. A free chat with no repository and shell cannot do engineering work: say so, do not loop. The full earlier handoff (approval ledger, last verified state, commands, release blockers, start prompts) is in [docs/HANDOFF_REFERENCE.md](docs/HANDOFF_REFERENCE.md).
+- 2026-11-14: step (c) built on engine-phase1: draft invoice routes over HTTP and `lineItems` on quotation create/revise (see docs/decisions/engine-gaps.md). Credit-note item naming left for Pierre (restock decision). Umbrella 11237/11237. Next: photo/document capture; staging proofs and real-model run only on his word.

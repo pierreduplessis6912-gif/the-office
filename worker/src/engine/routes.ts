@@ -3,6 +3,9 @@
 import type { Env } from "../types";
 import { invokeRead, proposeCapabilityAs, type Member } from "./operations";
 import { interpretSentence } from "./interpret";
+import { createDraft, readDraft, saveDraft } from "./drafts";
+import { EngineError } from "./errors";
+import { permissionsFor } from "./permissions";
 
 export function statusFor(code: string): number {
   if (code === "not_permitted") return 403;
@@ -118,6 +121,38 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
     const q = (k: string) => url.searchParams.get(k);
     const iid = q("itemId");
     return answer(await invokeRead(env, member, "stock.ledger", { ...(iid !== null ? { itemId: /^\d+$/.test(iid) ? Number(iid) : iid } : {}), ...(q("from") !== null ? { from: q("from") } : {}), ...(q("to") !== null ? { to: q("to") } : {}) }));
+  }
+  // Draft invoices (drafts.ts): the one mutable working copy. Opening, reading and saving are not business facts and need no approval; ISSUING the draft is still a held `invoice.issue` proposal a person approves.
+  if (path === "/engine/drafts" || /^\/engine\/drafts\/\d+$/.test(path)) {
+    if (!permissionsFor(member.caps).has("drafts.edit")) return Response.json({ error: "not_permitted", message: "Working on draft invoices needs permission this member does not have, so nothing was done." }, { status: 403 });
+    const ctx = { actorEmail: member.email, contract: "drafts.http", contractVersion: 1 };
+    const refuse = (e: unknown): Response => { if (e instanceof EngineError) return Response.json({ error: e.code, message: e.message }, { status: statusFor(e.code) }); throw e; };
+    const json = async (): Promise<Record<string, unknown> | null> => { const b = await request.json().catch(() => null); return b && typeof b === "object" && !Array.isArray(b) ? (b as Record<string, unknown>) : null; };
+    const bad = (message: string): Response => Response.json({ error: "invalid_payload", message }, { status: 422 });
+    const draftId = Number(path.split("/")[3]);
+    try {
+      if (request.method === "POST" && path === "/engine/drafts") {
+        const b = await json();
+        if (!b) return bad("the request must be a JSON object");
+        if (b.kind !== "invoice" || b.direction !== "sell") return bad("only an invoice to a customer (kind invoice, direction sell) can be drafted here");
+        if (b.partyId !== undefined && !(typeof b.partyId === "number" && Number.isSafeInteger(b.partyId) && b.partyId >= 1)) return bad("partyId must be a record number");
+        return Response.json(await createDraft(env, { kind: "invoice", direction: "sell", partyId: (b.partyId as number | undefined) ?? null }, ctx));
+      }
+      if (request.method === "GET" && path !== "/engine/drafts") {
+        const d = await readDraft(env, draftId);
+        return Response.json({ id: d.id, kind: d.kind, direction: d.direction, partyId: d.partyId, payload: d.payload, version: d.version, issuedDocumentId: d.issuedDocumentId, validation: d.validation });
+      }
+      if (request.method === "PUT" && path !== "/engine/drafts") {
+        const b = await json();
+        if (!b) return bad("the request must be a JSON object");
+        if (!(typeof b.expectedVersion === "number" && Number.isSafeInteger(b.expectedVersion) && b.expectedVersion >= 1)) return bad("expectedVersion must be the version of the draft that was opened");
+        if (!b.payload || typeof b.payload !== "object" || Array.isArray(b.payload)) return bad("payload must be the draft's contents");
+        if (b.partyId !== undefined && b.partyId !== null && !(typeof b.partyId === "number" && Number.isSafeInteger(b.partyId) && b.partyId >= 1)) return bad("partyId must be a record number");
+        return Response.json(await saveDraft(env, draftId, { expectedVersion: b.expectedVersion, ...(b.partyId !== undefined ? { partyId: b.partyId as number | null } : {}), payload: b.payload as Record<string, unknown> }, ctx));
+      }
+    } catch (e) {
+      return refuse(e);
+    }
   }
   const rec = path.match(/^\/engine\/records\/([a-z]+)\/(\d+)$/);
   if (request.method === "GET" && rec) return answer(await invokeRead(env, member, "records.get", { kind: rec[1], id: Number(rec[2]) }));

@@ -112,3 +112,10 @@ export async function planQuotationAcceptance(env: Env, quotationId: number): Pr
   if (q.status === "accepted") throw new EngineError("invalid_state", "That quotation has already been accepted.");
   return q;
 }
+
+/** The items a quotation's lines name, kept in the document's own terms (the foundation tables have no item column): [{lineNo, itemId}], empty when it names none. */
+export async function quotationLineItems(env: Env, quotationId: number): Promise<Array<{ lineNo: number; itemId: number }>> {
+  const d = await env.OFFICE_DB.prepare("SELECT terms_json FROM eng_document WHERE id = ? AND kind = 'quotation'").bind(quotationId).first<{ terms_json: string }>();
+  const li = d ? parse(d.terms_json).lineItems : null;
+  return Array.isArray(li) ? (li as Array<{ lineNo?: unknown; itemId?: unknown }>).flatMap((e) => (typeof e.lineNo === "number" && typeof e.itemId === "number" ? [{ lineNo: e.lineNo, itemId: e.itemId }] : [])) : [];
+}
