@@ -49,6 +49,10 @@ abstract class EngineApi {
   /// A recorded voice note: POST /engine/capture/audio (multipart). The engine keeps the file first, hears it, then reads it like typed text (a read is answered, a write is HELD). [idempotencyKey] makes a resend after a dropped network safe.
   Future<EngineResponse> captureAudio(List<int> bytes, {required String idempotencyKey, String filename = 'note.m4a', String contentType = 'audio/m4a'});
 
+  /// A photo or a document: POST /engine/capture/photo or /engine/capture/document (multipart). [kind] is 'photo' or 'document'. The engine keeps the file first and reads what it shows (a reading, never a command). Only when the person SAYS what it is
+  /// ([intent] 'expense' for a receipt, 'supplier_bill' for a supplier's bill) does the engine try to HOLD a proposal from it; with no intent it is only kept and read. [caption] is anything the person typed with it. [idempotencyKey] makes a retry safe.
+  Future<EngineResponse> captureImage(List<int> bytes, {required String kind, required String idempotencyKey, String? intent, String? caption, String filename = 'photo.jpg', String contentType = 'image/jpeg'});
+
   /// Approves a held action: POST /actions/<id>/confirm.
   Future<EngineResponse> confirm(int actionId);
 
@@ -164,6 +168,10 @@ class FixtureEngineApi implements EngineApi {
   @override
   Future<EngineResponse> captureAudio(List<int> bytes, {required String idempotencyKey, String filename = 'note.m4a', String contentType = 'audio/m4a'}) async =>
       const EngineResponse(501, <String, Object?>{'error': 'not_available', 'message': 'Voice is not part of the recorded demo.'});
+
+  @override
+  Future<EngineResponse> captureImage(List<int> bytes, {required String kind, required String idempotencyKey, String? intent, String? caption, String filename = 'photo.jpg', String contentType = 'image/jpeg'}) async =>
+      const EngineResponse(501, <String, Object?>{'error': 'not_available', 'message': 'Photos are not part of the recorded demo.'});
 
   @override
   Future<EngineResponse> pending() async => (_heldKind != null && !_heldResolved) ? (fixtures['assistant-pending-$_heldKind'] ?? _missing) : fixtures[_rejected ? 'pending-empty' : (overpay ? 'pending-held-over' : 'pending-held')] ?? _missing;

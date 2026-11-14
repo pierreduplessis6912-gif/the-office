@@ -50,3 +50,4 @@ Detail lives in `HANDOFF.md` (the newest notes sit just above its "How to run th
 - Photo and document capture slice 1 done. Next: bill/receipt photo to a held proposal (own design first), staging proof of voice and photo, real-model runs: only on Pierre's explicit word.
 - Receipt photo to held expense done (slice 2). Next candidates: supplier bill with lines (own design), staging proof of voice and photo, real-model runs: only on Pierre's explicit word.
 - Supplier bill photo to held supplier invoice done (slice 3). Next candidates: link a bill to its order, staging proof of voice/photo, real-model runs (each only on Pierre's explicit word), app capture buttons.
+- Bill-to-order link and app photo/receipt/bill capture client done. Remaining from "do all 3": staging proof of capture (needs a staging mode and Pierre dispatching it by hand: the sandbox cannot dispatch workflows).

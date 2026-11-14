@@ -36,7 +36,7 @@ function catalogue(): Entry[] {
     { id: "expenses.find", describes: "Look up expenses the business has recorded.", arguments: { category: `one of ${EXPENSE_CATEGORIES.join(", ")}, only if the person said`, period: "this_month or last_month, only if the person said" }, permissions: READS.find((r) => r.id === "expenses.find")?.permissions ?? [] },
     { id: "expense.record", describes: "Record something the business bought and has already paid for (it is only proposed; a person approves it).", arguments: { supplier: "the supplier's name, as the person said it", amountCents: "the amount paid as a whole number of cents", vat: "plus_vat if the amount is before VAT, incl_vat if it includes VAT, no_vat if there is no VAT: ONLY if the sentence says so, otherwise leave it out", description: "what was bought, in a few words", category: `one of ${EXPENSE_CATEGORIES.join(", ")}`, method: `how it was paid: one of ${EXPENSE_METHODS.join(", ")}`, invoiceHeld: "the JSON boolean true, only if the person said they have the tax invoice; otherwise leave it out", when: "the word today or yesterday, never a date; leave it out unless the person said" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "expense.record")?.permissions ?? [] },
     // ---- a supplier bill read from a PHOTOGRAPH the person said is a bill (docs/decisions/engine-capture-bill.md): never offered for a sentence. Words and plain numbers only; the engine resolves, converts, works the tax and totals. ----
-    { id: "supplier_invoice.record", readingOnly: true, describes: "Record a supplier's bill that was read from a photograph of it (it is only proposed; a person approves it).", arguments: { supplier: "the supplier's name as printed", invoiceNumber: "the supplier's own invoice number as printed", invoicedOn: "the invoice date as YYYY-MM-DD, only if it is printed", dueOn: "the due date as YYYY-MM-DD, only if printed", category: `one of ${EXPENSE_CATEGORIES.join(", ")}`, taxInvoice: "true if it is headed Tax Invoice and shows the supplier's VAT number, else false", vat: "plus_vat if the unit prices are shown WITHOUT VAT and VAT is added, no_vat if there is no VAT, incl_vat if the prices already include VAT", lines: "a list of {description, quantity (plain number), unit (only if printed), unitPriceCents (whole cents, one unit, without VAT)}" }, permissions: ["bill.manage"] },
+    { id: "supplier_invoice.record", readingOnly: true, describes: "Record a supplier's bill that was read from a photograph of it (it is only proposed; a person approves it).", arguments: { supplier: "the supplier's name as printed", invoiceNumber: "the supplier's own invoice number as printed", invoicedOn: "the invoice date as YYYY-MM-DD, only if it is printed", dueOn: "the due date as YYYY-MM-DD, only if printed", orderNumber: "OUR purchase order number if the bill shows it: a whole number, digits only (7, not PO-7); leave it out if it is not shown", category: `one of ${EXPENSE_CATEGORIES.join(", ")}`, taxInvoice: "true if it is headed Tax Invoice and shows the supplier's VAT number, else false", vat: "plus_vat if the unit prices are shown WITHOUT VAT and VAT is added, no_vat if there is no VAT, incl_vat if the prices already include VAT", lines: "a list of {description, quantity (plain number), unit (only if printed), unitPriceCents (whole cents, one unit, without VAT)}" }, permissions: ["bill.manage"] },
     // ---- stock (docs/decisions/interpreter-stock.md): an item, a place and a job are WORDS, a quantity is a plain number; the engine resolves the names, converts to thousandths and dates it (today) ----
     { id: "stock.on_hand", describes: "How much of a stock item the business has, or all the stock.", arguments: { item: "only if they named one: the product name only (or its code), as the person said it, without the unit or a quantity (screws, not boxes of screws)" }, permissions: READS.find((r) => r.id === "stock.on_hand")?.permissions ?? [] },
     { id: "stock.reorder_suggestions", describes: "What stock needs to be reordered.", arguments: {}, permissions: READS.find((r) => r.id === "stock.reorder_suggestions")?.permissions ?? [] },
@@ -321,6 +321,7 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
     const dateOk = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
     if (!dateOk(args.invoicedOn) || args.invoicedOn > today || args.invoicedOn < addDays(today, -400)) return notUnderstood(env, member, text);
     if (args.dueOn !== undefined && (!dateOk(args.dueOn) || args.dueOn < args.invoicedOn)) return notUnderstood(env, member, text);
+    if (args.orderNumber !== undefined && !(typeof args.orderNumber === "number" && Number.isSafeInteger(args.orderNumber) && args.orderNumber >= 1 && args.orderNumber <= 1_000_000_000)) return notUnderstood(env, member, text);
     if (!Array.isArray(args.lines) || args.lines.length === 0 || args.lines.length > 30) return notUnderstood(env, member, text);
     const rate = args.vat === "no_vat" ? 0 : STANDARD_RATE_BP;
     const lines: Array<{ description: string; quantityMilli: number; unit: string | null; unitPriceMinor: number; taxBp: number }> = [];
@@ -338,8 +339,23 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
     if (who.kind === "refused") return { kind: "refused", understood, code: who.code, message: who.message };
     if (who.kind === "none") return { kind: "refused", understood, code: "not_found", message: `There is no supplier called ${(args.supplier as string).trim()}. Add them first.` };
     if (who.kind === "many") return { kind: "read", understood, outcome: who.outcome };
-    const payload = { supplierId: who.id, invoicedOn: args.invoicedOn, ...(args.dueOn !== undefined ? { dueOn: args.dueOn } : {}), currency: "ZAR", supplierInvoiceNumber: (args.invoiceNumber as string).trim(), category: args.category, taxInvoiceHeld: args.taxInvoice, lines };
-    return heldOrRefused(await proposeCapabilityAs(env, member, { capability: "supplier_invoice.record", payload, transcript: text, source: "app", interpreter: "model" }));
+    // THE ORDER LINK (docs/decisions/engine-capture-bill-order.md): the model said only a number; the ENGINE finds that supplier's order (not cancelled) and matches a bill line to an order line only when its words are the same as exactly one order line's. Nothing is guessed: a number that is not found is held WITHOUT an order, and the answer says so.
+    let orderId: number | undefined, note = "";
+    if (typeof args.orderNumber === "number") {
+      const found = (await allOrders(env, { supplierId: who.id, status: "any" })).filter((o) => o.number === args.orderNumber && !o.cancelled);
+      if (found.length === 1) {
+        orderId = found[0].id;
+        const norm = (v: string): string => v.trim().replace(/\s+/g, " ").toLowerCase();
+        const onOrder = await orderProgress(env, orderId);
+        for (const l of lines as Array<{ description: string; orderLineNo?: number }>) {
+          const same = onOrder.filter((o) => norm(o.description) === norm(l.description));
+          if (same.length === 1) l.orderLineNo = same[0].lineNo;
+        }
+      } else note = ` Order ${args.orderNumber} was not found with ${who.name}, so this bill is held without an order.`;
+    }
+    const payload = { supplierId: who.id, invoicedOn: args.invoicedOn, ...(args.dueOn !== undefined ? { dueOn: args.dueOn } : {}), currency: "ZAR", supplierInvoiceNumber: (args.invoiceNumber as string).trim(), ...(orderId !== undefined ? { orderId } : {}), category: args.category, taxInvoiceHeld: args.taxInvoice, lines };
+    const outcome = heldOrRefused(await proposeCapabilityAs(env, member, { capability: "supplier_invoice.record", payload, transcript: text, source: "app", interpreter: "model" }));
+    return outcome.kind === "held" && note ? { ...outcome, message: `${outcome.message}${note}` } : outcome;
   }
   // ---- stock: the model supplies words and a plain number; the engine resolves, converts and dates (today) ---------------------------------------------------------------------------------------------------------------------
   const noItem = (name: string): InterpretOutcome => ({ kind: "refused", understood, code: "not_found", message: `There is no stock item called ${name}.` });

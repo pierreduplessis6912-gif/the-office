@@ -21,7 +21,7 @@ int? _int(Object? v) {
 Map<String, Object?>? _map(Object? v) => v is Map ? <String, Object?>{for (final e in v.entries) e.key.toString(): e.value} : null;
 List<Object?> _list(Object? v) => v is List ? v.take(_maxList).toList() : const <Object?>[];
 
-enum AssistantKind { parties, vat, expenses, held, ambiguous, notUnderstood, refused, unusable }
+enum AssistantKind { parties, vat, expenses, held, ambiguous, notUnderstood, refused, captured, unusable }
 
 class AssistantParty {
   final int id;
@@ -84,6 +84,8 @@ AssistantTurn parseInterpret(int status, Object? body) {
   if (b == null) return const AssistantTurn.unusable();
   if (status == 422 && b['error'] == 'not_understood') return AssistantTurn(kind: AssistantKind.notUnderstood, message: _text(b['message']));
   if (status != 200) return AssistantTurn(kind: AssistantKind.refused, message: _text(b['message']) ?? _text(b['error']) ?? 'That was not possible.');
+  // A voice note, photo or document that was KEPT (and perhaps read or heard) but not turned into anything: said plainly, nothing was done with it.
+  if (b['status'] == 'captured') return AssistantTurn(kind: AssistantKind.captured, message: _text(b['message']) ?? 'Saved. Nothing was done with it.');
   final understood = _map(b['understood']);
   final capability = understood == null ? null : _text(understood['capability']);
   if (b['status'] == 'held') {
@@ -163,6 +165,8 @@ String heldTitle(String type) {
       return 'Record an expense';
     case 'engine.expense.void':
       return 'Void an expense';
+    case 'engine.supplier_invoice.record':
+      return 'Record a supplier bill';
     case 'engine.payment.record':
       return 'Record a payment';
     default:

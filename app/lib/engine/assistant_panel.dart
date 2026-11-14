@@ -17,10 +17,21 @@ class _Turn {
   _Turn(this.said);
 }
 
+/// A picture the person chose to send (from the camera or the gallery). The panel does not know where it came from.
+class EngineCaptureFile {
+  final List<int> bytes;
+  final String filename;
+  final String contentType;
+  const EngineCaptureFile({required this.bytes, this.filename = 'photo.jpg', this.contentType = 'image/jpeg'});
+}
+
 class AssistantPanel extends StatefulWidget {
   final EngineApi api;
   final String? footnote;
-  const AssistantPanel({super.key, required this.api, this.footnote});
+
+  /// How the person chooses a picture. When it is null (the recorded demo) there are no capture buttons.
+  final Future<EngineCaptureFile?> Function()? pickPhoto;
+  const AssistantPanel({super.key, required this.api, this.footnote, this.pickPhoto});
 
   @override
   State<AssistantPanel> createState() => _AssistantPanelState();
@@ -43,6 +54,49 @@ class _AssistantPanelState extends State<AssistantPanel> {
     AssistantTurn turn;
     try {
       final response = await widget.api.interpret(text);
+      turn = parseInterpret(response.status, response.body);
+    } catch (_) {
+      turn = const AssistantTurn.unusable();
+    }
+    HeldAction? held;
+    final names = <int, String>{};
+    if (turn.kind == AssistantKind.held && turn.actionId != null) {
+      try {
+        final response = await widget.api.pending();
+        held = parseHeld(response.status, response.body, turn.actionId!);
+        final supplier = held == null ? null : held.payload['supplierId'];
+        if (supplier is int) {
+          final record = await widget.api.record('party', supplier);
+          final parsed = parseRecord(record.status, record.body);
+          if (parsed != null) names[supplier] = parsed.title;
+        }
+      } catch (_) {
+        held = null;
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      t.turn = turn;
+      t.held = held;
+      t.names = names;
+      _asking = false;
+    });
+  }
+
+  /// Sends a picture the person chose. [intent] is what the PERSON says it is (null: only keep it); the picture never decides that.
+  Future<void> _capture(String said, String? intent) async {
+    final pick = widget.pickPhoto;
+    if (pick == null || _asking) return;
+    final file = await pick();
+    if (file == null || !mounted) return;
+    final t = _Turn(said);
+    setState(() {
+      _turns.insert(0, t);
+      _asking = true;
+    });
+    AssistantTurn turn;
+    try {
+      final response = await widget.api.captureImage(file.bytes, kind: 'photo', idempotencyKey: 'photo-${DateTime.now().microsecondsSinceEpoch}', intent: intent, filename: file.filename, contentType: file.contentType);
       turn = parseInterpret(response.status, response.body);
     } catch (_) {
       turn = const AssistantTurn.unusable();
@@ -138,6 +192,8 @@ class _AssistantPanelState extends State<AssistantPanel> {
         return const Padding(padding: EdgeInsets.all(12), child: Text('I did not understand that as something I can do, so nothing was done.'));
       case AssistantKind.refused:
         return Padding(padding: const EdgeInsets.all(12), child: Text(turn.message ?? 'That was not possible.'));
+      case AssistantKind.captured:
+        return Padding(padding: const EdgeInsets.all(12), child: Text(turn.message ?? 'Saved. Nothing was done with it.', key: const Key('captured-line')));
       case AssistantKind.unusable:
         return const Padding(padding: EdgeInsets.all(12), child: Text('The Office did not answer that clearly.'));
     }
@@ -150,6 +206,11 @@ class _AssistantPanelState extends State<AssistantPanel> {
         Expanded(child: TextField(key: const Key('assistant-field'), controller: _controller, textInputAction: TextInputAction.send, onSubmitted: (_) => _ask(), decoration: const InputDecoration(hintText: 'e.g. “What is my VAT this month?”', border: OutlineInputBorder()))),
         const SizedBox(width: 8),
         IconButton(key: const Key('assistant-send'), onPressed: _asking ? null : _ask, icon: const Icon(Icons.send)),
+      ])),
+      if (widget.pickPhoto != null) Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Wrap(spacing: 8, children: [
+        OutlinedButton(key: const Key('capture-photo'), onPressed: _asking ? null : () => _capture('Photo kept', null), child: const Text('Keep a photo')),
+        OutlinedButton(key: const Key('capture-receipt'), onPressed: _asking ? null : () => _capture('Receipt photo', 'expense'), child: const Text('Record a receipt')),
+        OutlinedButton(key: const Key('capture-bill'), onPressed: _asking ? null : () => _capture('Supplier bill photo', 'supplier_bill'), child: const Text('Record a bill')),
       ])),
       if (widget.footnote != null) Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Align(alignment: Alignment.centerLeft, child: Text(widget.footnote!, style: const TextStyle(fontSize: 11, color: Color(0xFF8A8A90))))),
       Expanded(child: ListView(padding: const EdgeInsets.all(12), children: [
