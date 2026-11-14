@@ -1,6 +1,6 @@
 {
- "commit": "a68cc3c",
- "when": "2026-11-11T21:02:00.430052+00:00",
+ "commit": "35f2e97",
+ "when": "2026-11-14T13:57:13.222178+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
@@ -12,7 +12,7 @@
   "\u2705 /home/runner/work/the-office/the-office/app/test/engine_shell_test.dart: a payment fully applied shows no unallocated line",
   "::endgroup::",
   "",
-  "\ud83c\udf89 287 tests passed."
+  "\ud83c\udf89 295 tests passed."
  ],
  "build": "success"
 }
