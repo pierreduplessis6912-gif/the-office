@@ -80,7 +80,7 @@ export async function engineCaptureImage(request: Request, env: Env, member: { e
   const idempotencyKey = typeof rawKey === "string" && rawKey.length > 0 && rawKey.length <= 100 ? rawKey : null;
   const rawIntent = form.get("intent");
   const intent = typeof rawIntent === "string" ? rawIntent.trim() : "";
-  if (intent && intent !== "expense") return refuse(422, "invalid_payload", "That is not something a picture can be recorded as here, so nothing was done.");   // the person's own words, checked before anything is stored
+  if (intent && intent !== "expense" && intent !== "supplier_bill") return refuse(422, "invalid_payload", "That is not something a picture can be recorded as here, so nothing was done.");   // the person's own words, checked before anything is stored
   const rawCaption = form.get("caption");
   const caption = typeof rawCaption === "string" ? rawCaption.trim().slice(0, 2000) : "";
   const replay = await checkIdempotencyKey(env, idempotencyKey);
@@ -106,11 +106,11 @@ export async function engineCaptureImage(request: Request, env: Env, member: { e
   }
   const label = description ? `[${kind} shows: ${description}]` : `[${kind} — not yet read]`;
   await env.OFFICE_DB.prepare("UPDATE captures SET raw_text = ? WHERE id = ?").bind(caption ? `${caption}\n${label}` : label, captureId).run();
-  if (intent === "expense") {
-    // The person SAID this is a receipt to record (a button, not the picture). What it shows is data: only an expense is offered to the interpreter, so words inside a photograph cannot make anything else.
+  if (intent === "expense" || intent === "supplier_bill") {
+    // The person SAID what this is (a button, not the picture). What it shows is data: only that ONE capability is offered to the interpreter, so words inside a photograph cannot make anything else.
     if (!description) return await finish(200, { status: "captured", captureId, description, message: `Your ${kind} was saved, but it was not read, so nothing was done.` });
-    const text = `Read from a photograph of a receipt:\n${description.slice(0, 3000)}${caption ? `\nThe person added: ${caption}` : ""}`;
-    const r = await interpretSentence(env, { ...member, captureId }, text, new Date().toISOString().slice(0, 10), { only: ["expense.record"], fromReading: true });
+    const text = `Read from a photograph of ${intent === "expense" ? "a receipt" : "a supplier bill"}:\n${description.slice(0, 3000)}${caption ? `\nThe person added: ${caption}` : ""}`;
+    const r = await interpretSentence(env, { ...member, captureId }, text, new Date().toISOString().slice(0, 10), { only: [intent === "expense" ? "expense.record" : "supplier_invoice.record"], fromReading: true });
     const answer = interpretAnswer(r, (env as unknown as { ENGINE_REHEARSAL?: string }).ENGINE_REHEARSAL === "1");
     return await finish(answer.status, { ...answer.body, description, captureId });
   }

@@ -1019,6 +1019,7 @@ async function expect(role, method, path, want) {
   await require('./capability-engine-gaps.test.js')({ check, bundleTo, srcDir });
   await require('./engine-capture-image.test.js')({ check, bundleTo, srcDir });
   await require('./engine-capture-receipt.test.js')({ check, bundleTo, srcDir });
+  await require('./engine-capture-bill.test.js')({ check, bundleTo, srcDir });
   await require('./engine-operations.test.js')({ check, bundleTo, srcDir });
   await require('./engine-restore.test.js')({ check, bundleTo, srcDir });
   await require('./engine-fit.test.js')({ check, bundleTo, srcDir });

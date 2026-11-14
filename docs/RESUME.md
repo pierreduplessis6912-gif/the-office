@@ -49,3 +49,4 @@ Detail lives in `HANDOFF.md` (the newest notes sit just above its "How to run th
 - Step (c) done (2026-11-14). Next in order: photo and document capture (docs/decisions/engine-capture.md). Staging proof of voice, real-model procurement run: only on Pierre's explicit word. Credit-note item naming waits for his decision.
 - Photo and document capture slice 1 done. Next: bill/receipt photo to a held proposal (own design first), staging proof of voice and photo, real-model runs: only on Pierre's explicit word.
 - Receipt photo to held expense done (slice 2). Next candidates: supplier bill with lines (own design), staging proof of voice and photo, real-model runs: only on Pierre's explicit word.
+- Supplier bill photo to held supplier invoice done (slice 3). Next candidates: link a bill to its order, staging proof of voice/photo, real-model runs (each only on Pierre's explicit word), app capture buttons.
