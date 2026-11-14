@@ -1,4 +1,4 @@
-> **Status:** proposed, awaiting Pierre's approval. **Verified:** not yet. **Owns:** none.
+> **Status:** approved by Pierre 2026-11-14 ("Approved", taken as approval with the stated defaults). **Verified:** not yet. **Owns:** none.
 
 # DECISIONS: app-connection (how the app reaches a real engine business)
 

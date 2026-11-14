@@ -1013,6 +1013,7 @@ async function expect(role, method, path, want) {
   await require('./breakage-runner.test.js')({ check, bundleTo, srcDir });
   await require('./object-binding.test.js')({ check, bundleTo, srcDir });
   await require('./engine-boundary.test.js')({ check, bundleTo, srcDir });
+  await require('./engine-mode-read.test.js')({ check, bundleTo, srcDir });
   await require('./engine-operations.test.js')({ check, bundleTo, srcDir });
   await require('./engine-restore.test.js')({ check, bundleTo, srcDir });
   await require('./engine-fit.test.js')({ check, bundleTo, srcDir });

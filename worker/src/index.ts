@@ -25,7 +25,7 @@ import { INVOICE_COLUMNS, matchColumns, parseMoney, readCsv } from "./csv-import
 import { onboardingRoute } from "./onboarding";
 import { atomically } from "./atomic";
 import { contractForHeldType, executeThroughContract } from "./capability-contract";
-import { actionModeRefusal, engineModeGate } from "./engine/boundary";
+import { actionModeRefusal, engineModeGate, isEngineMode } from "./engine/boundary";
 import { handleEngineRoute } from "./engine/routes";
 import { capAfter, capBefore, isCountable } from "./limits";
 import { recordModelUsage } from "./usage";
@@ -1939,7 +1939,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       const membership = await env.OFFICE_DB.prepare("SELECT * FROM memberships WHERE google_email = ?")
         .bind(session.email)
         .first<{ role: string; status: string }>();
-      return Response.json({ signedIn: true, email: session.email, role: membership?.role ?? null });
+      return Response.json({ signedIn: true, email: session.email, role: membership?.role ?? null, mode: (await isEngineMode(env)) ? "engine" : "legacy" });   // which shell the app should show (docs/decisions/app-connection.md, decision 2)
     }
 
     if (url.pathname === "/auth/logout" && request.method === "POST") {
