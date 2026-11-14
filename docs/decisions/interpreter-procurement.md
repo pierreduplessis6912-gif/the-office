@@ -35,3 +35,5 @@ Staging mode, not yet written (`procurement-model-run`, modelled on `tools/stock
 
 ## Left open (defaults in bold)
 Whether a delivery with no order should be offered (**no: it would mean stock in with no price**); whether "paid R500 to Timber" with no method should default to eft (**no: ask**, the method is required and not understood without it is safer than a guess); whether a supplier payment should name a bill (**no, oldest first only**).
+
+Field staff and goods receipt: an installer holds `goods.receive` but not the permission to read parties, so "received 5 boxes from Hardware Hub" is refused (not permitted, nothing held), because the engine finds the supplier by name through the parties read. Options for Pierre: leave it (**default**, no permission is widened), or let the interpreter resolve a supplier internally for a member who may receive goods. Not decided; nothing was widened.

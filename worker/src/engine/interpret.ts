@@ -10,6 +10,7 @@ import { ENGINE_CONTRACTS, READS } from "./capabilities";
 import { STANDARD_RATE_BP } from "./business";
 import { EXPENSE_CATEGORIES, EXPENSE_METHODS } from "./expenses";
 import { invokeRead, proposeCapabilityAs, type Member, type ReadOutcome } from "./operations";
+import { allOrders, orderProgress } from "./purchasing";
 import { permissionsFor, type EnginePermission } from "./permissions";
 
 export const INTERPRET_MODEL = "@cf/moonshotai/kimi-k2.6";
@@ -18,6 +19,9 @@ const MODEL_TIMEOUT_MS = 20_000;
 // A sanity rail on a figure that came from a MODEL's reading of a sentence (the engine itself holds any amount it can represent exactly, and a person approves it): above R10,000,000 the reading is more likely wrong than right, so it is not understood.
 const MAX_MODEL_AMOUNT_CENTS = 1_000_000_000;
 
+const ORDER_STATUS_WORDS = ["open", "part_received", "received", "cancelled", "outstanding"] as const;
+const BILL_STATUS_WORDS = ["unpaid", "part_paid", "paid", "voided", "outstanding"] as const;
+const SUPPLIER_PAY_METHODS = ["eft", "cash", "card", "cheque", "other"] as const;
 interface Entry { id: string; describes: string; arguments: Record<string, string>; permissions: readonly EnginePermission[] }
 
 function catalogue(): Entry[] {
@@ -38,6 +42,12 @@ function catalogue(): Entry[] {
     { id: "stock.transfer", describes: "Move stock from one place to another (it is only proposed; a person approves it).", arguments: { item: "the product name only (or its code), as the person said it, without the unit or a quantity (screws, not boxes of screws)", quantity: "how many were moved, as a plain number: required", from: "the place it was moved from: required", to: "the place it was moved to: required" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "stock.transfer")?.permissions ?? [] },
     { id: "stock.count", describes: "Record how many of an item were counted at a place (it is only proposed; a person approves it).", arguments: { item: "the product name only (or its code), as the person said it, without the unit or a quantity (screws, not boxes of screws)", counted: "how many were counted, as a plain number (0 if none): required", location: "the place counted, only if the person said" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "stock.count")?.permissions ?? [] },
     { id: "stock.reserve", describes: "Set stock aside for a job (it is only proposed; a person approves it).", arguments: { item: "the product name only (or its code), as the person said it, without the unit or a quantity (screws, not boxes of screws)", quantity: "how many to set aside, as a plain number: required", job: "the job or customer it is for: required" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "stock.reserve")?.permissions ?? [] },
+    // ---- procurement (docs/decisions/interpreter-procurement.md): a supplier and an item are WORDS, a quantity is a plain number, an amount is whole cents; the engine finds the order, takes the price from it and dates it (today). Orders, bills and credits are never offered. ----
+    { id: "purchase_orders.find", describes: "Look up the purchase orders placed with a supplier, or all of them.", arguments: { supplier: "the supplier's name, only if the person gave one", status: `one of ${ORDER_STATUS_WORDS.join(", ")}, only if the person said` }, permissions: READS.find((r) => r.id === "purchase_orders.find")?.permissions ?? [] },
+    { id: "supplier_invoices.find", describes: "Look up the bills received from a supplier, or all of them.", arguments: { supplier: "the supplier's name, only if the person gave one", status: `one of ${BILL_STATUS_WORDS.join(", ")}, only if the person said` }, permissions: READS.find((r) => r.id === "supplier_invoices.find")?.permissions ?? [] },
+    { id: "goods.unbilled", describes: "Goods that have been received but not yet invoiced by the supplier.", arguments: {}, permissions: READS.find((r) => r.id === "goods.unbilled")?.permissions ?? [] },
+    { id: "goods.receive", describes: "Record that a delivery of an item arrived from a supplier (it is only proposed; a person approves it).", arguments: { supplier: "the supplier's name, as the person said it", item: "the product name only (or its code), as the person said it, without the unit or a quantity (screws, not boxes of screws)", quantity: "a plain number of the item's own units, for example 5 or 2.5", deliveryNote: "the delivery note number, only if the person said one" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "goods.receive")?.permissions ?? [] },
+    { id: "supplier_payment.record", describes: "Record a payment the business has made to a supplier (it is only proposed; a person approves it).", arguments: { supplier: "the supplier's name, as the person said it", amountCents: "the amount as a whole number of cents; R500 is 50000", method: `how it was paid: one of ${SUPPLIER_PAY_METHODS.join(", ")}; required, so if the sentence does not say how, answer {"capability": null}` }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "supplier_payment.record")?.permissions ?? [] },
     { id: "vat.summary", describes: "The VAT position for a month.", arguments: { period: "this_month or last_month: required" }, permissions: READS.find((r) => r.id === "vat.summary")?.permissions ?? [] },
   ];
 }
@@ -329,6 +339,54 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
     if (chosen.id === "stock.count") return propose({ locationId: where.id, countedOn: today, lines: [{ itemId: it.id, countedMilli: milli }] });
     const job = args.job === undefined ? null : (args.job as string).trim();
     return propose({ itemId: it.id, locationId: where.id, quantityMilli: milli, issuedOn: today, reason: job ? "job" : "use", ...(job ? { jobRef: job } : {}) });
+  }
+  // ---- procurement: the model supplies a supplier and an item as words, a plain number and an amount in cents; the engine finds the order and takes the price from it ----------------------------------------------------------------
+  if (chosen.id === "purchase_orders.find" || chosen.id === "supplier_invoices.find") {
+    const words: readonly string[] = chosen.id === "purchase_orders.find" ? ORDER_STATUS_WORDS : BILL_STATUS_WORDS;
+    if (!optName(args.supplier) || (args.status !== undefined && !(typeof args.status === "string" && words.includes(args.status)))) return notUnderstood(env, member, text);
+    const params: Record<string, unknown> = args.status === undefined ? {} : { status: args.status };
+    if (args.supplier !== undefined) {
+      const who = await resolveParty(env, member, (args.supplier as string).trim(), "supplier");
+      if (who.kind === "refused") return { kind: "refused", understood, code: who.code, message: who.message };
+      if (who.kind === "none") return { kind: "refused", understood, code: "not_found", message: `There is no supplier called ${(args.supplier as string).trim()}.` };
+      if (who.kind === "many") return { kind: "read", understood, outcome: who.outcome };
+      params.supplierId = who.id;
+    }
+    return { kind: "read", understood, outcome: await invokeRead(env, member, chosen.id, params) };
+  }
+  if (chosen.id === "goods.unbilled") return { kind: "read", understood, outcome: await invokeRead(env, member, "goods.unbilled", {}) };
+  if (chosen.id === "goods.receive") {
+    const milli = toMilli(args.quantity);
+    if (!isName(args.supplier) || !isName(args.item) || milli === null || saysNegative(text) || (args.deliveryNote !== undefined && !isShort(args.deliveryNote))) return notUnderstood(env, member, text);
+    const who = await resolveParty(env, member, (args.supplier as string).trim(), "supplier");
+    if (who.kind === "refused") return { kind: "refused", understood, code: who.code, message: who.message };
+    if (who.kind === "none") return { kind: "refused", understood, code: "not_found", message: `There is no supplier called ${(args.supplier as string).trim()}.` };
+    if (who.kind === "many") return { kind: "read", understood, outcome: who.outcome };
+    const it = await resolveItem(env, member, (args.item as string).trim());
+    if (it.kind === "refused") return { kind: "refused", understood, code: it.code, message: it.message };
+    if (it.kind === "none") return { kind: "refused", understood, code: "not_found", message: `There is no stock item called ${(args.item as string).trim()}.` };
+    if (it.kind === "many") return { kind: "read", understood, outcome: it.outcome };
+    // the supplier's orders still waiting for goods, and the lines of each that are for this item with something left to receive
+    const candidates: Array<{ orderId: number; number: number | null; lineNo: number }> = [];
+    for (const o of (await allOrders(env, { supplierId: who.id, status: "outstanding" }))) {
+      for (const l of await orderProgress(env, o.id)) if (l.itemId === it.id && l.remainingMilli > 0) candidates.push({ orderId: o.id, number: o.number, lineNo: l.lineNo });
+    }
+    if (candidates.length === 0) return { kind: "refused", understood, code: "not_found", message: `${who.name} has no open order with ${it.name} still to arrive.` };
+    if (candidates.length > 1) return { kind: "refused", understood, code: "invalid_input", message: `Which order? ${candidates.map((c) => `order ${c.number ?? c.orderId}`).join(", ")}.` };
+    const c = candidates[0];
+    const payload: Record<string, unknown> = { orderId: c.orderId, receivedOn: today, lines: [{ lineNo: c.lineNo, quantityMilli: milli }] };
+    if (args.deliveryNote !== undefined) payload.deliveryNote = (args.deliveryNote as string).trim();
+    return heldOrRefused(await proposeCapabilityAs(env, member, { capability: "goods.receive", payload, transcript: text, source: "app", interpreter: "model" }));
+  }
+  if (chosen.id === "supplier_payment.record") {
+    const cents = args.amountCents;
+    if (!isName(args.supplier) || typeof cents !== "number" || !Number.isInteger(cents) || cents < 1 || cents > MAX_MODEL_AMOUNT_CENTS || saysNegative(text)) return notUnderstood(env, member, text);
+    if (typeof args.method !== "string" || !(SUPPLIER_PAY_METHODS as readonly string[]).includes(args.method)) return notUnderstood(env, member, text);   // how it was paid is never defaulted
+    const who = await resolveParty(env, member, (args.supplier as string).trim(), "supplier");
+    if (who.kind === "refused") return { kind: "refused", understood, code: who.code, message: who.message };
+    if (who.kind === "none") return { kind: "refused", understood, code: "not_found", message: `There is no supplier called ${(args.supplier as string).trim()}.` };
+    if (who.kind === "many") return { kind: "read", understood, outcome: who.outcome };
+    return heldOrRefused(await proposeCapabilityAs(env, member, { capability: "supplier_payment.record", payload: { supplierId: who.id, amountMinor: cents, currency: "ZAR", paidOn: today, method: args.method, allocate: "oldest_first" }, transcript: text, source: "app", interpreter: "model" }));
   }
   return notUnderstood(env, member, text);
 }
