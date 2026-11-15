@@ -100,3 +100,4 @@ Never retry a Git operation or a write after an uncertain timeout; check state f
 - 2026-11-15: (B) two screens built on the live engine screen: To approve (pending_room.dart) and Expenses (expenses_room.dart), client read `expenses()`; tests pending_room_test.dart, expenses_room_test.dart. Dart CI to confirm (ops/app-compile-last.json). Next in Pierre's order: more screens (bills, orders, stock, quotations), then (c) the preview build.
 - 2026-11-15: (B) stock room built (stock_room.dart, client read stock(), parseStockList; fifth tab). Read only. Dart CI to confirm. Next: bills, orders, quotations, invoices, parties.
 - 2026-11-15: (B) bills room built (bills_room.dart, client read bills(), parseBillList; sixth tab). Read only. Dart CI to confirm. Next: orders, quotations, invoices, parties.
+- 2026-11-15: live screen navigation is four tabs; the read-only rooms sit under More. Dart CI to confirm.

@@ -1,5 +1,5 @@
 // The engine screen on the REAL client, shown by main.dart ONLY when GET /auth/me says the signed-in business is an engine business (docs/decisions/app-connection.md, decision 2; lib/engine/engine_mode.dart).
-// Two rooms: what is owed (the first slice) and the assistant (a typed sentence, a photo of a receipt or a bill). It computes nothing: every figure, refusal and held action is the engine's own. A write is only
+// Four tabs: what is owed (the first slice), the assistant (a typed sentence, a voice note, a photo of a receipt or a bill), what is waiting for approval, and More (expenses, stock, bills to pay). It computes nothing: every figure, refusal and held action is the engine's own. A write is only
 // ever PROPOSED and held; the person approves or declines on the card. Nothing here is built from anything but the address and the session it is given; the session is never stored or printed here.
 import 'package:flutter/material.dart';
 
@@ -41,6 +41,34 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
   late final EngineApi _api = (widget.apiFactory ?? _realApi)(widget.baseUrl, widget.sessionToken);
   int _tab = 0;
 
+  /// Which of the "More" rooms is open (null shows the list of them).
+  String? _room;
+
+  Widget _moreBody() {
+    final room = _room;
+    if (room != null) {
+      final Widget child = switch (room) {
+        'expenses' => ExpensesRoom(key: const ValueKey<String>('expenses-live'), api: _api),
+        'stock' => StockRoom(key: const ValueKey<String>('stock-live'), api: _api),
+        _ => BillsRoom(key: const ValueKey<String>('bills-live'), api: _api),
+      };
+      return SafeArea(
+        child: Column(children: [
+          Align(alignment: Alignment.centerLeft, child: TextButton.icon(key: const Key('more-back'), onPressed: () => setState(() => _room = null), icon: const Icon(Icons.arrow_back), label: const Text('More'))),
+          Expanded(child: child),
+        ]),
+      );
+    }
+    Widget tile(String key, IconData icon, String title) => ListTile(key: Key('more-$key'), leading: Icon(icon), title: Text(title), onTap: () => setState(() => _room = key));
+    return SafeArea(
+      child: ListView(padding: const EdgeInsets.all(12), children: [
+        tile('expenses', Icons.receipt_long_outlined, 'Expenses'),
+        tile('stock', Icons.inventory_2_outlined, 'Stock'),
+        tile('bills', Icons.request_quote_outlined, 'Bills to pay'),
+      ]),
+    );
+  }
+
   Future<EngineCaptureFile?> _choosePhoto() async {
     final custom = widget.pickPhoto;
     if (custom != null) return custom();
@@ -66,12 +94,8 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
     const footnote = 'Connected to your business. Nothing is recorded until you approve it.';
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0B),
-      body: _tab == 5
-          ? BillsRoom(key: const ValueKey<String>('bills-live'), api: _api)
-          : _tab == 4
-          ? StockRoom(key: const ValueKey<String>('stock-live'), api: _api)
-          : _tab == 3
-          ? ExpensesRoom(key: const ValueKey<String>('expenses-live'), api: _api)
+      body: _tab == 3
+          ? _moreBody()
           : _tab == 2
           ? PendingRoom(key: const ValueKey<String>('pending-live'), api: _api)
           : _tab == 0
@@ -94,14 +118,15 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
       bottomNavigationBar: NavigationBar(
         key: const Key('live-tabs'),
         selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
+        onDestinationSelected: (i) => setState(() {
+          _tab = i;
+          if (i == 3) _room = null;
+        }),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'What is owed'),
           NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Assistant'),
           NavigationDestination(icon: Icon(Icons.fact_check_outlined), label: 'To approve'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Expenses'),
-          NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'Stock'),
-          NavigationDestination(icon: Icon(Icons.request_quote_outlined), label: 'Bills'),
+          NavigationDestination(icon: Icon(Icons.more_horiz), label: 'More'),
         ],
       ),
     );

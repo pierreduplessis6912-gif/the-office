@@ -62,28 +62,34 @@ void main() {
     expect(find.byKey(const Key('pending-refresh')), findsOneWidget);
   });
 
-  testWidgets('the fourth room lists the expenses', (tester) async {
+  testWidgets('the More list opens the expenses', (tester) async {
     await tester.pumpWidget(app());
     await tester.pump(const Duration(milliseconds: 100));
-    await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('Expenses')));
+    await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('More')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('more-expenses')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byKey(const Key('expenses-refresh')), findsOneWidget);
   });
 
-  testWidgets('the fifth room lists the stock', (tester) async {
+  testWidgets('the More list opens the stock', (tester) async {
     await tester.pumpWidget(app());
     await tester.pump(const Duration(milliseconds: 100));
-    await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('Stock')));
+    await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('More')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('more-stock')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byKey(const Key('stock-refresh')), findsOneWidget);
   });
 
-  testWidgets('the sixth room lists the bills', (tester) async {
+  testWidgets('the More list opens the bills', (tester) async {
     await tester.pumpWidget(app());
     await tester.pump(const Duration(milliseconds: 100));
-    await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('Bills')));
+    await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('More')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('more-bills')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byKey(const Key('bills-refresh')), findsOneWidget);
