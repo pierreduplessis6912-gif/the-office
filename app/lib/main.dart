@@ -26,6 +26,8 @@ import 'mcp_created_model.dart';
 import 'customer_contact_model.dart';
 import 'engine/engine_live_home.dart';
 import 'engine/engine_mode.dart';
+import 'engine/voice_recorder.dart';
+import 'engine/voice_recorder_device.dart';
 import 'plans_link.dart';
 import 'refusal_view.dart';
 import 'reply_envelope.dart';
@@ -444,6 +446,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   String? _userRole;
   // Which kind of business the server says this is (engine or legacy), from GET /auth/me. Only an explicit engine answer opens the engine screen; unknown, an older server or a failed read keeps the existing app.
   BusinessMode _businessMode = BusinessMode.unknown;
+  // The microphone for the engine screen's voice button: made only when the engine screen is first shown, so a legacy business never loads it.
+  VoiceRecorder? _engineVoiceRecorder;
   bool get _isSignedIn => _sessionToken != null;
 
   @override
@@ -1481,7 +1485,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     if (_isSignedIn && showsEngineShell(_businessMode)) {
-      return EngineLiveHome(baseUrl: officeApiBase, sessionToken: _sessionToken!, onSignOut: _signOut);
+      _engineVoiceRecorder ??= DeviceVoiceRecorder();
+      return EngineLiveHome(baseUrl: officeApiBase, sessionToken: _sessionToken!, onSignOut: _signOut, voiceRecorder: _engineVoiceRecorder);
     }
     return Scaffold(
       // Real, direct fix: the persistent "THE OFFICE" title and a

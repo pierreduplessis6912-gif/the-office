@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import '../slice_model.dart' show parseRecord, randFromMinor;
 import 'assistant_model.dart';
 import 'engine_api.dart';
+import 'voice_recorder.dart';
 
 class _Turn {
-  final String said;
+  String said;
   AssistantTurn? turn;
   HeldAction? held;
   Map<int, String> names = <int, String>{};
@@ -31,7 +32,10 @@ class AssistantPanel extends StatefulWidget {
 
   /// How the person chooses a picture. When it is null (the recorded demo) there are no capture buttons.
   final Future<EngineCaptureFile?> Function()? pickPhoto;
-  const AssistantPanel({super.key, required this.api, this.footnote, this.pickPhoto});
+
+  /// The microphone. When it is null there is no voice button.
+  final VoiceRecorder? recorder;
+  const AssistantPanel({super.key, required this.api, this.footnote, this.pickPhoto, this.recorder});
 
   @override
   State<AssistantPanel> createState() => _AssistantPanelState();
@@ -41,6 +45,84 @@ class _AssistantPanelState extends State<AssistantPanel> {
   final TextEditingController _controller = TextEditingController();
   final List<_Turn> _turns = <_Turn>[];
   bool _asking = false;
+  bool _recording = false;
+
+  /// First tap starts recording; the second stops and sends it to the engine, which hears it and answers as it would a typed sentence. Whatever was heard is shown back.
+  Future<void> _toggleVoice() async {
+    final recorder = widget.recorder;
+    if (recorder == null || _asking) return;
+    if (!_recording) {
+      bool started;
+      try {
+        started = await recorder.start();
+      } catch (_) {
+        started = false;
+      }
+      if (!mounted) return;
+      if (!started) {
+        final denied = _Turn('Voice note');
+        denied.turn = const AssistantTurn(kind: AssistantKind.refused, message: 'The microphone could not be used, so nothing was recorded.');
+        setState(() => _turns.insert(0, denied));
+        return;
+      }
+      setState(() => _recording = true);
+      return;
+    }
+    setState(() {
+      _recording = false;
+      _asking = true;
+    });
+    VoiceNote? note;
+    try {
+      note = await recorder.stop();
+    } catch (_) {
+      note = null;
+    }
+    if (!mounted) return;
+    final t = _Turn('Voice note');
+    if (note == null || note.bytes.isEmpty) {
+      t.turn = const AssistantTurn(kind: AssistantKind.refused, message: 'There was no sound, so nothing was recorded.');
+      setState(() {
+        _turns.insert(0, t);
+        _asking = false;
+      });
+      return;
+    }
+    setState(() => _turns.insert(0, t));
+    AssistantTurn turn;
+    try {
+      final response = await widget.api.captureAudio(note.bytes, idempotencyKey: 'voice-${DateTime.now().microsecondsSinceEpoch}', filename: note.filename, contentType: note.contentType);
+      turn = parseInterpret(response.status, response.body);
+      final body = response.body;
+      final heard = body is Map ? body['transcript'] : null;
+      if (heard is String && heard.trim().isNotEmpty) t.said = 'Voice note: “${heard.trim()}”';
+    } catch (_) {
+      turn = const AssistantTurn.unusable();
+    }
+    HeldAction? held;
+    final names = <int, String>{};
+    if (turn.kind == AssistantKind.held && turn.actionId != null) {
+      try {
+        final response = await widget.api.pending();
+        held = parseHeld(response.status, response.body, turn.actionId!);
+        final supplier = held == null ? null : held.payload['supplierId'];
+        if (supplier is int) {
+          final record = await widget.api.record('party', supplier);
+          final parsed = parseRecord(record.status, record.body);
+          if (parsed != null) names[supplier] = parsed.title;
+        }
+      } catch (_) {
+        held = null;
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      t.turn = turn;
+      t.held = held;
+      t.names = names;
+      _asking = false;
+    });
+  }
 
   Future<void> _ask() async {
     final text = _controller.text.trim();
@@ -207,6 +289,7 @@ class _AssistantPanelState extends State<AssistantPanel> {
         const SizedBox(width: 8),
         IconButton(key: const Key('assistant-send'), onPressed: _asking ? null : _ask, icon: const Icon(Icons.send)),
       ])),
+      if (widget.recorder != null) Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Align(alignment: Alignment.centerLeft, child: FilledButton.icon(key: const Key('capture-voice'), onPressed: _asking ? null : _toggleVoice, icon: Icon(_recording ? Icons.stop : Icons.mic), label: Text(_recording ? 'Stop and send' : 'Record a voice note')))),
       if (widget.pickPhoto != null) Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Wrap(spacing: 8, children: [
         OutlinedButton(key: const Key('capture-photo'), onPressed: _asking ? null : () => _capture('Photo kept', null), child: const Text('Keep a photo')),
         OutlinedButton(key: const Key('capture-receipt'), onPressed: _asking ? null : () => _capture('Receipt photo', 'expense'), child: const Text('Record a receipt')),

@@ -8,6 +8,7 @@ import 'capture_picker.dart';
 import 'engine_api.dart';
 import 'engine_shell.dart';
 import 'http_engine_api.dart';
+import 'voice_recorder.dart';
 
 /// Builds the client from the address and the session. Tests give a recorded one; the app gives the real one.
 typedef EngineApiFactory = EngineApi Function(String baseUrl, String sessionToken);
@@ -23,7 +24,10 @@ class EngineLiveHome extends StatefulWidget {
   /// How the person chooses a picture. When null, the camera or the gallery, by the person's choice.
   final Future<EngineCaptureFile?> Function()? pickPhoto;
 
-  const EngineLiveHome({super.key, required this.baseUrl, required this.sessionToken, required this.onSignOut, this.apiFactory, this.pickPhoto});
+  /// The microphone for the voice button. When null there is no voice button (tests, and any build without one).
+  final VoiceRecorder? voiceRecorder;
+
+  const EngineLiveHome({super.key, required this.baseUrl, required this.sessionToken, required this.onSignOut, this.apiFactory, this.pickPhoto, this.voiceRecorder});
 
   @override
   State<EngineLiveHome> createState() => _EngineLiveHomeState();
@@ -74,7 +78,7 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
                 ),
               ],
             )
-          : SafeArea(child: AssistantPanel(key: const ValueKey<String>('assistant-live'), api: _api, footnote: footnote, pickPhoto: _choosePhoto)),
+          : SafeArea(child: AssistantPanel(key: const ValueKey<String>('assistant-live'), api: _api, footnote: footnote, pickPhoto: _choosePhoto, recorder: widget.voiceRecorder)),
       bottomNavigationBar: NavigationBar(
         key: const Key('live-tabs'),
         selectedIndex: _tab,
