@@ -7,7 +7,9 @@ import 'assistant_panel.dart';
 import 'capture_picker.dart';
 import 'engine_api.dart';
 import 'engine_shell.dart';
+import 'expenses_room.dart';
 import 'http_engine_api.dart';
+import 'pending_room.dart';
 import 'voice_recorder.dart';
 
 /// Builds the client from the address and the session. Tests give a recorded one; the app gives the real one.
@@ -62,7 +64,11 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
     const footnote = 'Connected to your business. Nothing is recorded until you approve it.';
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0B),
-      body: _tab == 0
+      body: _tab == 3
+          ? ExpensesRoom(key: const ValueKey<String>('expenses-live'), api: _api)
+          : _tab == 2
+          ? PendingRoom(key: const ValueKey<String>('pending-live'), api: _api)
+          : _tab == 0
           ? Stack(
               children: [
                 EngineShell(api: _api, footnote: footnote),
@@ -86,6 +92,8 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'What is owed'),
           NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Assistant'),
+          NavigationDestination(icon: Icon(Icons.fact_check_outlined), label: 'To approve'),
+          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Expenses'),
         ],
       ),
     );

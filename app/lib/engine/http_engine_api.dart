@@ -94,6 +94,9 @@ class HttpEngineApi implements EngineApi {
   Future<EngineResponse> pending() => _get('/actions/pending');
 
   @override
+  Future<EngineResponse> expenses() => _get('/engine/expenses');
+
+  @override
   Future<EngineResponse> confirm(int actionId) => _post('/actions/$actionId/confirm', <String, Object?>{});
 
   @override

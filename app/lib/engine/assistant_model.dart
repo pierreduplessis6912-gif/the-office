@@ -155,6 +155,39 @@ HeldAction? parseHeld(int status, Object? body, int actionId) {
   return null;
 }
 
+/// The expenses the engine listed (GET /engine/expenses). Null when the answer cannot be read at all; a row that cannot be read is left out, nothing is guessed.
+List<AssistantExpense>? parseExpenseList(int status, Object? body) {
+  final b = _map(body);
+  if (status != 200 || b == null || b['status'] != 'ok') return null;
+  final r = _map(b['result']);
+  if (r == null || r['expenses'] is! List) return null;
+  final rows = <AssistantExpense>[];
+  for (final item in _list(r['expenses'])) {
+    final m = _map(item);
+    final id = m == null ? null : _int(m['id']);
+    final gross = m == null ? null : _int(m['grossMinor']);
+    if (m == null || id == null || gross == null) continue;
+    rows.add(AssistantExpense(id: id, supplier: _text(m['supplierName']) ?? 'Supplier', category: _text(m['category']) ?? '', incurredOn: _text(m['incurredOn']) ?? '', grossMinor: gross, claimable: m['inputTaxClaimable'] == true));
+  }
+  return rows;
+}
+
+/// Every engine action waiting for a person, in the order the engine gave them. An action that is not the engine's (a legacy one) or cannot be read is left out: nothing is guessed.
+List<HeldAction> parseHeldList(int status, Object? body) {
+  final b = _map(body);
+  if (status != 200 || b == null) return const <HeldAction>[];
+  final out = <HeldAction>[];
+  for (final item in _list(b['pending'])) {
+    final m = _map(item);
+    final id = m == null ? null : _int(m['id']);
+    final type = m == null ? null : _text(m['type']);
+    if (id == null || type == null || !type.startsWith('engine.')) continue;
+    final held = parseHeld(status, body, id);
+    if (held != null) out.add(held);
+  }
+  return out;
+}
+
 String heldTitle(String type) {
   switch (type) {
     case 'engine.party.create':
