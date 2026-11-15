@@ -100,3 +100,9 @@ After G2, a real-model run to check the sentences for the new reads is a separat
 - DEVIATION: a fact in another currency than the ledger's is NOT refused; it is left unposted and the verifier reports the warning `unposted_foreign_currency`, so no existing capability stops working. Revisit with multi-currency.
 - Not yet: purchases, expenses, stock (G2); periods, manual journals, opening balances (G3); trial balance and statements as reads, assistant sentences, app rooms (G4).
 
+## G2a as built (2026-11-15): expenses, supplier bills, money paid out
+- Purchase posting lives in `recordDocument` (category and VAT facts travel in the document's terms; an older document with no category falls into "other"). Expense and bill: Dr the category's expense account (net, plus VAT that cannot be claimed), Dr VAT input (claimable VAT only), Cr payables control.
+- DEVIATION from the rule table: an expense does not credit the bank directly. The document credits payables and its payment (its own money-out movement) debits payables and credits bank or cash, so each fact balances and reverses by itself and payables control still equals what the bills owe.
+- Every money-out movement posts Dr payables control, Cr bank or cash, except a refund to a customer, which posts against receivables. Capital purchases post to their category's expense account (no fixed-asset account yet).
+- Tests: tools/engine-gl-purchases.test.js (25 checks) and 7 more deliberate breakages. Still to do in G2: goods received, bill matching against goods received (GRNI and variances), stock issue, adjust, write-down (G2b).
+

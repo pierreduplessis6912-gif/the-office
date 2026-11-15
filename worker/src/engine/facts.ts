@@ -11,7 +11,7 @@ import { readConfig } from "./config";
 import { isEffective, outstandingForDocument, unallocatedForMovement } from "./ledger";
 import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from "./parties";
 import { planQuotationAcceptance, planQuotationRevision, quotationLineItems } from "./quotations";
-import { planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
+import { inputTaxWith, planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { planCancel, planOrder, planReceipt, type ReceiptLineInput } from "./purchasing";
 import { checkWriteDownInput, planWriteDown, type WriteDownInput } from "./stock";
 import { planPrice, planReturn, type PriceInput, type ReturnInput } from "./stock";
@@ -22,7 +22,7 @@ import { planBill, planBillVoid, planSupplierPayment, type BillInput, type Payme
 import { planCreditApplication, planCreditNote, planDebitNote, planPaymentAllocation, planPaymentRefund, planRefund, planVoid, refundMovementOrThrow, checkReason, type CreditLineInput } from "./credits";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
 import { checkDate } from "./quotations";
-import { CHART_TEMPLATE, accountForRole, checkedLines, documentLines, documentPosting, planContra, receiptLines, receiptPosts, refundLines, refundPosts, type PostLine } from "./journal";
+import { CHART_TEMPLATE, accountForRole, checkedLines, documentLines, documentPosting, paymentOutLines, paymentOutPosts, planContra, purchaseLines, receiptLines, receiptPosts, refundLines, refundPosts, type PostLine } from "./journal";
 
 export interface Ctx {
   actorEmail?: string | null;
@@ -181,7 +181,13 @@ export async function recordDocument(env: Env, input: DocumentInput, ctx: Ctx): 
     }
     const next = await one<{ n: number }>(tx, "SELECT COALESCE(MAX(number), 0) + 1 AS n FROM eng_document_number WHERE kind = ?", kind);
     await run(tx, "INSERT INTO eng_document_number (kind, number, document_id) VALUES (?, ?, ?)", kind, Number(next!.n), doc!.id);
-    if (posting) await writeEntry(tx, { date: issuedOn, sourceKind: "document", sourceId: Number(doc!.id), memo: posting === "sale" ? "Sale" : "Credit note", eventId, lines: documentLines(posting, totals) });
+    if (posting === "sale" || posting === "credit") await writeEntry(tx, { date: issuedOn, sourceKind: "document", sourceId: Number(doc!.id), memo: posting === "sale" ? "Sale" : "Credit note", eventId, lines: documentLines(posting, totals) });
+    if (posting === "expense" || posting === "bill") {   // a purchase: the category and the VAT facts travel in the document's terms (recordExpense and recordSupplierInvoice both put them there); anything older falls into "other"
+      const t = (input.terms ?? {}) as Record<string, unknown>;
+      const category = typeof t.category === "string" && (await accountForRole(tx, `expense:${t.category}`)) ? t.category : "other";
+      const tax = await inputTaxWith(tx, Number(doc!.id), { supplierId: partyId, taxInvoiceHeld: t.taxInvoiceHeld === true, category, claimDate: issuedOn, capital: t.capital === true });
+      await writeEntry(tx, { date: issuedOn, sourceKind: "document", sourceId: Number(doc!.id), memo: posting === "expense" ? "Expense" : "Supplier bill", eventId, lines: purchaseLines(category, totals, tax.claimable) });
+    }
     return { id: Number(doc!.id), number: Number(next!.n), eventId, totals };
   });
 }
@@ -259,7 +265,7 @@ export async function refundCredit(env: Env, input: { creditNoteId: number; amou
     const plan = await planRefund(tx, { ...input, creditNoteId });
     const posts = await refundPosts(tx, plan.currency);
     if (posts) await ensureChart(tx, ctx);
-    const mv = await insertMovement(tx, { direction: "out", partyId: plan.partyId, amountMinor: plan.amountMinor, currency: plan.currency, occurredOn: plan.refundedOn, method: plan.method }, ctx);
+    const mv = await insertMovement(tx, { direction: "out", partyId: plan.partyId, amountMinor: plan.amountMinor, currency: plan.currency, occurredOn: plan.refundedOn, method: plan.method }, ctx, true);
     if (posts) await writeEntry(tx, { date: plan.refundedOn, sourceKind: "movement", sourceId: mv.id, memo: "Refund to customer", eventId: mv.eventId, lines: refundLines(plan.method, plan.amountMinor) });
     const eventId = await appendEvent(tx, "credit.refunded", ctx, { creditNoteId, movementId: plan.movementId, refundMovementId: mv.id, amountMinor: plan.amountMinor, refundedOn: plan.refundedOn, method: plan.method });
     return { movementId: mv.id, eventId };
@@ -318,7 +324,7 @@ export async function refundPayment(env: Env, input: { paymentId: number; amount
     const plan = await planPaymentRefund(tx, { ...input, paymentId });
     const posts = await refundPosts(tx, plan.currency);
     if (posts) await ensureChart(tx, ctx);
-    const mv = await insertMovement(tx, { direction: "out", partyId: plan.partyId, amountMinor: plan.amountMinor, currency: plan.currency, occurredOn: plan.refundedOn, method: plan.method }, ctx);
+    const mv = await insertMovement(tx, { direction: "out", partyId: plan.partyId, amountMinor: plan.amountMinor, currency: plan.currency, occurredOn: plan.refundedOn, method: plan.method }, ctx, true);
     if (posts) await writeEntry(tx, { date: plan.refundedOn, sourceKind: "movement", sourceId: mv.id, memo: "Refund to customer", eventId: mv.eventId, lines: refundLines(plan.method, plan.amountMinor) });
     const eventId = await appendEvent(tx, "overpayment.refunded", ctx, { movementId: paymentId, refundMovementId: mv.id, amountMinor: plan.amountMinor, refundedOn: plan.refundedOn, method: plan.method });
     return { movementId: mv.id, eventId };
@@ -382,7 +388,7 @@ export async function recordSupplierInvoice(env: Env, input: BillInput, ctx: Ctx
   return inTransaction(env, async (tx) => {
     const plan = await planBill(tx, input);
     const doc = await recordDocument(tx, { kind: "supplier_invoice", direction: "buy", partyId: input.supplierId, currency: input.currency, reference: input.supplierInvoiceNumber, issuedOn: input.invoicedOn, terms: { ...(input.dueOn ? { dueOn: input.dueOn } : {}), ...(input.orderId !== undefined ? { orderId: input.orderId } : {}), category: input.category, taxInvoiceHeld: input.taxInvoiceHeld, capital: input.capital === true }, lines: plan.docLines }, ctx);
-    const eventId = await appendEvent(tx, "supplier_invoice.recorded", ctx, { documentId: doc.id, supplierId: input.supplierId, ...(input.orderId !== undefined ? { orderId: input.orderId } : {}), supplierInvoiceNumber: input.supplierInvoiceNumber, invoicedOn: input.invoicedOn, ...(input.dueOn ? { dueOn: input.dueOn } : {}), category: input.category, taxInvoiceHeld: input.taxInvoiceHeld, capital: input.capital === true, claimDate: plan.claimDate, matchStatus: plan.match.status, varianceAccepted: input.varianceAccepted === true, lines: plan.match.lines });
+        const eventId = await appendEvent(tx, "supplier_invoice.recorded", ctx, { documentId: doc.id, supplierId: input.supplierId, ...(input.orderId !== undefined ? { orderId: input.orderId } : {}), supplierInvoiceNumber: input.supplierInvoiceNumber, invoicedOn: input.invoicedOn, ...(input.dueOn ? { dueOn: input.dueOn } : {}), category: input.category, taxInvoiceHeld: input.taxInvoiceHeld, capital: input.capital === true, claimDate: plan.claimDate, matchStatus: plan.match.status, varianceAccepted: input.varianceAccepted === true, lines: plan.match.lines });
     return { documentId: doc.id, number: doc.number, eventId, totals: doc.totals, matchStatus: plan.match.status, claimDate: plan.claimDate };
   });
 }
@@ -559,18 +565,21 @@ export async function writeDownStock(env: Env, input: WriteDownInput, ctx: Ctx):
 // ---- money -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 export interface MovementInput { direction: string; partyId: number; amountMinor: number; currency: string; occurredOn: string; method?: string | null }
 
-async function insertMovement(tx: Env, input: MovementInput, ctx: Ctx): Promise<{ id: number; eventId: number }> {
+// callerPosts: a refund to a customer is money out too, but it posts its own entry (against receivables), so it tells this function not to post the supplier-side one.
+async function insertMovement(tx: Env, input: MovementInput, ctx: Ctx, callerPosts = false): Promise<{ id: number; eventId: number }> {
   const direction = oneOf(input.direction, ["in", "out"] as const, "direction");
   const partyId = id(input.partyId, "party");
   const amountMinor = positiveMinor(input.amountMinor, "amount");
   const currency = currencyCode(input.currency);
   const occurredOn = date(input.occurredOn, "date");
   await requireParty(tx, partyId);
-  const receipt = await receiptPosts(tx, direction, input.method, currency);   // a customer's payment posts its entry here (journal.ts); a refund or a supplier payment is posted by the operation that knows what it is
-  if (receipt) await ensureChart(tx, ctx);
+  const receipt = await receiptPosts(tx, direction, input.method, currency);   // a customer's payment posts its entry here (journal.ts)
+  const paidOut = !callerPosts && (await paymentOutPosts(tx, direction, currency));   // so does money paid out to a supplier or for an expense; a refund posts its own
+  if (receipt || paidOut) await ensureChart(tx, ctx);
   const eventId = await appendEvent(tx, direction === "in" ? "payment.recorded" : "payment.made", ctx, { direction, partyId, amountMinor, currency, occurredOn, method: input.method ?? null });
   const row = await one<{ id: number }>(tx, "INSERT INTO eng_money_movement (direction, party_id, amount_minor, currency, occurred_on, method, event_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id", direction, partyId, amountMinor, currency, occurredOn, input.method ?? null, eventId);
   if (receipt) await writeEntry(tx, { date: occurredOn, sourceKind: "movement", sourceId: Number(row!.id), memo: "Payment received", eventId, lines: receiptLines(input.method ?? null, amountMinor) });
+  if (paidOut) await writeEntry(tx, { date: occurredOn, sourceKind: "movement", sourceId: Number(row!.id), memo: "Payment made", eventId, lines: paymentOutLines(input.method ?? null, amountMinor) });
   return { id: Number(row!.id), eventId };
 }
 

@@ -75,10 +75,12 @@ export async function planContra(env: Env, sourceKind: "document" | "movement", 
 }
 
 // ---- the posting rules (selling side) --------------------------------------------------------------------------------------------------------------------------------------------------------------------
-export type DocumentPosting = "sale" | "credit" | null;
+export type DocumentPosting = "sale" | "credit" | "expense" | "bill" | null;
 // Which way a document posts: a customer-owed kind (invoice, debit note) is a SALE, a credit-note kind turns one round; anything else (a quotation, an order) is not a financial event. A fact in another currency is not posted.
 export async function documentPosting(env: Env, kind: string, direction: string, currency: string): Promise<DocumentPosting> {
-  if (direction !== "sell" || currency !== (await ledgerCurrency(env))) return null;
+  if (currency !== (await ledgerCurrency(env))) return null;
+  if (direction === "buy") return kind === "expense" ? "expense" : kind === "supplier_invoice" ? "bill" : null;   // an order and a goods receipt are not financial events (what was received is in stock, G2b)
+  if (direction !== "sell") return null;
   const cfg = await readConfig(env);
   if (cfg.receivableKinds.includes(kind)) return "sale";
   if (cfg.creditNoteKinds.includes(kind)) return "credit";
@@ -93,6 +95,19 @@ export function documentLines(posting: "sale" | "credit", totals: { grossMinor: 
     sale ? { role: "vat_output", creditMinor: totals.taxMinor } : { role: "vat_output", debitMinor: totals.taxMinor },
   ];
 }
+
+// A PURCHASE (an expense or a supplier's bill): Dr the category's expense account (the net, plus any VAT that cannot be claimed back), Dr VAT input (only the VAT that can), Cr payables control. An expense is paid at once, but its payment is its
+// own money-out movement (Dr payables control, Cr bank), so the payable nets to nothing, and each fact is balanced and reversed by itself.
+export function purchaseLines(category: string, totals: { grossMinor: number; netMinor: number; taxMinor: number }, claimable: boolean): PostLine[] {
+  return [
+    { role: `expense:${category}`, debitMinor: totals.netMinor + (claimable ? 0 : totals.taxMinor) },
+    { role: "vat_input", debitMinor: claimable ? totals.taxMinor : 0 },
+    { role: "payables_control", creditMinor: totals.grossMinor },
+  ];
+}
+// Money paid OUT to a supplier (or for an expense): Dr payables control, Cr bank or cash. (A refund to a customer is also money out, but it posts its own entry against receivables.)
+export async function paymentOutPosts(env: Env, direction: string, currency: string): Promise<boolean> { return direction === "out" && currency === (await ledgerCurrency(env)); }
+export const paymentOutLines = (method: string | null, amountMinor: number): PostLine[] => [{ role: "payables_control", debitMinor: amountMinor }, { role: method === "cash" ? "cash" : "bank", creditMinor: amountMinor }];
 
 // A payment RECEIVED from a customer. method "credit" is a credit note's non-cash movement and posts nothing (the credit note already did). Cash goes to the cash account; every other method (and none stated) to the bank.
 export async function receiptPosts(env: Env, direction: string, method: string | null | undefined, currency: string): Promise<boolean> {
@@ -145,22 +160,16 @@ export async function verifyJournal(env: Env, report: (code: string, detail: str
   const after = Number(started.e);
   const currency = await ledgerCurrency(env);
   const cfg = await readConfig(env);
-  const kinds = [...cfg.receivableKinds, ...cfg.creditNoteKinds];
+  const kinds = [...cfg.receivableKinds, ...cfg.creditNoteKinds, "expense", "supplier_invoice"];
   if (kinds.length > 0) {
-    for (const d of await many<{ id: number; currency: string; kind: string }>(env, `SELECT d.id, d.currency, d.kind FROM eng_document d WHERE d.direction = 'sell' AND d.event_id > ? AND d.kind IN (${kinds.map(() => "?").join(", ")}) ORDER BY d.id`, after, ...kinds)) {
+    for (const d of await many<{ id: number; currency: string; kind: string }>(env, `SELECT d.id, d.currency, d.kind FROM eng_document d WHERE d.direction IN ('sell', 'buy') AND d.event_id > ? AND d.kind IN (${kinds.map(() => "?").join(", ")}) ORDER BY d.id`, after, ...kinds)) {
       if (d.currency !== currency) { warn("unposted_foreign_currency", `document ${d.id} is in ${d.currency}, not ${currency}, so it is not in the journal`); continue; }
       if ((await documentTotals(env, d.id)).grossMinor === 0) continue;
       if (!(await one(env, "SELECT 1 AS ok FROM eng_journal_entry WHERE source_kind = 'document' AND source_id = ? AND reverses_entry_id IS NULL", d.id))) report("journal_missing", `document ${d.id} has no journal entry`);
     }
   }
-  const refundIds = new Set<number>();
-  for (const e of await many<{ payload_json: string }>(env, "SELECT payload_json FROM eng_event WHERE type IN ('credit.refunded', 'overpayment.refunded') AND id > ?", after)) {
-    try { const id = Number((JSON.parse(e.payload_json) as { refundMovementId?: unknown }).refundMovementId); if (Number.isSafeInteger(id)) refundIds.add(id); } catch { /* malformed payloads are reported elsewhere */ }
-  }
   for (const m of await many<{ id: number; direction: string; currency: string; method: string | null }>(env, "SELECT id, direction, currency, method FROM eng_money_movement WHERE event_id > ? ORDER BY id", after)) {
-    const isReceipt = m.direction === "in" && m.method !== "credit";
-    const isRefund = m.direction === "out" && refundIds.has(Number(m.id));
-    if (!isReceipt && !isRefund) continue;
+    if (!(m.direction === "out" || m.method !== "credit")) continue;   // money in by credit note is not money; every other movement posts
     if (m.currency !== currency) { warn("unposted_foreign_currency", `movement ${m.id} is in ${m.currency}, not ${currency}, so it is not in the journal`); continue; }
     if (!(await one(env, "SELECT 1 AS ok FROM eng_journal_entry WHERE source_kind = 'movement' AND source_id = ? AND reverses_entry_id IS NULL", m.id))) report("journal_missing", `movement ${m.id} has no journal entry`);
   }
