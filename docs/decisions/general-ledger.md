@@ -93,3 +93,10 @@ After G2, a real-model run to check the sentences for the new reads is a separat
 2. One currency per business to start: agreed?
 3. Is the standard small-business chart template enough to start, with the owner mapping roles, or do you want a South African chart (by SARS and common practice) built as the template? I would build the simple template first.
 4. Should the books lock be one date for everything (as the tax lock is today), or separate dates for tax and for the books?
+
+## G1 as built (2026-11-15) and where it differs from the design
+- Built: migration 0006 (eng_account, eng_account_role, eng_journal_entry, eng_journal_line), journal.ts (rules and reads), writes only in facts.ts, integrity checks (journal_unbalanced, journal_contra_mismatch, journal_missing). Covers invoices, debit notes, credit notes, payments received, refunds and their reversals (contra entries). Suite: tools/engine-gl.test.js (44 checks) and 8 deliberate breakages ("ledger:" in engine-breakage.js).
+- The chart is seeded ONCE, by one `ledger.chart_seeded` event on the business's first posting (not one event per account as first drafted).
+- DEVIATION: a fact in another currency than the ledger's is NOT refused; it is left unposted and the verifier reports the warning `unposted_foreign_currency`, so no existing capability stops working. Revisit with multi-currency.
+- Not yet: purchases, expenses, stock (G2); periods, manual journals, opening balances (G3); trial balance and statements as reads, assistant sentences, app rooms (G4).
+

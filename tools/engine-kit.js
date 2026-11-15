@@ -99,11 +99,23 @@ const seedReceivables = (available) => (db) => {
   const e1 = ev('party.created', { kind: 'person', name: 'Mokoena', roles: ['customer'] });
   db.prepare("INSERT INTO eng_party (kind, name, event_id) VALUES ('person', 'Mokoena', ?)").run(e1);
   db.prepare("INSERT INTO eng_party_role (party_id, role, event_id) VALUES (1, 'customer', ?)").run(e1);
+  // The engine seeds its chart of accounts on the first posting, with ONE event, and every invoice writes its journal entry: the seed does exactly the same, from the engine's own template and rules, so versions and ids agree.
+  const { journal } = loadEngine();
+  let chart = null;
+  const seedChart = () => {
+    if (chart) return;
+    const ce = ev('ledger.chart_seeded', { accounts: journal.CHART_TEMPLATE.map((a) => ({ code: a.code, name: a.name, type: a.type, roles: a.roles })) });
+    chart = {};
+    for (const a of journal.CHART_TEMPLATE) { const id = Number(db.prepare('INSERT INTO eng_account (code, name, type, event_id) VALUES (?, ?, ?, ?) RETURNING id').get(a.code, a.name, a.type, ce).id); for (const r of a.roles) { db.prepare('INSERT INTO eng_account_role (role, account_id, event_id) VALUES (?, ?, ?)').run(r, id, ce); chart[r] = id; } }
+  };
   const invoice = (partyId, issuedOn, lines, totals) => {
+    seedChart();
     const e = ev('document.issued', { kind: 'invoice', direction: 'sell', partyId, currency: 'ZAR', issuedOn, reference: null, lines, totals });
     const id = Number(db.prepare("INSERT INTO eng_document (kind, direction, party_id, currency, issued_on, event_id) VALUES ('invoice', 'sell', ?, 'ZAR', ?, ?) RETURNING id").get(partyId, issuedOn, e).id);
     lines.forEach((l, i) => db.prepare('INSERT INTO eng_document_line (document_id, line_no, description, quantity_milli, unit, unit_price_minor, tax_bp) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, i + 1, l.description, l.quantityMilli, l.unit, l.unitPriceMinor, l.taxBp));
     db.prepare("INSERT INTO eng_document_number (kind, number, document_id) VALUES ('invoice', ?, ?)").run(id, id);
+    const entry = Number(db.prepare("INSERT INTO eng_journal_entry (entry_date, source_kind, source_id, memo, event_id) VALUES (?, 'document', ?, 'Sale', ?) RETURNING id").get(issuedOn, id, e).id);
+    journal.documentLines('sale', totals).filter((l) => (l.debitMinor || 0) > 0 || (l.creditMinor || 0) > 0).forEach((l, i) => db.prepare('INSERT INTO eng_journal_line (entry_id, line_no, account_id, debit_minor, credit_minor) VALUES (?, ?, ?, ?, ?)').run(entry, i + 1, chart[l.role], l.debitMinor || 0, l.creditMinor || 0));
   };
   invoice(1, '2026-10-01', [{ description: 'Vinyl plank', quantityMilli: 1000, unit: 'job', unitPriceMinor: 100000, taxBp: 1500 }], { netMinor: 100000, taxMinor: 15000, grossMinor: 115000 });
   invoice(1, '2026-10-15', [{ description: 'Skirting', quantityMilli: 1000, unit: 'job', unitPriceMinor: 20000, taxBp: 1500 }], { netMinor: 20000, taxMinor: 3000, grossMinor: 23000 });

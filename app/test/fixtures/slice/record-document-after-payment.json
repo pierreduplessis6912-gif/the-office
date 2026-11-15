@@ -7,7 +7,7 @@
         "kind": "document",
         "id": 1
       },
-      "version": 12,
+      "version": 13,
       "title": "Invoice #1",
       "fields": [
         {
@@ -153,7 +153,7 @@
       ],
       "history": [
         {
-          "eventId": 3,
+          "eventId": 4,
           "type": "document.issued",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -167,7 +167,7 @@
           "interpreter": null
         },
         {
-          "eventId": 6,
+          "eventId": 7,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -181,7 +181,7 @@
           "interpreter": null
         },
         {
-          "eventId": 9,
+          "eventId": 10,
           "type": "payment.allocation_reversed",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -195,7 +195,7 @@
           "interpreter": null
         },
         {
-          "eventId": 10,
+          "eventId": 11,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -209,7 +209,7 @@
           "interpreter": null
         },
         {
-          "eventId": 12,
+          "eventId": 13,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "accountant@example.com",

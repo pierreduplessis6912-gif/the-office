@@ -5,6 +5,7 @@ export const FACT_TABLES = [
   "eng_event", "eng_party", "eng_party_role", "eng_document", "eng_document_line", "eng_document_number",
   "eng_money_movement", "eng_allocation", "eng_reversal", "eng_interpretation",
   "eng_item", "eng_location", "eng_stock_move",   // 0005_engine_stock.sql (stock: items, locations and the movement ledger)
+  "eng_account", "eng_account_role", "eng_journal_entry", "eng_journal_line",   // 0006_engine_ledger.sql (the general ledger: accounts, role mapping, entries and their lines)
 ] as const;
 
 // Working state: configuration, drafts (a draft is not a business fact: issuing it creates one) and observations (a worklist).

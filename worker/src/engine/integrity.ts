@@ -24,12 +24,13 @@
 import type { Env } from "../types";
 import { documentTotals as sumTotals } from "./money";
 import { documentTotals as docTotals } from "./ledger";
+import { verifyJournal } from "./journal";
 
 export interface IntegrityProblem {
-  code: "orphan" | "fact_changed" | "over_allocated" | "allocation_on_reversed" | "number_gap" | "event_without_fact" | "event_multiple_facts" | "fact_wrong_event" | "reversal_mismatch" | "stock_invariant" | "event_payload_malformed";
+  code: "journal_unbalanced" | "journal_missing" | "journal_contra_mismatch" | "orphan" | "fact_changed" | "over_allocated" | "allocation_on_reversed" | "number_gap" | "event_without_fact" | "event_multiple_facts" | "fact_wrong_event" | "reversal_mismatch" | "stock_invariant" | "event_payload_malformed";
   detail: string;
 }
-export interface IntegrityWarning { code: "event_type_not_modelled"; detail: string }
+export interface IntegrityWarning { code: "event_type_not_modelled" | "unposted_foreign_currency"; detail: string }
 
 type FactKind = "party" | "document" | "movement" | "allocation" | "reversal" | "item" | "location" | "stock_move";
 // Every event type the engine writes. `creates` is the kind of fact the event requires (exactly one); null means the event creates none.
@@ -42,6 +43,7 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "payment.reversed": { creates: "reversal", note: "one eng_reversal whose target is a payment" },
   "payment.allocation_reversed": { creates: "reversal", note: "one eng_reversal whose target is an allocation" },
   "document.reversed": { creates: "reversal", note: "one eng_reversal whose target is a document" },
+  "ledger.chart_seeded": { creates: null, note: "the chart of accounts is seeded once, on the business's first posting: one event that every eng_account and eng_account_role row points at; the accounts and the current role mapping are READ by journal.ts" },
   "party.revised": { creates: null, note: "a change to a party's name, roles or contact details; it creates no fact row, because the current profile is DERIVED from the party and its revisions (parties.ts)" },
   "quotation.revised": { creates: null, note: "a new quotation document replaces an older one; the event says which, and creates no fact row of its own (the new document is created by the document.issued event beside it)" },
   "quotation.accepted": { creates: null, note: "a quotation is accepted; state is derived from the event, nothing is stored (quotations.ts)" },
@@ -468,5 +470,7 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
     }
   }
 
+  // ---- the general ledger (journal.ts): every entry balances, every contra matches a reversal, every fact recorded after the ledger started has its entry; a fact in another currency is a warning --------------------------------------
+  await verifyJournal(env, (code, detail) => problems.push({ code: code as IntegrityProblem["code"], detail }), (code, detail) => warnings.push({ code: code as IntegrityWarning["code"], detail }));
   return { ok: problems.length === 0, problems, warnings };
 }

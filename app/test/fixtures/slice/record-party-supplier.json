@@ -7,7 +7,7 @@
         "kind": "party",
         "id": 3
       },
-      "version": 11,
+      "version": 12,
       "title": "Timber Supplies",
       "fields": [
         {
@@ -79,7 +79,7 @@
       ],
       "history": [
         {
-          "eventId": 11,
+          "eventId": 12,
           "type": "party.created",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "accountant@example.com",

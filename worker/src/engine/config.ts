@@ -5,9 +5,11 @@ import type { Env } from "../types";
 export interface EngineConfig {
   receivableKinds: string[];
   payableKinds: string[];
+  /** the document kinds that CREDIT a customer's account (a credit note): the ledger posts them as a sale turned round */
+  creditNoteKinds: string[];
 }
 
-const DEFAULTS: EngineConfig = { receivableKinds: ["invoice", "debit_note"], payableKinds: ["supplier_invoice"] };
+const DEFAULTS: EngineConfig = { receivableKinds: ["invoice", "debit_note"], payableKinds: ["supplier_invoice"], creditNoteKinds: ["credit_note"] };
 
 function textList(value: unknown, fallback: string[]): string[] {
   return Array.isArray(value) && value.every((x) => typeof x === "string" && x.trim().length > 0) ? (value as string[]) : fallback;
@@ -22,5 +24,5 @@ export async function readConfig(env: Env): Promise<EngineConfig> {
   const receivableKinds = textList(byKey.receivable_kinds, DEFAULTS.receivableKinds);
   // a debit note is part of an invoice's family: wherever invoices are owed, so are the debit notes that add to them (a stored configuration written before debit notes existed does not have to be rewritten)
   if (receivableKinds.includes("invoice") && !receivableKinds.includes("debit_note")) receivableKinds.push("debit_note");
-  return { receivableKinds, payableKinds: textList(byKey.payable_kinds, DEFAULTS.payableKinds) };
+  return { receivableKinds, payableKinds: textList(byKey.payable_kinds, DEFAULTS.payableKinds), creditNoteKinds: textList(byKey.credit_note_kinds, DEFAULTS.creditNoteKinds) };
 }

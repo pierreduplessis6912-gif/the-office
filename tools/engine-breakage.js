@@ -533,6 +533,15 @@ const MUTATIONS = [
   { name: 'interpreter stock: the sentence is not checked for minus or negative', suite: ISTOCK, file: E('interpret.ts'), find: 'milli === null || saysNegative(text)) return notUnderstood', replace: 'milli === null) return notUnderstood' },
   { name: 'interpreter stock: any hyphen counts as a minus sign', suite: ISTOCK, file: E('interpret.ts'), find: '/(?:^|[\\s(])-\\s?\\d/.test(text)', replace: '/-\\s?\\d/.test(text)' },
   { name: 'interpreter stock: the words minus and negative are not recognised', suite: ISTOCK, file: E('interpret.ts'), find: '/\\b(?:minus|negative)\\b/i.test(text) ||', replace: 'false ||' },
+  // general ledger (G1): every fact that moves money posts its balanced entry, in the same transaction
+  { name: 'ledger: an invoice posts no entry', suite: 'engine-gl.test.js', file: 'worker/src/engine/facts.ts', find: 'if (posting) await writeEntry(tx, { date: issuedOn', replace: 'if (false) await writeEntry(tx, { date: issuedOn' },
+  { name: 'ledger: a payment received posts no entry', suite: 'engine-gl.test.js', file: 'worker/src/engine/facts.ts', find: 'if (receipt) await writeEntry(tx, {', replace: 'if (false) await writeEntry(tx, {' },
+  { name: 'ledger: reversing an invoice posts no contra entry', suite: 'engine-gl.test.js', file: 'worker/src/engine/facts.ts', find: 'await writeContra(tx, "document", documentId, eventId);', replace: '' },
+  { name: 'ledger: reversing a payment posts no contra entry', suite: 'engine-gl.test.js', file: 'worker/src/engine/facts.ts', find: 'await writeContra(tx, "movement", movementId, eventId);', replace: '' },
+  { name: 'ledger: a payment made with credit (no money moved) posts an entry', suite: 'engine-gl.test.js', file: 'worker/src/engine/journal.ts', find: 'direction === "in" && method !== "credit" && currency', replace: 'direction === "in" && currency' },
+  { name: 'ledger: the entry is allowed to be unbalanced', suite: 'engine-gl.test.js', file: 'worker/src/engine/journal.ts', find: 'if (debit !== credit) throw new EngineError("ledger_unbalanced"', replace: 'if (false) throw new EngineError("ledger_unbalanced"' },
+  { name: 'ledger: a cash payment is banked instead of put in the cash account', suite: 'engine-gl.test.js', file: 'worker/src/engine/journal.ts', find: 'role: method === "cash" ? "cash" : "bank", debitMinor', replace: 'role: "bank", debitMinor' },
+  { name: 'ledger: the sale leaves the VAT out of the entry', suite: 'engine-gl.test.js', file: 'worker/src/engine/journal.ts', find: 'sale ? { role: "vat_output", creditMinor: totals.taxMinor }', replace: 'sale ? { role: "vat_output", creditMinor: 0 }' },
 ];
 
 let opts;

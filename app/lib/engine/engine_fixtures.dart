@@ -198,7 +198,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
     "capability": "party.create",
     "outcome": {
       "partyId": 3,
-      "eventId": 11
+      "eventId": 12
     }
   }
 }''',
@@ -211,7 +211,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
       "documentId": 3,
       "number": 1,
       "movementId": 3,
-      "eventId": 15
+      "eventId": 16
     }
   }
 }''',
@@ -224,7 +224,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
         "kind": "party",
         "id": 3
       },
-      "version": 11,
+      "version": 12,
       "title": "Timber Supplies",
       "fields": [
         {
@@ -296,7 +296,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
       ],
       "history": [
         {
-          "eventId": 11,
+          "eventId": 12,
           "type": "party.created",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "accountant@example.com",
@@ -349,7 +349,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "outstandingMinor": 85000
         }
       ],
-      "version": 10,
+      "version": 11,
       "derivedBy": "ledger.outstandingForParty"
     }
   }
@@ -380,7 +380,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "outstandingMinor": 35000
         }
       ],
-      "version": 12,
+      "version": 13,
       "derivedBy": "ledger.outstandingForParty"
     }
   }
@@ -423,7 +423,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
         "kind": "document",
         "id": 1
       },
-      "version": 10,
+      "version": 11,
       "title": "Invoice #1",
       "fields": [
         {
@@ -555,7 +555,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
       ],
       "history": [
         {
-          "eventId": 3,
+          "eventId": 4,
           "type": "document.issued",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -569,7 +569,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "interpreter": null
         },
         {
-          "eventId": 6,
+          "eventId": 7,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -583,7 +583,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "interpreter": null
         },
         {
-          "eventId": 9,
+          "eventId": 10,
           "type": "payment.allocation_reversed",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -597,7 +597,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "interpreter": null
         },
         {
-          "eventId": 10,
+          "eventId": 11,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -633,7 +633,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
         "kind": "document",
         "id": 1
       },
-      "version": 12,
+      "version": 13,
       "title": "Invoice #1",
       "fields": [
         {
@@ -779,7 +779,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
       ],
       "history": [
         {
-          "eventId": 3,
+          "eventId": 4,
           "type": "document.issued",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -793,7 +793,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "interpreter": null
         },
         {
-          "eventId": 6,
+          "eventId": 7,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -807,7 +807,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "interpreter": null
         },
         {
-          "eventId": 9,
+          "eventId": 10,
           "type": "payment.allocation_reversed",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -821,7 +821,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "interpreter": null
         },
         {
-          "eventId": 10,
+          "eventId": 11,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -835,7 +835,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "interpreter": null
         },
         {
-          "eventId": 12,
+          "eventId": 13,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "accountant@example.com",
@@ -871,7 +871,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
         "kind": "party",
         "id": 1
       },
-      "version": 10,
+      "version": 11,
       "title": "Mokoena",
       "fields": [
         {
@@ -993,7 +993,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "interpreter": null
         },
         {
-          "eventId": 7,
+          "eventId": 8,
           "type": "payment.recorded",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -1029,7 +1029,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
         "kind": "movement",
         "id": 1
       },
-      "version": 9,
+      "version": 10,
       "title": "Payment 1",
       "fields": [
         {
@@ -1100,7 +1100,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
       "actions": [],
       "history": [
         {
-          "eventId": 5,
+          "eventId": 6,
           "type": "payment.recorded",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -1114,7 +1114,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "interpreter": null
         },
         {
-          "eventId": 6,
+          "eventId": 7,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -1128,7 +1128,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "interpreter": null
         },
         {
-          "eventId": 8,
+          "eventId": 9,
           "type": "payment.reversed",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -1142,7 +1142,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "interpreter": null
         },
         {
-          "eventId": 9,
+          "eventId": 10,
           "type": "payment.allocation_reversed",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -1176,7 +1176,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
       {
         "id": 1,
         "type": "engine.payment.record",
-        "payload": "{\"partyId\":1,\"amountMinor\":50000,\"currency\":\"ZAR\",\"occurredOn\":\"2026-11-07\",\"method\":\"eft\",\"allocations\":[{\"documentId\":1,\"amountMinor\":50000}],\"basedOn\":{\"partyVersion\":10}}",
+        "payload": "{\"partyId\":1,\"amountMinor\":50000,\"currency\":\"ZAR\",\"occurredOn\":\"2026-11-07\",\"method\":\"eft\",\"allocations\":[{\"documentId\":1,\"amountMinor\":50000}],\"basedOn\":{\"partyVersion\":11}}",
         "source_transcript": "Record R500 from Mokoena",
         "created_at": "2026-01-01 00:00:00"
       }
@@ -1250,7 +1250,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
       {
         "id": 1,
         "type": "engine.payment.record",
-        "payload": "{\"partyId\":1,\"amountMinor\":100000,\"currency\":\"ZAR\",\"occurredOn\":\"2026-11-07\",\"method\":\"eft\",\"allocations\":[{\"documentId\":1,\"amountMinor\":85000}],\"basedOn\":{\"partyVersion\":10}}",
+        "payload": "{\"partyId\":1,\"amountMinor\":100000,\"currency\":\"ZAR\",\"occurredOn\":\"2026-11-07\",\"method\":\"eft\",\"allocations\":[{\"documentId\":1,\"amountMinor\":85000}],\"basedOn\":{\"partyVersion\":11}}",
         "source_transcript": "Record R1000 from Mokoena",
         "created_at": "2026-01-01 00:00:00"
       }
@@ -1283,7 +1283,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "outstandingMinor": 0
         }
       ],
-      "version": 12,
+      "version": 13,
       "derivedBy": "ledger.outstandingForParty"
     }
   }

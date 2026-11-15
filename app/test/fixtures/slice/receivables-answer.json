@@ -24,7 +24,7 @@
           "outstandingMinor": 85000
         }
       ],
-      "version": 10,
+      "version": 11,
       "derivedBy": "ledger.outstandingForParty"
     }
   }

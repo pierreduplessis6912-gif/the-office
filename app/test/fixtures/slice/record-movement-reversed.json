@@ -7,7 +7,7 @@
         "kind": "movement",
         "id": 1
       },
-      "version": 9,
+      "version": 10,
       "title": "Payment 1",
       "fields": [
         {
@@ -78,7 +78,7 @@
       "actions": [],
       "history": [
         {
-          "eventId": 5,
+          "eventId": 6,
           "type": "payment.recorded",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -92,7 +92,7 @@
           "interpreter": null
         },
         {
-          "eventId": 6,
+          "eventId": 7,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -106,7 +106,7 @@
           "interpreter": null
         },
         {
-          "eventId": 8,
+          "eventId": 9,
           "type": "payment.reversed",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
@@ -120,7 +120,7 @@
           "interpreter": null
         },
         {
-          "eventId": 9,
+          "eventId": 10,
           "type": "payment.allocation_reversed",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",

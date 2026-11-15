@@ -28,4 +28,5 @@ import * as expenses from "./expenses";
 import * as purchasing from "./purchasing";
 import * as bills from "./bills";
 import * as stock from "./stock";
-export { boundary, permissions, drafts, records, operations, capabilities, parties, quotations, credits, business, config, expenses, purchasing, bills, stock };
+import * as journal from "./journal";
+export { boundary, permissions, drafts, records, operations, capabilities, parties, quotations, credits, business, config, expenses, purchasing, bills, stock, journal };
