@@ -60,3 +60,5 @@ The live engine screen now has four rooms: What is owed, Assistant, **To approve
 
 
 Fifth room, **Stock** (`stock_room.dart`, `GET /engine/stock`): quantity, what is promised, below-reorder note, value only when the engine sends one. Read only. Test `app/test/stock_room_test.dart`.
+
+Sixth room, **Bills** (`bills_room.dart`, `GET /engine/supplier-invoices?status=outstanding`): supplier, invoice number, due date, owed and total. Read only. Test `app/test/bills_room_test.dart`.

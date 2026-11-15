@@ -9,6 +9,7 @@ import 'engine_api.dart';
 import 'engine_shell.dart';
 import 'expenses_room.dart';
 import 'stock_room.dart';
+import 'bills_room.dart';
 import 'http_engine_api.dart';
 import 'pending_room.dart';
 import 'voice_recorder.dart';
@@ -65,7 +66,9 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
     const footnote = 'Connected to your business. Nothing is recorded until you approve it.';
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0B),
-      body: _tab == 4
+      body: _tab == 5
+          ? BillsRoom(key: const ValueKey<String>('bills-live'), api: _api)
+          : _tab == 4
           ? StockRoom(key: const ValueKey<String>('stock-live'), api: _api)
           : _tab == 3
           ? ExpensesRoom(key: const ValueKey<String>('expenses-live'), api: _api)
@@ -98,6 +101,7 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
           NavigationDestination(icon: Icon(Icons.fact_check_outlined), label: 'To approve'),
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Expenses'),
           NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'Stock'),
+          NavigationDestination(icon: Icon(Icons.request_quote_outlined), label: 'Bills'),
         ],
       ),
     );

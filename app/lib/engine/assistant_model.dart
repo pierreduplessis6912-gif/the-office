@@ -339,3 +339,33 @@ List<AssistantStockRow>? parseStockList(int status, Object? body) {
   }
   return rows;
 }
+
+/// One supplier bill as the engine reports it, in the engine's own figures.
+class AssistantBill {
+  final int id;
+  final String supplier;
+  final String invoiceNumber;
+  final String dueOn;
+  final int grossMinor;
+  final int outstandingMinor;
+  final String status;
+  const AssistantBill({required this.id, required this.supplier, required this.invoiceNumber, required this.dueOn, required this.grossMinor, required this.outstandingMinor, required this.status});
+}
+
+/// The bills the engine listed, or null when the answer cannot be read. A row without its figures is left out; nothing is guessed.
+List<AssistantBill>? parseBillList(int status, Object? body) {
+  final b = _map(body);
+  if (status != 200 || b == null || b['status'] != 'ok') return null;
+  final r = _map(b['result']);
+  if (r == null || r['bills'] is! List) return null;
+  final rows = <AssistantBill>[];
+  for (final item in _list(r['bills'])) {
+    final m = _map(item);
+    final id = m == null ? null : _int(m['id']);
+    final gross = m == null ? null : _int(m['grossMinor']);
+    final owing = m == null ? null : _int(m['outstandingMinor']);
+    if (m == null || id == null || gross == null || owing == null) continue;
+    rows.add(AssistantBill(id: id, supplier: _text(m['supplierName']) ?? 'Supplier', invoiceNumber: _text(m['supplierInvoiceNumber']) ?? '', dueOn: _text(m['dueOn']) ?? '', grossMinor: gross, outstandingMinor: owing, status: _text(m['status']) ?? ''));
+  }
+  return rows;
+}

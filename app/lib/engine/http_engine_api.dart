@@ -100,6 +100,9 @@ class HttpEngineApi implements EngineApi {
   Future<EngineResponse> stock() => _get('/engine/stock');
 
   @override
+  Future<EngineResponse> bills() => _get('/engine/supplier-invoices?status=outstanding');
+
+  @override
   Future<EngineResponse> confirm(int actionId) => _post('/actions/$actionId/confirm', <String, Object?>{});
 
   @override
