@@ -20,7 +20,7 @@ def call(name, method, path, body=None, member=True, admin=False, raw=None, ctyp
     except Exception: code, txt = 0, b""
     try: d = json.loads(txt)
     except Exception: d = {}
-    if code != 200 and len(samples) < 40: samples[name] = txt[:200].decode("utf-8", "replace")
+    if code != 200 and len(samples) < 40: samples[name] = txt[:700].decode("utf-8", "replace")   # long enough to hold the model's whole reply (diagnostics only; run 43707565563 cut it at 200)
     return code, d
 def form(fields, field, filename, ctype, blob):
     b = uuid.uuid4().hex; out = io.BytesIO()
@@ -62,7 +62,7 @@ def main():
             call("reject-" + i, "POST", f"/actions/{d['actionId']}/reject", {})
         try: ok = bool(ok_fn(code, d, p, typ))
         except Exception: ok = False
-        results.append({"id": i, "set": kind, "text": text, "http": code, "status": d.get("status"), "error": d.get("error"), "held_type": typ, "description": (d.get("description") or "")[:160] if isinstance(d.get("description"), str) else d.get("description"), "transcript": d.get("transcript"), "passed": ok, **(extra or {})})
+        results.append({"id": i, "set": kind, "text": text, "http": code, "status": d.get("status"), "error": d.get("error"), "held_type": typ, "description": (d.get("description") or "")[:400] if isinstance(d.get("description"), str) else d.get("description"), "transcript": d.get("transcript"), "message": (d.get("message") or "")[:160], "model_reply": (d.get("debug") or {}).get("modelReply"), "passed": ok, **(extra or {})})
     receipt = picture(["Timber Supplies", "RECEIPT", "Plywood 18mm", "Total R230.00 including VAT", "Paid by card"])
     bill = picture(["TAX INVOICE", "Timber Supplies", "Invoice INV-8841 dated 2026-11-06", "Plywood 18mm 4 sheets @ R200.00 excl VAT", "VAT 15%"])
     note = picture(["Record R500 from Mokoena."])

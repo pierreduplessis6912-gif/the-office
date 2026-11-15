@@ -22,3 +22,11 @@ A REAL R2 bucket, a REAL speech model (Whisper) and a REAL vision model (through
 - U5 The bill with intent=supplier_bill is HELD as a supplier invoice from Timber Supplies with invoice number INV-8841.
 
 A model that cannot be reached for every case is reported as `model_unavailable`, not a pass.
+
+## Run 1 (43707565563, 2026-11-15, on Pierre's word): FAILED the pass rule
+Understanding 3 of 5 (needed 4), safety 4 of 5, invariants held (nothing approved). Record: `ops/staging-capture-proof-last.json`.
+- **U1 (voice):** the speech model heard the SYNTHETIC espeak voice saying "What does Mokoena owe me?" as "What does Marco hero mean?"; the engine correctly held nothing. A test-voice limit, not an engine defect; voice stays unproven until a real recording is used (Pierre's phone).
+- **U5 (bill photo):** the vision reading was right (Timber Supplies, INV-8841) but the interpreter's answer was refused as not understood; the record cut the model's reply, so the cause is unknown. The script now keeps the whole reply (diagnostics only; no case, sentence or pass rule changed).
+- **S5 (a real engine finding):** a retry of a REFUSED request came back as HTTP 200 (the shared retry guard replays every stored answer as 200). Fixed with Pierre's approval, tests first, inside `worker/src/engine-capture.ts` only: a refusal is stored with its status and replayed with it (voice, photo and document; old rows replay as before). Tests in `engine-capture-voice.test.js` and `engine-capture-image.test.js`, one breakage.
+- Not re-run: needs Pierre's word again.
+

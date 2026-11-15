@@ -55,6 +55,12 @@ module.exports = kit.guard('engine capture image', async ({ check }) => {
     const second = await send(path, form({ idempotency_key: 'k1' }), { before: [{ method: 'POST', path, form: form({ idempotency_key: 'k1' }), role: 'accountant' }] });
     check(status(second) === status(first) && JSON.stringify(body(second)) === JSON.stringify(body(first)) && tables(second).length === 0 && puts(second).length === 1, `${source}: the same upload sent twice gives the same answer and writes no second row`);
 
+    // a REFUSED request retried with the same key keeps its status (422), not HTTP 200 (capture proof run 43707565563, S5)
+    const refAi = [seen('x'), { match: /Book Sepo/, reply: call(null) }];
+    const ref1 = await send(path, form({ caption: 'Book Sepo for Thursday', idempotency_key: 'k-ref' }), { ai: refAi });
+    const ref2 = await send(path, form({ caption: 'Book Sepo for Thursday', idempotency_key: 'k-ref' }), { ai: refAi, before: [{ method: 'POST', path, form: form({ caption: 'Book Sepo for Thursday', idempotency_key: 'k-ref' }), role: 'accountant' }] });
+    check(status(ref1) === status(ref2) && JSON.stringify(body(ref2)) === JSON.stringify(body(ref1)) && !('__status' in body(ref2)), `${source}: a retry of a refused upload keeps its status and body (got ${status(ref1)} then ${status(ref2)})`);
+
     // ---- bad uploads refused before anything is stored -----------------------------------------------------------------------------------------------------------------------------------------------
     r = await send(path, {});
     check([400, 422].includes(status(r)) && nothing(r), `${source}: no file: refused, nothing stored (got ${status(r)})`);

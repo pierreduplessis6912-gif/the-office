@@ -16,6 +16,19 @@ const UNHEARD = "[voice note — could not be heard]";
 
 const refuse = (status: number, error: string, message: string): Response => Response.json({ error, message }, { status });
 
+/** The retry guard (auth.ts, legacy) replays a stored answer as HTTP 200. A refused answer is stored here WITH its status and replayed with it: a client that reads only the status must not take a retried refusal for a success (capture proof run 43707565563, S5). Rows stored without a status replay as before. */
+const STATUS_KEY = "__status";
+async function replayAs(replay: Response): Promise<Response> {
+  const text = await replay.text();
+  try {
+    const o = JSON.parse(text) as Record<string, unknown>;
+    if (o && typeof o === "object" && typeof o[STATUS_KEY] === "number") {
+      const { [STATUS_KEY]: st, ...rest } = o;
+      return new Response(JSON.stringify(rest), { status: st as number, headers: replay.headers });
+    }
+  } catch { /* not JSON: replay as stored */ }
+  return new Response(text, { status: replay.status, headers: replay.headers });
+}
 export async function engineCaptureAudio(request: Request, env: Env, member: { email: string | null; caps: readonly string[] }): Promise<Response> {
   let form: FormData;
   try {
@@ -31,11 +44,11 @@ export async function engineCaptureAudio(request: Request, env: Env, member: { e
   const rawKey = form.get("idempotency_key");
   const idempotencyKey = typeof rawKey === "string" && rawKey.length > 0 && rawKey.length <= 100 ? rawKey : null;
   const replay = await checkIdempotencyKey(env, idempotencyKey);   // a dropped network cannot capture the same note twice
-  if (replay) return replay;
+  if (replay) return await replayAs(replay);
   const release = async (): Promise<void> => { if (idempotencyKey) await env.OFFICE_DB.prepare("DELETE FROM idempotency_keys WHERE key = ?").bind(idempotencyKey).run(); };
   const finish = async (status: number, body: Record<string, unknown>): Promise<Response> => {
     const text = JSON.stringify(body);
-    if (status < 500) await completeIdempotencyKey(env, idempotencyKey, text); else await release();   // a failure that may pass is not replayed forever
+    if (status < 500) await completeIdempotencyKey(env, idempotencyKey, status === 200 ? text : JSON.stringify({ ...body, [STATUS_KEY]: status })); else await release();   // a failure that may pass is not replayed forever
     return new Response(text, { status, headers: { "Content-Type": "application/json" } });
   };
 
@@ -84,11 +97,11 @@ export async function engineCaptureImage(request: Request, env: Env, member: { e
   const rawCaption = form.get("caption");
   const caption = typeof rawCaption === "string" ? rawCaption.trim().slice(0, 2000) : "";
   const replay = await checkIdempotencyKey(env, idempotencyKey);
-  if (replay) return replay;
+  if (replay) return await replayAs(replay);
   const release = async (): Promise<void> => { if (idempotencyKey) await env.OFFICE_DB.prepare("DELETE FROM idempotency_keys WHERE key = ?").bind(idempotencyKey).run(); };
   const finish = async (status: number, body: Record<string, unknown>): Promise<Response> => {
     const text = JSON.stringify(body);
-    if (status < 500) await completeIdempotencyKey(env, idempotencyKey, text); else await release();
+    if (status < 500) await completeIdempotencyKey(env, idempotencyKey, status === 200 ? text : JSON.stringify({ ...body, [STATUS_KEY]: status })); else await release();
     return new Response(text, { status, headers: { "Content-Type": "application/json" } });
   };
 

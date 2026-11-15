@@ -64,6 +64,12 @@ module.exports = kit.guard('engine capture voice', async ({ check }) => {
   const second = await send(note('Record R500 from Mokoena.', { idempotency_key: key }), { before: [{ method: 'POST', path: '/engine/capture/audio', form: note('Record R500 from Mokoena.', { idempotency_key: key }), role: 'accountant' }] });
   check(status(second) === status(first) && JSON.stringify(body(second)) === JSON.stringify(body(first)) && tables(second).length === 0 && puts(second).length === 1, 'the same upload sent twice (a dropped network) gives the same answer, writes no row the second time, and the file was stored once in all (the effects include the first send)');
 
+  // a REFUSED request (422, not understood) that is retried with the same key gives the same answer INCLUDING its status: capture proof run 43707565563 (S5) found a retry of a 422 came back as HTTP 200
+  const refKey = 'retry-refused-1';
+  const ref1 = await send(note('Book Sepo for Thursday', { idempotency_key: refKey }));
+  const ref2 = await send(note('Book Sepo for Thursday', { idempotency_key: refKey }), { before: [{ method: 'POST', path: '/engine/capture/audio', form: note('Book Sepo for Thursday', { idempotency_key: refKey }), role: 'accountant' }] });
+  check(status(ref1) === 422 && status(ref2) === 422 && JSON.stringify(body(ref2)) === JSON.stringify(body(ref1)) && !('__status' in body(ref2)) && tables(ref2).length === 0, `a retry of a refused request is answered 422 with the same body, nothing extra in it, nothing written again (got ${status(ref1)} then ${status(ref2)} ${JSON.stringify(body(ref2)).slice(0, 100)})`);
+
   // a failure that may pass (model down) is not replayed forever: the same key tried again, with the model back, gets the real answer
   let modelCalls = 0;
   const flaky = [...SPEECH, { match: /What does Mokoena owe me\?/, reply: () => { if (modelCalls++ === 0) throw new Error('model down'); return call('receivables.query', { customer: 'Mokoena' }); } }];
