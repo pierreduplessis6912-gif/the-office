@@ -11,6 +11,7 @@ import 'expenses_room.dart';
 import 'stock_room.dart';
 import 'bills_room.dart';
 import 'orders_room.dart';
+import 'quotes_room.dart';
 import 'http_engine_api.dart';
 import 'pending_room.dart';
 import 'voice_recorder.dart';
@@ -52,6 +53,7 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
         'expenses' => ExpensesRoom(key: const ValueKey<String>('expenses-live'), api: _api),
         'stock' => StockRoom(key: const ValueKey<String>('stock-live'), api: _api),
         'orders' => OrdersRoom(key: const ValueKey<String>('orders-live'), api: _api),
+        'quotes' => QuotesRoom(key: const ValueKey<String>('quotes-live'), api: _api),
         _ => BillsRoom(key: const ValueKey<String>('bills-live'), api: _api),
       };
       return SafeArea(
@@ -68,6 +70,7 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
         tile('stock', Icons.inventory_2_outlined, 'Stock'),
         tile('bills', Icons.request_quote_outlined, 'Bills to pay'),
         tile('orders', Icons.local_shipping_outlined, 'Orders waiting for goods'),
+        tile('quotes', Icons.description_outlined, 'Quotations'),
       ]),
     );
   }

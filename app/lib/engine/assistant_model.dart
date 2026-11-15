@@ -398,3 +398,32 @@ List<AssistantOrder>? parseOrderList(int status, Object? body) {
   }
   return rows;
 }
+
+/// One quotation as the engine reports it, in the engine's own figures.
+class AssistantQuote {
+  final int id;
+  final int? number;
+  final String customer;
+  final String issuedOn;
+  final String validUntil;
+  final int grossMinor;
+  final String status;
+  const AssistantQuote({required this.id, required this.number, required this.customer, required this.issuedOn, required this.validUntil, required this.grossMinor, required this.status});
+}
+
+/// The quotations the engine listed, or null when the answer cannot be read. A row without its figures is left out; nothing is guessed.
+List<AssistantQuote>? parseQuoteList(int status, Object? body) {
+  final b = _map(body);
+  if (status != 200 || b == null || b['status'] != 'ok') return null;
+  final r = _map(b['result']);
+  if (r == null || r['quotations'] is! List) return null;
+  final rows = <AssistantQuote>[];
+  for (final item in _list(r['quotations'])) {
+    final m = _map(item);
+    final id = m == null ? null : _int(m['id']);
+    final gross = m == null ? null : _int(m['grossMinor']);
+    if (m == null || id == null || gross == null) continue;
+    rows.add(AssistantQuote(id: id, number: _int(m['number']), customer: _text(m['partyName']) ?? 'Customer', issuedOn: _text(m['issuedOn']) ?? '', validUntil: _text(m['validUntil']) ?? '', grossMinor: gross, status: _text(m['status']) ?? ''));
+  }
+  return rows;
+}

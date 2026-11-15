@@ -102,3 +102,4 @@ Never retry a Git operation or a write after an uncertain timeout; check state f
 - 2026-11-15: (B) bills room built (bills_room.dart, client read bills(), parseBillList; sixth tab). Read only. Dart CI to confirm. Next: orders, quotations, invoices, parties.
 - 2026-11-15: live screen navigation is four tabs; the read-only rooms sit under More. Dart CI to confirm.
 - 2026-11-15: orders room built under More (orders_room.dart, orders(), parseOrderList). Dart CI to confirm. Next: quotations, invoices, parties.
+- 2026-11-15: quotations room built under More (quotes_room.dart, quotations(), parseQuoteList). Dart CI to confirm. Next: invoices, parties.

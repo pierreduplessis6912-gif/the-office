@@ -66,3 +66,5 @@ Sixth room, **Bills** (`bills_room.dart`, `GET /engine/supplier-invoices?status=
 Navigation (2026-11-15): four tabs (What is owed, Assistant, To approve, More); More lists Expenses, Stock and Bills to pay, each with a back button. New rooms go in the More list.
 
 More list, fourth entry: **Orders waiting for goods** (`orders_room.dart`, `GET /engine/purchase-orders?status=outstanding`): supplier, number, ordered and expected dates, total. Read only. Test `app/test/orders_room_test.dart`.
+
+More list, fifth entry: **Quotations** (`quotes_room.dart`, `GET /engine/quotations`): customer, number, issued and valid-until dates, open or accepted, total. Read only. Test `app/test/quotes_room_test.dart`.
