@@ -67,7 +67,7 @@ export function checkedLines(lines: PostLine[]): PostLine[] {
 }
 
 // The contra of a reversed fact: the original entry's lines turned round, or null when the fact wrote none (a credit note's non-cash movement, a fact in another currency, anything before the ledger started).
-export async function planContra(env: Env, sourceKind: "document" | "movement", sourceId: number): Promise<{ originalId: number; lines: Array<{ accountId: number; debitMinor: number; creditMinor: number }> } | null> {
+export async function planContra(env: Env, sourceKind: "document" | "movement" | "stock_move", sourceId: number): Promise<{ originalId: number; lines: Array<{ accountId: number; debitMinor: number; creditMinor: number }> } | null> {
   const original = await one<{ id: number }>(env, "SELECT id FROM eng_journal_entry WHERE source_kind = ? AND source_id = ? AND reverses_entry_id IS NULL", sourceKind, sourceId);
   if (!original) return null;
   const lines = await many<{ account_id: number; debit_minor: number; credit_minor: number }>(env, "SELECT account_id, debit_minor, credit_minor FROM eng_journal_line WHERE entry_id = ? ORDER BY line_no", original.id);
@@ -98,13 +98,34 @@ export function documentLines(posting: "sale" | "credit", totals: { grossMinor: 
 
 // A PURCHASE (an expense or a supplier's bill): Dr the category's expense account (the net, plus any VAT that cannot be claimed back), Dr VAT input (only the VAT that can), Cr payables control. An expense is paid at once, but its payment is its
 // own money-out movement (Dr payables control, Cr bank), so the payable nets to nothing, and each fact is balanced and reversed by itself.
-export function purchaseLines(category: string, totals: { grossMinor: number; netMinor: number; taxMinor: number }, claimable: boolean): PostLine[] {
+export function purchaseLines(category: string, totals: { grossMinor: number; netMinor: number; taxMinor: number }, claimable: boolean, grniMinor = 0): PostLine[] {
   return [
-    { role: `expense:${category}`, debitMinor: totals.netMinor + (claimable ? 0 : totals.taxMinor) },
+    { role: "goods_received_not_invoiced", debitMinor: grniMinor },   // goods already received into stock: the bill clears what receiving credited, instead of counting the cost a second time
+    { role: `expense:${category}`, debitMinor: totals.netMinor - grniMinor + (claimable ? 0 : totals.taxMinor) },
     { role: "vat_input", debitMinor: claimable ? totals.taxMinor : 0 },
     { role: "payables_control", creditMinor: totals.grossMinor },
   ];
 }
+// What a bill for an ORDER may clear from "goods received not invoiced": the value stocked from that order's goods receipts (less any reversed), less what earlier bills for the same order have already cleared. Never negative.
+export async function grniAvailable(env: Env, orderId: number): Promise<number> {
+  const received = await one<{ v: number | null }>(env, "SELECT COALESCE(SUM(m.value_minor), 0) AS v FROM eng_stock_move m JOIN eng_document d ON d.id = m.source_document_id WHERE m.kind = 'receive' AND d.kind = 'goods_receipt' AND json_extract(d.terms_json, '$.orderId') = ? AND NOT EXISTS (SELECT 1 FROM eng_stock_move r WHERE r.reverses_move_id = m.id)", orderId);
+  const cleared = await one<{ v: number | null }>(env, "SELECT COALESCE(SUM(l.debit_minor - l.credit_minor), 0) AS v FROM eng_journal_line l JOIN eng_journal_entry e ON e.id = l.entry_id JOIN eng_document d ON e.source_kind = 'document' AND e.source_id = d.id JOIN eng_account_role ar ON ar.account_id = l.account_id AND ar.role = 'goods_received_not_invoiced' WHERE d.kind = 'supplier_invoice' AND json_extract(d.terms_json, '$.orderId') = ?", orderId);
+  return Math.max(0, Number(received?.v ?? 0) - Number(cleared?.v ?? 0));
+}
+
+// ---- the posting rules (stock). Every stock fact is ONE move, so the rule is by the move's kind. Value is the move's own stamped value (the engine's moving average cost), never recomputed.
+// receive: Dr inventory, Cr goods received not invoiced (from a goods receipt); a receipt with no document behind it cannot be placed, so it goes to suspense, which a report lists.
+// issue: Dr cost of sales, Cr inventory. A customer return puts the cost back. Any other adjustment, a count variance or a write-down goes through stock adjustments. A transfer posts nothing (the inventory total is unchanged).
+export function stockMoveLines(kind: string, reason: string | null, hasSource: boolean, valueMinor: number): PostLine[] | null {
+  switch (kind) {
+    case "receive": return [{ role: "inventory", debitMinor: valueMinor }, { role: hasSource ? "goods_received_not_invoiced" : "suspense", creditMinor: valueMinor }];
+    case "issue": return [{ role: "cost_of_sales", debitMinor: valueMinor }, { role: "inventory", creditMinor: valueMinor }];
+    case "adjust_in": return [{ role: "inventory", debitMinor: valueMinor }, { role: reason === "customer return" ? "cost_of_sales" : "stock_adjustments", creditMinor: valueMinor }];
+    case "adjust_out": return [{ role: "stock_adjustments", debitMinor: valueMinor }, { role: "inventory", creditMinor: valueMinor }];
+    default: return null;   // transfer_in, transfer_out: nothing; reversal_in, reversal_out: a contra of the original's entry (facts.ts)
+  }
+}
+
 // Money paid OUT to a supplier (or for an expense): Dr payables control, Cr bank or cash. (A refund to a customer is also money out, but it posts its own entry against receivables.)
 export async function paymentOutPosts(env: Env, direction: string, currency: string): Promise<boolean> { return direction === "out" && currency === (await ledgerCurrency(env)); }
 export const paymentOutLines = (method: string | null, amountMinor: number): PostLine[] => [{ role: "payables_control", debitMinor: amountMinor }, { role: method === "cash" ? "cash" : "bank", creditMinor: amountMinor }];
@@ -152,7 +173,7 @@ export async function verifyJournal(env: Env, report: (code: string, detail: str
   }
   for (const c of await many<{ id: number; source_kind: string; source_id: number; reverses_entry_id: number }>(env, "SELECT id, source_kind, source_id, reverses_entry_id FROM eng_journal_entry WHERE reverses_entry_id IS NOT NULL")) {
     const orig = await one<{ source_kind: string; source_id: number }>(env, "SELECT source_kind, source_id FROM eng_journal_entry WHERE id = ? AND reverses_entry_id IS NULL", c.reverses_entry_id);
-    const reversed = await one(env, c.source_kind === "document" ? "SELECT 1 AS ok FROM eng_reversal WHERE document_id = ?" : "SELECT 1 AS ok FROM eng_reversal WHERE movement_id = ?", c.source_id);
+    const reversed = await one(env, c.source_kind === "document" ? "SELECT 1 AS ok FROM eng_reversal WHERE document_id = ?" : c.source_kind === "movement" ? "SELECT 1 AS ok FROM eng_reversal WHERE movement_id = ?" : "SELECT 1 AS ok FROM eng_stock_move WHERE reverses_move_id = ?", c.source_id);
     if (!orig || orig.source_kind !== c.source_kind || Number(orig.source_id) !== Number(c.source_id) || !reversed) report("journal_contra_mismatch", `contra entry ${c.id} does not reverse an entry of the same source, or its source was never reversed`);
   }
   const started = await one<{ e: number | null }>(env, "SELECT MAX(id) AS e FROM eng_event WHERE type = 'ledger.chart_seeded'");
@@ -173,4 +194,15 @@ export async function verifyJournal(env: Env, report: (code: string, detail: str
     if (m.currency !== currency) { warn("unposted_foreign_currency", `movement ${m.id} is in ${m.currency}, not ${currency}, so it is not in the journal`); continue; }
     if (!(await one(env, "SELECT 1 AS ok FROM eng_journal_entry WHERE source_kind = 'movement' AND source_id = ? AND reverses_entry_id IS NULL", m.id))) report("journal_missing", `movement ${m.id} has no journal entry`);
   }
+  for (const m of await many<{ id: number; kind: string; value_minor: number; reverses_move_id: number | null }>(env, "SELECT id, kind, value_minor, reverses_move_id FROM eng_stock_move WHERE event_id > ? ORDER BY id", after)) {
+    if (m.kind === "transfer_in" || m.kind === "transfer_out") continue;
+    if (m.reverses_move_id !== null) {
+      const hadEntry = await one(env, "SELECT 1 AS ok FROM eng_journal_entry WHERE source_kind = 'stock_move' AND source_id = ? AND reverses_entry_id IS NULL", m.reverses_move_id);
+      if (hadEntry && !(await one(env, "SELECT 1 AS ok FROM eng_journal_entry WHERE source_kind = 'stock_move' AND source_id = ? AND reverses_entry_id IS NOT NULL", m.reverses_move_id))) report("journal_missing", `stock move ${m.id} reverses move ${m.reverses_move_id} but no contra entry was written`);
+      continue;
+    }
+    if (Number(m.value_minor) === 0) continue;
+    if (!(await one(env, "SELECT 1 AS ok FROM eng_journal_entry WHERE source_kind = 'stock_move' AND source_id = ? AND reverses_entry_id IS NULL", m.id))) report("journal_missing", `stock move ${m.id} has no journal entry`);
+  }
 }
+
