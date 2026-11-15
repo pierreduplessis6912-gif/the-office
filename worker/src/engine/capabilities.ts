@@ -8,6 +8,7 @@ import { EngineError } from "./errors";
 import * as facts from "./facts";
 import { isEffective, outstandingForDocument, outstandingForParty } from "./ledger";
 import { issueDraft, readDraft } from "./drafts";
+import { booksLockDate, checkJournalInput, planJournal, planJournalReversal, type JournalInput } from "./journal";
 import { RECORD_KINDS, recordView, versionOf, type RecordKind, type ViewerContext } from "./records";
 import type { EnginePermission } from "./permissions";
 import { unappliedCreditForParty } from "./ledger";
@@ -502,6 +503,48 @@ export const taxLockSet: CapabilityContract<TaxLockSet> = {
     if (now !== null && value.lockDate <= now) throw new EngineError("invalid_state", `The tax lock is already at ${now}; it can only move forward.`);
   },
   async execute(env, v, c) { const r = await facts.setTaxLock(env, v, ctxOf(c, "tax_lock.set")); return { eventId: r.eventId }; },
+};
+
+interface BooksLockSet { lockDate: string; reason?: string }
+export const booksLockSet: CapabilityContract<BooksLockSet> = {
+  id: "books_lock.set", heldType: "engine.books_lock.set", label: "Locking the books", requires: [], permissions: ["business.manage"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(payload, ["lockDate", "reason"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const d = checkDate(payload.lockDate, "lockDate"); if (!d.ok) return d;
+    if (payload.reason !== undefined && (typeof payload.reason !== "string" || payload.reason.length > 300)) return { ok: false, reason: "reason must be text of at most 300 characters" };
+    return { ok: true, value: { lockDate: d.value, ...(payload.reason !== undefined ? { reason: payload.reason as string } : {}) } };
+  },
+  async check(env, value) {
+    const now = await booksLockDate(env);
+    if (now !== null && value.lockDate === now) throw new EngineError("invalid_state", `The books are already locked up to ${now}.`);
+    if (now !== null && value.lockDate < now && (value.reason ?? "").trim().length < 5) throw new EngineError("invalid_input", `Unlocking (moving the lock back from ${now}) needs a reason of at least 5 characters.`);
+  },
+  async execute(env, v, c) { const r = await facts.setBooksLock(env, v, ctxOf(c, "books_lock.set")); return { eventId: r.eventId }; },
+};
+
+export const journalPost: CapabilityContract<JournalInput> = {
+  id: "journal.post", heldType: "engine.journal.post", label: "Posting a journal", requires: [], permissions: ["journal.post"], version: 1, recordsExecution: true,
+  validate(payload) { return checkJournalInput(payload); },
+  async check(env, value) { await planJournal(env, value); },
+  async execute(env, v, c) { const r = await facts.postJournal(env, v, ctxOf(c, "journal.post")); return { eventId: r.eventId, entryId: r.entryId }; },
+};
+
+interface JournalReverse { journalEventId: number; date: string; reason: string }
+export const journalReverse: CapabilityContract<JournalReverse> = {
+  id: "journal.reverse", heldType: "engine.journal.reverse", label: "Reversing a journal", requires: [], permissions: ["journal.post"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(payload, ["journalEventId", "date", "reason"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (!whole(payload.journalEventId)) return { ok: false, reason: "journalEventId must be a record number" };
+    const d = checkDate(payload.date, "date"); if (!d.ok) return d;
+    if (typeof payload.reason !== "string" || payload.reason.trim().length < 5 || payload.reason.length > 300) return { ok: false, reason: "a reversal needs a reason of 5 to 300 characters" };
+    return { ok: true, value: { journalEventId: payload.journalEventId as number, date: d.value, reason: payload.reason.trim() } };
+  },
+  async check(env, value) { await planJournalReversal(env, value); },
+  async execute(env, v, c) { const r = await facts.reverseJournal(env, v, ctxOf(c, "journal.reverse")); return { eventId: r.eventId }; },
 };
 
 export const businessGet: ReadCapability<Record<string, never>> = {
@@ -1235,5 +1278,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

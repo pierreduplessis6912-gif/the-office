@@ -112,3 +112,10 @@ After G2, a real-model run to check the sentences for the new reads is a separat
 - DEVIATIONS / LIMITS: purchase price variances are NOT split out (the `purchase_variance` account exists but is unused): a bill priced differently from the receipt leaves the difference in received-not-invoiced (bill lower) or in expense (bill higher). Goods receipts that are never put into stock post nothing. Opening stock entered by hand sits in suspense until G3 opening balances.
 - Invariant live: inventory account = value of stock on hand. Tests: tools/engine-gl-stock.test.js (24 checks) and 8 more breakages.
 
+## G3 as built (2026-11-15): books lock, manual journals, opening balances
+- ONE books lock date, a recorded fact (`books_lock.set`, held and approved). Nothing is posted on or before it: the whole fact is refused (`period_locked`, naming the date), atomically, for entries, contras and journals. Moving it BACK (unlocking) needs a reason, which is on the event. A reversal of a locked-period fact is allowed: its contra is dated the day of the reversal. A quotation or order (not financial) is unaffected. The tax lock (VAT) stays separate and forward-only.
+- Manual journals: `journal.post` (held, owner-only permission, reason required, balanced, whole cents, 2 to 50 lines, account by code) and `journal.reverse`. One event carries the lines, one entry beside it (source kind `manual`, source id = the event). Never edited; reversed once by a contra. Receivables, payables, inventory, goods received not invoiced and VAT accounts cannot be journalled into (they would disagree with their sub-ledgers): the way to change them is to record the invoice, bill or stock count. Suspense can be (to clear it).
+- Opening balances are a journal of kind `opening`: one at a time (reverse it to redo). Money owed by customers or to suppliers is NOT opened by journal: enter the real unpaid invoices and bills.
+- Migration 0006 edited in place again (source kind `manual`): still never deployed anywhere.
+- Tests: tools/engine-gl-books.test.js (36 checks) and 11 more breakages.
+

@@ -88,6 +88,9 @@ const HINTS: Record<string, string> = {
   "stock.write_down": "payload {itemId, amountMinor, reason: damaged | obsolete | slow_moving | market_decline | other, evidence (10 to 200 characters), writtenDownOn}: carry ALL the stock of an item (at every place that holds it) at less, by amountMinor, without moving a unit. A write-down is of the whole item: stock value is kept per item.",
   "business.profile.set": "payload {legalName?, tradingName?, address?, vatRegistered?, vatNumber?, companyRegistrationNumber?}: the business's own details.",
   "tax_lock.set": "payload {lockDate}: lock the tax period up to a date (it only moves forward).",
+  "books_lock.set": "payload {lockDate, reason?}: lock the books up to a date: nothing can be posted on or before it. Moving it back (unlocking) needs a reason.",
+  "journal.post": "payload {date, kind: manual | opening, reason, lines: [{account: code, debitMinor | creditMinor}]}: a balanced manual journal (an accrual, a prepayment, depreciation) or the opening balances. Owner only. Accounts the engine keeps from invoices, bills and stock cannot be journalled into.",
+  "journal.reverse": "payload {journalEventId, date, reason}: turn a manual journal round with a reversing entry.",
 };
 
 async function scopeOf(env: Env, who: WhoLike) {

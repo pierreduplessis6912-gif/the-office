@@ -22,7 +22,7 @@ import { planBill, planBillVoid, planSupplierPayment, type BillInput, type Payme
 import { planCreditApplication, planCreditNote, planDebitNote, planPaymentAllocation, planPaymentRefund, planRefund, planVoid, refundMovementOrThrow, checkReason, type CreditLineInput } from "./credits";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
 import { checkDate } from "./quotations";
-import { CHART_TEMPLATE, accountForRole, checkedLines, documentLines, documentPosting, grniAvailable, stockMoveLines, paymentOutLines, paymentOutPosts, planContra, purchaseLines, receiptLines, receiptPosts, refundLines, refundPosts, type PostLine } from "./journal";
+import { CHART_TEMPLATE, accountForRole, assertBooksOpen, booksLockDate, planJournal, planJournalReversal, type JournalInput, checkedLines, documentLines, documentPosting, grniAvailable, stockMoveLines, paymentOutLines, paymentOutPosts, planContra, purchaseLines, receiptLines, receiptPosts, refundLines, refundPosts, type PostLine } from "./journal";
 
 export interface Ctx {
   actorEmail?: string | null;
@@ -89,9 +89,10 @@ async function ensureChart(tx: Env, ctx: Ctx): Promise<void> {
 }
 
 // One balanced entry for a financial fact, carried by that fact's own event. Nothing is written for a fact worth nothing.
-async function writeEntry(env: Env, input: { date: string; sourceKind: "document" | "movement" | "stock_move"; sourceId: number; memo: string; eventId: number; lines: PostLine[] }): Promise<void> {
+async function writeEntry(env: Env, input: { date: string; sourceKind: "document" | "movement" | "stock_move" | "manual"; sourceId: number; memo: string; eventId: number; lines: PostLine[] }): Promise<void> {
   const lines = checkedLines(input.lines);
   if (lines.length === 0) return;
+  await assertBooksOpen(env, input.date);   // invariant 7: nothing posts into a locked period; the whole fact is refused, atomically
   const entry = await one<{ id: number }>(env, "INSERT INTO eng_journal_entry (entry_date, source_kind, source_id, memo, event_id) VALUES (?, ?, ?, ?, ?) RETURNING id", input.date, input.sourceKind, input.sourceId, input.memo, input.eventId);
   let no = 0;
   for (const l of lines) {
@@ -103,16 +104,55 @@ async function writeEntry(env: Env, input: { date: string; sourceKind: "document
 }
 
 // A reversed fact's entry (if it wrote one) is turned round, dated the day the reversal was recorded; the original is never touched.
-async function writeContra(env: Env, sourceKind: "document" | "movement" | "stock_move", sourceId: number, eventId: number, date?: string): Promise<void> {
+async function writeContra(env: Env, sourceKind: "document" | "movement" | "stock_move" | "manual", sourceId: number, eventId: number, date?: string): Promise<void> {
   const plan = await planContra(env, sourceKind, sourceId);
   if (!plan) return;
   const day = await one<{ d: string }>(env, "SELECT substr(occurred_at, 1, 10) AS d FROM eng_event WHERE id = ?", eventId);
+  await assertBooksOpen(env, date ?? day!.d);
   const entry = await one<{ id: number }>(env, "INSERT INTO eng_journal_entry (entry_date, source_kind, source_id, memo, reverses_entry_id, event_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING id", date ?? day!.d, sourceKind, sourceId, "Reversal", plan.originalId, eventId);
   let no = 0;
   for (const l of plan.lines) {
     no += 1;
     await run(env, "INSERT INTO eng_journal_line (entry_id, line_no, account_id, debit_minor, credit_minor) VALUES (?, ?, ?, ?, ?)", Number(entry!.id), no, l.accountId, l.debitMinor, l.creditMinor);
   }
+}
+
+// The books lock (journal.ts): ONE date, a recorded fact. Moving it BACK is unlocking, which needs a reason; both directions are held and approved like everything else.
+export async function setBooksLock(env: Env, input: { lockDate: string; reason?: string | null }, ctx: Ctx): Promise<{ eventId: number }> {
+  const d = checkDate(input.lockDate, "lockDate"); if (!d.ok) throw new EngineError("invalid_input", d.reason);
+  return inTransaction(env, async (tx) => {
+    const now = await booksLockDate(tx);
+    if (now !== null && d.value === now) throw new EngineError("invalid_state", `The books are already locked up to ${now}.`);
+    const reason = typeof input.reason === "string" ? input.reason.trim() : "";
+    if (now !== null && d.value < now && reason.length < 5) throw new EngineError("invalid_input", `Unlocking (moving the lock back from ${now} to ${d.value}) needs a reason of at least 5 characters.`);
+    return { eventId: await appendEvent(tx, "books_lock.set", ctx, { lockDate: d.value, ...(now !== null ? { previous: now } : {}) }, reason || null) };
+  });
+}
+
+// A MANUAL JOURNAL (an accrual, a prepayment, depreciation, or the opening balances): one event, one balanced entry whose source is that event. Never edited: a mistake is reversed by a second journal event that turns it round.
+export async function postJournal(env: Env, input: JournalInput, ctx: Ctx): Promise<{ eventId: number; entryId: number }> {
+  return inTransaction(env, async (tx) => {
+    await ensureChart(tx, ctx);
+    const planned = await planJournal(tx, input);
+    const eventId = await appendEvent(tx, "journal.posted", ctx, { date: input.date, kind: input.kind, reason: input.reason, lines: input.lines }, input.reason);
+    const entry = await one<{ id: number }>(tx, "INSERT INTO eng_journal_entry (entry_date, source_kind, source_id, memo, event_id) VALUES (?, 'manual', ?, ?, ?) RETURNING id", input.date, eventId, input.kind === "opening" ? "Opening balances" : `Journal: ${input.reason}`.slice(0, 200), eventId);
+    let no = 0;
+    for (const l of planned) { no += 1; await run(tx, "INSERT INTO eng_journal_line (entry_id, line_no, account_id, debit_minor, credit_minor) VALUES (?, ?, ?, ?, ?)", Number(entry!.id), no, l.accountId, l.debitMinor, l.creditMinor); }
+    return { eventId, entryId: Number(entry!.id) };
+  });
+}
+export async function reverseJournal(env: Env, input: { journalEventId: number; date: string; reason: string }, ctx: Ctx): Promise<{ eventId: number }> {
+  const d = checkDate(input.date, "date"); if (!d.ok) throw new EngineError("invalid_input", d.reason);
+  const reason = typeof input.reason === "string" ? input.reason.trim() : "";
+  if (reason.length < 5) throw new EngineError("invalid_input", "Reversing a journal needs a reason of at least 5 characters.");
+  return inTransaction(env, async (tx) => {
+    const plan = await planJournalReversal(tx, { journalEventId: input.journalEventId, date: d.value });
+    const eventId = await appendEvent(tx, "journal.reversed", ctx, { journalEventId: input.journalEventId, date: d.value, reason }, reason);
+    const entry = await one<{ id: number }>(tx, "INSERT INTO eng_journal_entry (entry_date, source_kind, source_id, memo, reverses_entry_id, event_id) VALUES (?, 'manual', ?, 'Reversal', ?, ?) RETURNING id", d.value, input.journalEventId, plan.originalId, eventId);
+    let no = 0;
+    for (const l of plan.lines) { no += 1; await run(tx, "INSERT INTO eng_journal_line (entry_id, line_no, account_id, debit_minor, credit_minor) VALUES (?, ?, ?, ?, ?)", Number(entry!.id), no, l.accountId, l.debitMinor, l.creditMinor); }
+    return { eventId };
+  });
 }
 
 // ---- parties -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

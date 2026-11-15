@@ -21,12 +21,12 @@ CREATE TABLE IF NOT EXISTS eng_account_role (
 );
 CREATE INDEX IF NOT EXISTS idx_eng_account_role_role ON eng_account_role(role, id);
 
--- One entry per financial fact (source_kind document, movement or stock_move). A contra entry points at the entry it reverses (reverses_entry_id, unique: an entry is reversed once; no REFERENCES, because restore orders tables
+-- One entry per financial fact (source_kind document, movement, stock_move or manual; a manual journal's source_id is its own event). A contra entry points at the entry it reverses (reverses_entry_id, unique: an entry is reversed once; no REFERENCES, because restore orders tables
 -- parents-first and refuses a table that points at itself, so the integrity verifier checks it instead).
 CREATE TABLE IF NOT EXISTS eng_journal_entry (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   entry_date TEXT NOT NULL CHECK (length(entry_date) = 10),
-  source_kind TEXT NOT NULL CHECK (source_kind IN ('document', 'movement', 'stock_move')),
+  source_kind TEXT NOT NULL CHECK (source_kind IN ('document', 'movement', 'stock_move', 'manual')),
   source_id INTEGER NOT NULL CHECK (typeof(source_id) = 'integer' AND source_id > 0),
   memo TEXT,
   reverses_entry_id INTEGER UNIQUE CHECK (reverses_entry_id IS NULL OR (typeof(reverses_entry_id) = 'integer' AND reverses_entry_id > 0)),

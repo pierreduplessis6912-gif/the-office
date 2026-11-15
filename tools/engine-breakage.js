@@ -557,6 +557,17 @@ const MUTATIONS = [
   { name: 'ledger: a bill for received goods is also counted as expense', suite: 'engine-gl-stock.test.js', file: 'worker/src/engine/facts.ts', find: 'Math.min(await grniAvailable(tx, t.orderId), totals.netMinor) : 0;', replace: '0;' },
   { name: 'ledger: a stock reversal posts no contra entry', suite: 'engine-gl-stock.test.js', file: 'worker/src/engine/facts.ts', find: 'if (m.reversesMoveId) await writeContra(tx, "stock_move", m.reversesMoveId, m.eventId, m.occurredOn);', replace: 'if (m.reversesMoveId) { /* nothing */ }' },
   { name: 'ledger: the verifier ignores stock moves without an entry', suite: 'engine-gl-stock.test.js', file: 'worker/src/engine/journal.ts', find: 'if (Number(m.value_minor) === 0) continue;', replace: 'continue;' },
+  // general ledger (G3): books lock, journals, opening balances
+  { name: 'ledger: an entry is posted into a locked period', suite: 'engine-gl-books.test.js', file: 'worker/src/engine/facts.ts', find: 'await assertBooksOpen(env, input.date);   // invariant 7', replace: '' },
+  { name: 'ledger: a contra is posted into a locked period', suite: 'engine-gl-books.test.js', file: 'worker/src/engine/facts.ts', find: 'await assertBooksOpen(env, date ?? day!.d);', replace: '' },
+  { name: 'ledger: the lock treats its own date as open', suite: 'engine-gl-books.test.js', file: 'worker/src/engine/journal.ts', find: 'if (lock !== null && date <= lock) throw', replace: 'if (lock !== null && date < lock) throw' },
+  { name: 'ledger: unlocking needs no reason', suite: 'engine-gl-books.test.js', file: 'worker/src/engine/facts.ts', find: 'if (now !== null && d.value < now && reason.length < 5) throw', replace: 'if (false) throw' },
+  { name: 'ledger: a manual journal may touch an account the engine keeps', suite: 'engine-gl-books.test.js', file: 'worker/src/engine/journal.ts', find: 'if (kept.has(Number(a.id))) throw', replace: 'if (false) throw' },
+  { name: 'ledger: a manual journal need not balance', suite: 'engine-gl-books.test.js', file: 'worker/src/engine/journal.ts', find: 'if (dr !== cr) return { ok: false', replace: 'if (false) return { ok: false' },
+  { name: 'ledger: a manual journal needs no reason', suite: 'engine-gl-books.test.js', file: 'worker/src/engine/journal.ts', find: 'v.reason.trim().length < 5 || v.reason.length > 300) return { ok: false, reason: "a journal needs', replace: 'v.reason.length > 300) return { ok: false, reason: "a journal needs' },
+  { name: 'ledger: a journal can be reversed twice', suite: 'engine-gl-books.test.js', file: 'worker/src/engine/journal.ts', find: 'throw new EngineError("invalid_state", "That journal has already been reversed.");', replace: '{ }' },
+  { name: 'ledger: the opening balances can be posted twice', suite: 'engine-gl-books.test.js', file: 'worker/src/engine/journal.ts', find: 'if (open) throw new EngineError("invalid_state", "The opening balances', replace: 'if (false) throw new EngineError("invalid_state", "The opening balances' },
+  { name: 'ledger: anyone with the money role may post journals', suite: 'engine-gl-books.test.js', file: 'worker/src/engine/permissions.ts', find: 'can_manage_settings: ["business.manage", "journal.post"],', replace: 'can_manage_settings: ["business.manage"], can_know_profit: ["journal.post"],' },
 ];
 
 let opts;
