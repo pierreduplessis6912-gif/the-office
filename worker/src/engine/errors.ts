@@ -1,6 +1,8 @@
 // The engine's refusals. Each has a stable CODE: the code is what callers, tests and the conversation layer branch on, the message is for people. A refusal never changes anything.
 export type EngineErrorCode =
   | "invalid_input"          // the request is malformed: a missing field, a date that is not a date, a blank reason
+  | "ledger_unbalanced"       // a journal entry whose debits and credits differ (never written)
+  | "ledger_unmapped"         // the ledger has no account for a role the posting needs
   | "invalid_amount"         // money, a quantity or a rate that is not a whole number in the allowed range (floats and text are refused, never coerced)
   | "amount_out_of_range"    // a result that cannot be held exactly (beyond 2^53): refused, never rounded
   | "not_found"              // the record it points at does not exist in this business
