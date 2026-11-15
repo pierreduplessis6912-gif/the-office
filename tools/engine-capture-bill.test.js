@@ -68,6 +68,7 @@ module.exports = kit.guard('engine capture bill', async ({ check }) => {
     [{ invoicedOn: undefined }, 'no invoice date', [422]],
     [{ dueOn: '2026-09-01' }, 'a due date before the invoice date', [422]],
     [{ category: 'yachts' }, 'a category that is not in the list', [422]],
+    [{ category: undefined }, 'no category at all (the real model left it out: capture proof run 43711604997, U5; the engine never guesses it)', [422]],
     [{ lines: [] }, 'no lines', [422]],
     [{ lines: 'plywood' }, 'lines that are not a list', [422]],
     [{ lines: Array.from({ length: 31 }, () => ({ description: 'x', quantity: 1, unitPriceCents: 100 })) }, 'more than 30 lines', [422]],
@@ -92,6 +93,9 @@ module.exports = kit.guard('engine capture bill', async ({ check }) => {
   // ---- keep what was taken ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
   r = await send(pic(), { ai: [{ match: /Describe exactly what is shown/, raw: true, reply: () => { throw new Error('vision down'); } }, ...MODEL] });
   check(status(r) === 200 && body(r).status === 'captured' && body(r).description === null && held(r).length === 0 && added(r, 'captures').length === 1 && puts(r).length === 1, 'a picture that could not be read is kept and says so; nothing is held');
+  // what the model is SHOWN says the category is required, to pick the closest fit, and to answer null when none fits (capture proof run 43711604997, U5: the model left it out; wording approved by Pierre 2026-11-15)
+  { let shown = ''; await send(pic(), { ai: [seen(BILL), { match: /READ FROM A PHOTOGRAPH[\s\S]*INV-8841/, reply: (input) => { shown = JSON.stringify(input); return BILLCALL(); } }] });
+    check(/category[^\n]{0,60}required/i.test(shown.replace(/\\"/g, '"')) && /closest/i.test(shown) && /capability[^a-z]{1,8}null/i.test(shown.slice(shown.search(/category/i))), `the model is told the category is required, to choose the closest fit and to answer null when none fits (saw: ${shown.slice(shown.search(/category/i), shown.search(/category/i) + 200)})`); }
   r = await send(pic(), { ai: [seen(BILL), { match: /./, reply: () => { throw new Error('model down'); } }] });
   check(status(r) === 503 && body(r).error === 'model_unavailable' && added(r, 'captures').length === 1 && puts(r).length === 1 && held(r).length === 0, 'a model that is down: 503, file and row kept');
   r = await send({ document: { name: 'b.pdf', type: 'application/pdf', text: '%PDF' }, intent: 'supplier_bill' }, { path: '/engine/capture/document' });
