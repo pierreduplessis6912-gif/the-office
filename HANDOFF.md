@@ -104,3 +104,4 @@ Never retry a Git operation or a write after an uncertain timeout; check state f
 - 2026-11-15: orders room built under More (orders_room.dart, orders(), parseOrderList). Dart CI to confirm. Next: quotations, invoices, parties.
 - 2026-11-15: quotations room built under More (quotes_room.dart, quotations(), parseQuoteList). Dart CI to confirm. Next: invoices, parties.
 - 2026-11-15: parties room under More (parties_room.dart, parties(), parsePartyList); a customer opens to their unpaid invoices via receivables. Invoices screen = that view. Dart CI to confirm. Remaining screens: none in the original list.
+- 2026-11-15: two stale breakage patterns repaired (payment.record account-changed; invoices capability grants payment.record); both CAUGHT. No stale patterns known now.
