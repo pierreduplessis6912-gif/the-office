@@ -26,13 +26,16 @@ module.exports = kit.guard('engine interpret (stack)', async ({ check }) => {
     say(/Add Someone as a banana/, call('party.create', { name: 'Someone', role: 'banana' })),
     say(/Bought plywood from Timber Supplies for R230 including VAT, paid by EFT, I have the invoice/, call('expense.record', { supplier: 'Timber Supplies', amountCents: 23000, vat: 'incl_vat', description: 'Plywood', category: 'materials', method: 'eft', invoiceHeld: true })),
     say(/Bought plywood from Timber Supplies for R200 plus VAT, paid cash/, call('expense.record', { supplier: 'Timber Supplies', amountCents: 20000, vat: 'plus_vat', description: 'Plywood', category: 'materials', method: 'cash' })),
-    say(/Bought screws from Timber Supplies for R50, no VAT, yesterday/, call('expense.record', { supplier: 'Timber Supplies', amountCents: 5000, vat: 'no_vat', description: 'Screws', category: 'materials', method: 'cash', when: 'yesterday' })),
+    say(/Bought screws from Timber Supplies for R50, no VAT, yesterday, paid cash/, call('expense.record', { supplier: 'Timber Supplies', amountCents: 5000, vat: 'no_vat', description: 'Screws', category: 'materials', method: 'cash', when: 'yesterday' })),
     say(/Bought plywood from Timber Supplies for R230/, call('expense.record', { supplier: 'Timber Supplies', amountCents: 23000, description: 'Plywood', category: 'materials', method: 'eft' })),
-    say(/Bought tiles from Tile for R1000 including VAT/, call('expense.record', { supplier: 'Tile', amountCents: 100000, vat: 'incl_vat', description: 'Tiles', category: 'materials', method: 'eft' })),
-    say(/Bought glue from Nobody Ltd for R100 including VAT/, call('expense.record', { supplier: 'Nobody Ltd', amountCents: 10000, vat: 'incl_vat', description: 'Glue', category: 'materials', method: 'eft' })),
-    say(/Bought glue from Patel Builders for R100 including VAT/, call('expense.record', { supplier: 'Patel Builders', amountCents: 10000, vat: 'incl_vat', description: 'Glue', category: 'materials', method: 'eft' })),
-    say(/Client lunch R115 including VAT/, call('expense.record', { supplier: 'Timber Supplies', amountCents: 11500, vat: 'incl_vat', description: 'Client lunch', category: 'entertainment', method: 'card' })),
+    say(/Bought tiles from Tile for R1000 including VAT, paid by EFT/, call('expense.record', { supplier: 'Tile', amountCents: 100000, vat: 'incl_vat', description: 'Tiles', category: 'materials', method: 'eft' })),
+    say(/Bought glue from Nobody Ltd for R100 including VAT, paid by EFT/, call('expense.record', { supplier: 'Nobody Ltd', amountCents: 10000, vat: 'incl_vat', description: 'Glue', category: 'materials', method: 'eft' })),
+    say(/Bought glue from Patel Builders for R100 including VAT, paid by EFT/, call('expense.record', { supplier: 'Patel Builders', amountCents: 10000, vat: 'incl_vat', description: 'Glue', category: 'materials', method: 'eft' })),
+    say(/Client lunch R115 including VAT, paid by card/, call('expense.record', { supplier: 'Timber Supplies', amountCents: 11500, vat: 'incl_vat', description: 'Client lunch', category: 'entertainment', method: 'card' })),
     say(/Bought groceries R115 including VAT/, call('expense.record', { supplier: 'Timber Supplies', amountCents: 11500, vat: 'incl_vat', description: 'Groceries', category: 'groceries', method: 'card' })),
+    say(/Bought nails from Timber Supplies for R100 including VAT, no payment mentioned/, call('expense.record', { supplier: 'Timber Supplies', amountCents: 10000, vat: 'incl_vat', description: 'Nails', category: 'materials', method: 'eft' })),
+    say(/Bought nails from Timber Supplies for R100 including VAT, paid by cheque/, call('expense.record', { supplier: 'Timber Supplies', amountCents: 10000, vat: 'incl_vat', description: 'Nails', category: 'materials', method: 'cash' })),
+    say(/Bought nails from Timber Supplies for R100 including VAT, paid by bank transfer/, call('expense.record', { supplier: 'Timber Supplies', amountCents: 10000, vat: 'incl_vat', description: 'Nails', category: 'materials', method: 'eft' })),
     say(/negative expense/, call('expense.record', { supplier: 'Timber Supplies', amountCents: -100, vat: 'incl_vat', description: 'x', category: 'materials', method: 'eft' })),
     say(/enormous expense/, call('expense.record', { supplier: 'Timber Supplies', amountCents: 1000000000000000, vat: 'incl_vat', description: 'x', category: 'materials', method: 'eft' })),
     say(/expense with a tax rate/, JSON.stringify({ capability: 'expense.record', arguments: { supplier: 'Timber Supplies', amountCents: 100, vat: 'incl_vat', description: 'x', category: 'materials', method: 'eft', taxBp: 0 } })),
@@ -81,7 +84,7 @@ module.exports = kit.guard('engine interpret (stack)', async ({ check }) => {
   check(salesProbe.length === 0 || (!ssys.includes('expense.record') && !ssys.includes('party.create') && !ssys.includes('vat.summary') && !ssys.includes('payment.record')), 'a salesperson (who may make quotes but not handle money) is never shown the money capabilities');
 
   // what the harness's clock says and which record Timber Supplies is (the engine decides both; the test asks it instead of assuming)
-  const todayOf = (await heldPayload('Client lunch R115 including VAT')).incurredOn;
+  const todayOf = (await heldPayload('Client lunch R115 including VAT, paid by card')).incurredOn;
   const shift = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const monthRange = (iso, back) => { const t = new Date(iso + 'T00:00:00Z'); const f = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() - back, 1)); const l = new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth() + 1, 0)); return { from: f.toISOString().slice(0, 10), to: l.toISOString().slice(0, 10) }; };
   const listed = await interpret('List my suppliers', { before: SUPPLIERS });
@@ -137,14 +140,17 @@ module.exports = kit.guard('engine interpret (stack)', async ({ check }) => {
   check(h.supplierId === TIMBER && h.amountsIncludeTax === true && h.amountPaidMinor === 23000 && h.lines[0].amountMinor === 23000 && h.lines[0].taxBp === 1500 && h.category === 'materials' && h.method === 'eft' && h.taxInvoiceHeld === true && h.currency === 'ZAR' && h.incurredOn === todayOf && h.totals && h.totals.taxMinor === 3000, 'the held payload: the supplier RESOLVED to a record by the engine, R230.00 including 15% VAT (tax R30.00 worked out by the engine), the date from today, paid by EFT, tax invoice held');
   h = await heldPayload('Bought plywood from Timber Supplies for R200 plus VAT, paid cash');
   check(h.amountsIncludeTax === false && h.lines[0].amountMinor === 20000 && h.amountPaidMinor === 23000 && h.taxInvoiceHeld === false && h.method === 'cash', '"plus VAT" is net R200.00 with tax added: R230.00 paid; and a tax invoice is NOT assumed to be held (the safe default: it is not claimed until someone says so)');
-  h = await heldPayload('Bought screws from Timber Supplies for R50, no VAT, yesterday');
+  h = await heldPayload('Bought screws from Timber Supplies for R50, no VAT, yesterday, paid cash');
   check(h.lines[0].taxBp === 0 && h.amountPaidMinor === 5000 && h.incurredOn === shift(todayOf, -1), '"no VAT" is a 0% line, and "yesterday" is the day before today, worked out by the engine');
+  r = await interpret('Bought nails from Timber Supplies for R100 including VAT, no payment mentioned', { before: SUPPLIERS }); check(NOT(r), 'an expense whose sentence never says how it was paid is not understood even when the model supplies a method: the method is never invented');
+  r = await interpret('Bought nails from Timber Supplies for R100 including VAT, paid by cheque', { before: SUPPLIERS }); check(NOT(r), 'an expense paid by cheque, where the model says cash, is not understood: the method must be the one the sentence says');
+  h = await heldPayload('Bought nails from Timber Supplies for R100 including VAT, paid by bank transfer'); check(h && h.method === 'eft', 'a bank transfer is held as EFT: the sentence said how it was paid');
   r = await interpret('Bought plywood from Timber Supplies for R230', { before: SUPPLIERS }); check(NOT(r), 'an amount with no statement of VAT is not understood: VAT is never assumed');
-  r = await interpret('Bought tiles from Tile for R1000 including VAT', { before: SUPPLIERS });
+  r = await interpret('Bought tiles from Tile for R1000 including VAT, paid by EFT', { before: SUPPLIERS });
   check(status(r) === 200 && body(r).status === 'ok' && (body(r).result.parties || []).length === 2 && !tables(r).includes('pending_actions') && noFacts(r), 'a supplier name that matches two suppliers (Tile Warehouse, Tile Wholesalers) answers with the engine\'s list to choose from; nothing is held or guessed');
-  r = await interpret('Bought glue from Nobody Ltd for R100 including VAT', { before: SUPPLIERS }); check(status(r) === 404 && !tables(r).includes('pending_actions') && noFacts(r), 'a supplier who does not exist is answered as unknown (never created silently), and nothing is held');
-  r = await interpret('Bought glue from Patel Builders for R100 including VAT', { before: SUPPLIERS }); check(status(r) === 404 && !tables(r).includes('pending_actions'), 'a customer who is not a supplier is not found as one');
-  h = await heldPayload('Client lunch R115 including VAT');
+  r = await interpret('Bought glue from Nobody Ltd for R100 including VAT, paid by EFT', { before: SUPPLIERS }); check(status(r) === 404 && !tables(r).includes('pending_actions') && noFacts(r), 'a supplier who does not exist is answered as unknown (never created silently), and nothing is held');
+  r = await interpret('Bought glue from Patel Builders for R100 including VAT, paid by EFT', { before: SUPPLIERS }); check(status(r) === 404 && !tables(r).includes('pending_actions'), 'a customer who is not a supplier is not found as one');
+  h = await heldPayload('Client lunch R115 including VAT, paid by card');
   check(h.category === 'entertainment', 'a client lunch is held as entertainment (the engine will then say the input tax is not claimable: s17(2))');
   r = await interpret('Bought groceries R115 including VAT', { before: SUPPLIERS }); check(NOT(r), 'a category that is not on the list is not understood');
   for (const [text, why] of [['negative expense', 'a negative amount'], ['enormous expense', 'an absurd amount (above R10,000,000)'], ['expense with a tax rate', 'a tax rate the model was never given'], ['expense with a supplier id', 'an id the model was never given']]) { r = await interpret(text, { before: SUPPLIERS }); check(NOT(r), `${why} is not understood: nothing held`); }

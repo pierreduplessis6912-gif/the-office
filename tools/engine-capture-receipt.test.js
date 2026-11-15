@@ -58,7 +58,7 @@ module.exports = kit.guard('engine capture receipt', async ({ check }) => {
   check(status(r) === 422 && body(r).error === 'not_understood' && held(r).length === 0, 'a reading that is a question is not answered as one (the only thing offered is an expense)');
 
   // ---- the rails ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  r = await send(pic({ intent: 'expense' }), { ai: AI('Unknown Shop receipt. Nails. R10.00 including VAT.') });
+  r = await send(pic({ intent: 'expense' }), { ai: AI('Unknown Shop receipt. Nails. R10.00 including VAT. Paid by card.') });
   check(status(r) === 404 && body(r).error === 'not_found' && held(r).length === 0 && added(r, 'captures').length === 1 && puts(r).length === 1, `a supplier that does not exist is refused, never created; the file is kept (got ${status(r)} ${body(r).error})`);
   r = await send(pic({ intent: 'expense' }), { ai: [seen(RECEIPT), { match: /Timber Supplies receipt/, reply: () => call('expense.record', { supplier: 'Timber Supplies', amountCents: 23000, description: 'Plywood', category: 'materials', method: 'card' }) }] });
   check(status(r) === 422 && held(r).length === 0, 'VAT not stated on the reading: not understood (never assumed)');

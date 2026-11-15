@@ -107,7 +107,7 @@ void main() {
 
   testWidgets('an unknown supplier is refused in the engine\'s words', (tester) async {
     await _open(tester, FixtureEngineApi(_fx));
-    await _ask(tester, 'Bought glue from Nobody Ltd for R100 including VAT');
+    await _ask(tester, 'Bought glue from Nobody Ltd for R100 including VAT, paid by EFT');
     expect(find.textContaining('There is no supplier called Nobody Ltd'), findsOneWidget);
   });
 

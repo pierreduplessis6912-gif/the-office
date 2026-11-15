@@ -304,7 +304,7 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
     if (!isName(args.supplier) || typeof cents !== "number" || !Number.isInteger(cents) || cents < 1 || cents > MAX_MODEL_AMOUNT_CENTS) return notUnderstood(env, member, text);
     if (vat !== "plus_vat" && vat !== "incl_vat" && vat !== "no_vat") return notUnderstood(env, member, text);          // VAT is never assumed
     if (!isName(args.description) || typeof args.category !== "string" || !(EXPENSE_CATEGORIES as readonly string[]).includes(args.category)) return notUnderstood(env, member, text);
-    if (typeof args.method !== "string" || !(EXPENSE_METHODS as readonly string[]).includes(args.method)) return notUnderstood(env, member, text);
+    if (typeof args.method !== "string" || !(EXPENSE_METHODS as readonly string[]).includes(args.method) || !saysMethod(text, args.method)) return notUnderstood(env, member, text);   // how it was paid is only what the sentence says, never a guess
     if (args.invoiceHeld !== undefined && typeof args.invoiceHeld !== "boolean") return notUnderstood(env, member, text);
     if (args.when !== undefined && args.when !== "today" && args.when !== "yesterday") return notUnderstood(env, member, text);
     const who = await resolveParty(env, member, (args.supplier as string).trim(), "supplier");
