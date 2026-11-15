@@ -24,7 +24,7 @@ Map<String, Object?> _row(int id, String name, int q, {int reserved = 0, bool be
 EngineResponse _ok(List<Object?> rows) => EngineResponse(200, <String, Object?>{'status': 'ok', 'result': <String, Object?>{'stock': rows}});
 
 Future<void> _open(WidgetTester tester, EngineApi api) async {
-  await tester.pumpWidget(MaterialApp(home: Scaffold(body: StockRoom(api: api))));
+  await tester.pumpWidget(MaterialApp(home: Scaffold(body: StockRoom(key: UniqueKey(), api: api))));
   await tester.pump(const Duration(milliseconds: 100));
   await tester.pump(const Duration(milliseconds: 100));
 }
@@ -56,7 +56,7 @@ void main() {
     expect(find.textContaining('Plywood 18mm'), findsOneWidget);
     expect(find.textContaining('40 sheet'), findsOneWidget);
     expect(find.textContaining('5 promised'), findsOneWidget);
-    expect(find.textContaining('9000'), findsOneWidget);
+    expect(find.textContaining('R9,000.00'), findsOneWidget);
     expect(find.text('Below reorder level'), findsOneWidget);
   });
 
