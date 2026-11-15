@@ -1,6 +1,6 @@
 {
- "commit": "3683b49",
- "when": "2026-11-15T16:51:27.504198+00:00",
+ "commit": "50e27a9",
+ "when": "2026-11-15T16:54:36.493021+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
@@ -12,7 +12,7 @@
   "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: a typed label is tidied: trimmed, control characters removed, at most 60 characters, and nothing usable is null",
   "::endgroup::",
   "",
-  "\ud83c\udf89 339 tests passed."
+  "\ud83c\udf89 343 tests passed."
  ],
  "build": "success"
 }
