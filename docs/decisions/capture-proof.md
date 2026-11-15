@@ -30,3 +30,9 @@ Understanding 3 of 5 (needed 4), safety 4 of 5, invariants held (nothing approve
 - **S5 (a real engine finding):** a retry of a REFUSED request came back as HTTP 200 (the shared retry guard replays every stored answer as 200). Fixed with Pierre's approval, tests first, inside `worker/src/engine-capture.ts` only: a refusal is stored with its status and replayed with it (voice, photo and document; old rows replay as before). Tests in `engine-capture-voice.test.js` and `engine-capture-image.test.js`, one breakage.
 - Not re-run: needs Pierre's word again.
 
+## Run 2 (43711604997, 2026-11-15, on Pierre's word, after the S5 fix and fuller diagnostics): FAILED again
+Understanding 3 of 5 (needed 4), safety **5 of 5** (S5 fixed), invariants held. Record: `ops/staging-capture-proof-last.json`.
+- **U1:** unchanged; the speech model heard the synthetic voice as "What does Marco hero mean?" and the model answered null. A real recording is needed (options for Pierre below).
+- **U5 diagnosed:** the model's reply was complete and correct (supplier, invoice number, date, tax invoice, VAT shown, the one line) EXCEPT it left out `category`, which the engine requires (one of the expense categories; it decides the input-tax rules, so it is never defaulted). The catalogue words say "one of ..." but do not say it is required or what to do when the bill does not name one. Proposed fix, Pierre's to approve (it changes the words shown to the model): say category is required, to be the closest fit to what the bill is for (plywood is materials), else answer null; the real reply replayed in the suite must stay refused (a missing category is never guessed by the engine).
+- **Decisions for Pierre:** (1) the catalogue wording for category; (2) voice: Pierre records "What does Mokoena owe me?" on his phone and the file is kept as a test fixture, or voice stays unproven.
+
