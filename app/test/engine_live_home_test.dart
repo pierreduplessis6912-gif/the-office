@@ -117,6 +117,17 @@ void main() {
     expect(find.byKey(const Key('quotes-refresh')), findsOneWidget);
   });
 
+  testWidgets('the More list opens the customers and suppliers', (tester) async {
+    await tester.pumpWidget(app());
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('More')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('more-parties')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const Key('parties-refresh')), findsOneWidget);
+  });
+
   testWidgets('signing out is the person\'s own button and calls back', (tester) async {
     var out = 0;
     await tester.pumpWidget(app(onSignOut: () => out++));

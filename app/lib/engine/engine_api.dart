@@ -58,6 +58,9 @@ abstract class EngineApi {
   /// The quotations that are not superseded (GET /engine/quotations). Read only.
   Future<EngineResponse> quotations();
 
+  /// The customers and suppliers (GET /engine/parties, optionally for one role). Read only.
+  Future<EngineResponse> parties({String? role});
+
   /// A sentence the person typed, read by the engine's interpreter: POST /engine/interpret. The engine answers a read, HOLDS a write (nothing is recorded until it is confirmed), or says it did not understand.
   Future<EngineResponse> interpret(String text);
 
@@ -194,6 +197,9 @@ class FixtureEngineApi implements EngineApi {
 
   @override
   Future<EngineResponse> quotations() async => fixtures['assistant-quotations'] ?? _missing;
+
+  @override
+  Future<EngineResponse> parties({String? role}) async => fixtures['assistant-parties'] ?? _missing;
 
   @override
   Future<EngineResponse> captureAudio(List<int> bytes, {required String idempotencyKey, String filename = 'note.m4a', String contentType = 'audio/m4a'}) async =>

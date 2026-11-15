@@ -109,6 +109,9 @@ class HttpEngineApi implements EngineApi {
   Future<EngineResponse> quotations() => _get('/engine/quotations');
 
   @override
+  Future<EngineResponse> parties({String? role}) => _get(role == null ? '/engine/parties' : '/engine/parties?role=${Uri.encodeQueryComponent(role)}');
+
+  @override
   Future<EngineResponse> confirm(int actionId) => _post('/actions/$actionId/confirm', <String, Object?>{});
 
   @override

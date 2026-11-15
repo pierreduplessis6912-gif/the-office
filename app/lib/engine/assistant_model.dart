@@ -427,3 +427,33 @@ List<AssistantQuote>? parseQuoteList(int status, Object? body) {
   }
   return rows;
 }
+
+/// One customer or supplier as the engine reports it.
+class AssistantParty {
+  final int id;
+  final String name;
+  final List<String> roles;
+  final String email;
+  final String phone;
+  const AssistantParty({required this.id, required this.name, required this.roles, required this.email, required this.phone});
+
+  bool get isCustomer => roles.contains('customer');
+}
+
+/// The parties the engine listed, or null when the answer cannot be read. A row without an id or a name is left out; nothing is guessed.
+List<AssistantParty>? parsePartyList(int status, Object? body) {
+  final b = _map(body);
+  if (status != 200 || b == null || b['status'] != 'ok') return null;
+  final r = _map(b['result']);
+  if (r == null || r['parties'] is! List) return null;
+  final rows = <AssistantParty>[];
+  for (final item in _list(r['parties'])) {
+    final m = _map(item);
+    final id = m == null ? null : _int(m['id']);
+    final name = m == null ? null : _text(m['name']);
+    if (m == null || id == null || name == null) continue;
+    final contact = _map(m['contact']);
+    rows.add(AssistantParty(id: id, name: name, roles: <String>[for (final x in _list(m['roles'])) if (_text(x) != null) _text(x)!], email: contact == null ? '' : (_text(contact['email']) ?? ''), phone: contact == null ? '' : (_text(contact['phone']) ?? '')));
+  }
+  return rows;
+}

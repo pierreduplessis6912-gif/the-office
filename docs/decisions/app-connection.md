@@ -68,3 +68,5 @@ Navigation (2026-11-15): four tabs (What is owed, Assistant, To approve, More); 
 More list, fourth entry: **Orders waiting for goods** (`orders_room.dart`, `GET /engine/purchase-orders?status=outstanding`): supplier, number, ordered and expected dates, total. Read only. Test `app/test/orders_room_test.dart`.
 
 More list, fifth entry: **Quotations** (`quotes_room.dart`, `GET /engine/quotations`): customer, number, issued and valid-until dates, open or accepted, total. Read only. Test `app/test/quotes_room_test.dart`.
+
+More list, sixth entry: **Customers and suppliers** (`parties_room.dart`, `GET /engine/parties`): name, role, contact. Tapping a customer shows what they owe invoice by invoice from the existing receivables read (this is the invoices screen: the engine has no read that lists every invoice, only per customer, so no backend change was made). Test `app/test/parties_room_test.dart`.
