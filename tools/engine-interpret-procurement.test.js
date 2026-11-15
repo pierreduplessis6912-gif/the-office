@@ -56,10 +56,16 @@ module.exports = kit.guard('engine interpret (procurement)', async ({ check }) =
     say(/Received 1 with a price/, JSON.stringify({ capability: 'goods.receive', arguments: { supplier: 'Hardware Hub', item: 'Screws 50mm', quantity: 1, unitPriceMinor: 1 } })),
     say(/Received 1 with a date/, JSON.stringify({ capability: 'goods.receive', arguments: { supplier: 'Hardware Hub', item: 'Screws 50mm', quantity: 1, receivedOn: '2020-01-01' } })),
     // supplier_payment.record
+    say(/Paid Timber Supplies R500 by EFT again/, call('supplier_payment.record', { supplier: 'Timber Supplies', amountCents: 50000, method: 'cash' })),
     say(/Paid Timber Supplies R500 by EFT/, call('supplier_payment.record', { supplier: 'Timber Supplies', amountCents: 50000, method: 'eft' })),
     say(/Paid Timber Supplies R500 cash/, call('supplier_payment.record', { supplier: 'Timber Supplies', amountCents: 50000, method: 'cash' })),
     say(/Paid Timber Supplies R500 and did not say how/, call('supplier_payment.record', { supplier: 'Timber Supplies', amountCents: 50000 })),
     say(/Paid Timber Supplies R500 by magic/, call('supplier_payment.record', { supplier: 'Timber Supplies', amountCents: 50000, method: 'magic' })),
+    say(/Paid Timber Supplies R500(?![ \w.,])/, call('supplier_payment.record', { supplier: 'Timber Supplies', amountCents: 50000, method: 'eft' })),   // REPLAY: the real model's own reply to this sentence in procurement model run 43704907826 (it invented "eft")
+    say(/Paid Timber Supplies R500 on the card/, call('supplier_payment.record', { supplier: 'Timber Supplies', amountCents: 50000, method: 'card' })),
+    say(/Paid Timber Supplies R500 by bank transfer/, call('supplier_payment.record', { supplier: 'Timber Supplies', amountCents: 50000, method: 'eft' })),
+    say(/Paid Timber Supplies R500 by cheque/, call('supplier_payment.record', { supplier: 'Timber Supplies', amountCents: 50000, method: 'cheque' })),
+    say(/Paid Timber Supplies R500 somehow/, call('supplier_payment.record', { supplier: 'Timber Supplies', amountCents: 50000, method: 'other' })),
     say(/Paid Timber Supplies nothing by EFT/, call('supplier_payment.record', { supplier: 'Timber Supplies', amountCents: 0, method: 'eft' })),
     say(/Paid Timber Supplies minus R500 by EFT/, call('supplier_payment.record', { supplier: 'Timber Supplies', amountCents: 50000, method: 'eft' })),
     say(/Paid Timber Supplies a bad reading by EFT/, call('supplier_payment.record', { supplier: 'Timber Supplies', amountCents: -50000, method: 'eft' })),
@@ -140,6 +146,10 @@ module.exports = kit.guard('engine interpret (procurement)', async ({ check }) =
   h = await heldPayload('Paid Timber Supplies R500 cash'); check(h && h.method === 'cash', 'the method the person said is carried');
   for (const [text, why] of [['Paid Timber Supplies R500 and did not say how', 'no method (asked, never defaulted)'], ['Paid Timber Supplies R500 by magic', 'a method the engine does not know'], ['Paid Timber Supplies nothing by EFT', 'an amount of zero'], ['Paid Timber Supplies minus R500 by EFT', 'a sentence that says minus'], ['Paid Timber Supplies a bad reading by EFT', 'a negative amount'], ['Paid Timber Supplies R5.005 by EFT', 'a fraction of a cent'], ['Paid Timber Supplies a fortune by EFT', 'an amount above the sanity rail'], ['Paid Timber Supplies five hundred by EFT', 'an amount that is words'], ['Paid R500 to nobody by EFT', 'no supplier'], ['Paid with extras', 'a bill number, a date and a currency the model was not given']]) {
     r = await interpret(text); check(status(r) === 422 && body(r).error === 'not_understood' && JSON.stringify(tables(r)) === NOT_UNDERSTOOD && noFacts(r), `${why} is not understood: only a capture and an observation`);
+  }
+  for (const [text, m, how] of [['Paid Timber Supplies R500 on the card', 'card', 'a card'], ['Paid Timber Supplies R500 by bank transfer', 'eft', 'a bank transfer'], ['Paid Timber Supplies R500 by cheque', 'cheque', 'a cheque']]) { h = await heldPayload(text); check(h && h.method === m, `${how} said in the sentence is carried as ${m}`); }
+  for (const [text, why] of [['Paid Timber Supplies R500', 'a sentence that never says how it was paid, even when the model supplies a method (the real model said "eft": procurement model run 43704907826, S11)'], ['Paid Timber Supplies R500 by EFT again', 'a method that is not the one the sentence says'], ['Paid Timber Supplies R500 somehow', 'the method "other" when the sentence does not say it']]) {
+    r = await interpret(text); check(status(r) === 422 && body(r).error === 'not_understood' && notHeld(r) && JSON.stringify(tables(r)) === NOT_UNDERSTOOD, `${why} is not understood: nothing held (got ${status(r)} ${body(r).error})`);
   }
   r = await interpret('Paid Nobody Ltd R500 by EFT'); check(status(r) === 404 && body(r).error === 'not_found' && notHeld(r), 'a supplier that does not exist is not_found');
   r = await interpret('Paid Mokoena R500 by EFT'); check(status(r) === 404 && body(r).error === 'not_found' && notHeld(r), 'a customer is not a supplier: not_found, nothing held');

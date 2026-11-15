@@ -23,6 +23,9 @@ const MAX_MODEL_AMOUNT_CENTS = 1_000_000_000;
 const ORDER_STATUS_WORDS = ["open", "part_received", "received", "cancelled", "outstanding"] as const;
 const BILL_STATUS_WORDS = ["unpaid", "part_paid", "paid", "voided", "outstanding"] as const;
 const SUPPLIER_PAY_METHODS = ["eft", "cash", "card", "cheque", "other"] as const;
+/** The words a sentence must contain for each way of paying a supplier. The engine reads the sentence too: a method the model supplies that the sentence never says is NOT understood (procurement model run 43704907826: "Paid X R500" came back with method eft, invented). "other" needs the word itself. */
+const SUPPLIER_PAY_WORDS: Record<string, RegExp> = { eft: /\b(?:eft|e\.f\.t|bank|transfer|online|swift)\b/i, cash: /\bcash\b/i, card: /\b(?:card|visa|mastercard|swipe|tapped?)\b/i, cheque: /\b(?:cheque|check)\b/i, other: /\bother\b/i };
+const saysMethod = (text: string, method: string): boolean => SUPPLIER_PAY_WORDS[method]?.test(text) === true;
 interface Entry { id: string; describes: string; arguments: Record<string, string>; permissions: readonly EnginePermission[]; readingOnly?: true }   // readingOnly: offered ONLY for words read from a picture the person said is that kind of document, never for a typed or spoken sentence
 
 function catalogue(): Entry[] {
@@ -434,7 +437,7 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
   if (chosen.id === "supplier_payment.record") {
     const cents = args.amountCents;
     if (!isName(args.supplier) || typeof cents !== "number" || !Number.isInteger(cents) || cents < 1 || cents > MAX_MODEL_AMOUNT_CENTS || saysNegative(text)) return notUnderstood(env, member, text);
-    if (typeof args.method !== "string" || !(SUPPLIER_PAY_METHODS as readonly string[]).includes(args.method)) return notUnderstood(env, member, text);   // how it was paid is never defaulted
+    if (typeof args.method !== "string" || !(SUPPLIER_PAY_METHODS as readonly string[]).includes(args.method) || !saysMethod(text, args.method)) return notUnderstood(env, member, text);   // how it was paid is never defaulted, and the sentence must say it
     const who = await resolveParty(env, member, (args.supplier as string).trim(), "supplier");
     if (who.kind === "refused") return { kind: "refused", understood, code: who.code, message: who.message };
     if (who.kind === "none") return { kind: "refused", understood, code: "not_found", message: `There is no supplier called ${(args.supplier as string).trim()}.` };

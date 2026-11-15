@@ -44,6 +44,8 @@ def main():
     setup("poC", "purchase_order.create", {"supplierId": ids["hub"], "orderedOn": "2026-10-02", "currency": "ZAR", "lines": [line("Screws box", 20000, "box", 900)], "lineItems": [{"lineNo": 1, "itemId": ids["scr"]}]})
     # one payable bill with no order: R1,150.00 owed to Timber Supplies
     setup("bill", "supplier_invoice.record", {"supplierId": ids["timber"], "invoicedOn": "2026-10-01", "dueOn": "2026-10-31", "currency": "ZAR", "supplierInvoiceNumber": "INV-1", "category": "materials", "taxInvoiceHeld": True, "lines": [{"description": "Delivery charge", "quantityMilli": 1000, "unitPriceMinor": 100000, "taxBp": 1500}]})
+    # a payable bill with no order for Hardware Hub too, R1,725.00 (so a payment to it is payable: the engine refuses a payment when nothing is owed; run 43704907826 U11 and U14 failed on this setup gap, not on the model)
+    setup("billHub", "supplier_invoice.record", {"supplierId": ids["hub"], "invoicedOn": "2026-10-01", "dueOn": "2026-10-31", "currency": "ZAR", "supplierInvoiceNumber": "HH-1", "category": "materials", "taxInvoiceHeld": True, "lines": [{"description": "Delivery charge", "quantityMilli": 1000, "unitPriceMinor": 150000, "taxBp": 1500}]})
     orders = (call("orders-read", "GET", "/engine/purchase-orders?status=any")[1].get("result") or {}).get("orders") or []
     by = lambda s: sorted([o for o in orders if o.get("supplierName") == s], key=lambda o: o.get("id") or 0)
     tim, hub = by("Timber Supplies"), by("Hardware Hub")
@@ -73,7 +75,7 @@ def main():
     pay = lambda sup, amt, method: exp_held("supplier_payment.record", lambda p: p.get("supplierId") == sup and p.get("amountMinor") == amt and p.get("method") == method and p.get("allocate") == "oldest_first")
     items = [
         U("U1", "What orders are still open with Timber Supplies?", lambda c, d, p: c == 200 and cap(d) == "purchase_orders.find" and len(res_of(d).get("orders") or []) == 2 and all(o.get("supplierName") == "Timber Supplies" for o in res_of(d).get("orders") or [])),
-        U("U2", "Has Hardware Hub billed us for anything yet?", lambda c, d, p: c == 200 and cap(d) == "supplier_invoices.find" and res_of(d).get("count") == 0),
+        U("U2", "Has Hardware Hub billed us for anything yet?", lambda c, d, p: c == 200 and cap(d) == "supplier_invoices.find" and res_of(d).get("count") == 1),
         U("U3", "What have we received that we have not been invoiced for?", lambda c, d, p: c == 200 and cap(d) == "goods.unbilled"),
         U("U4", "Which orders have we placed with suppliers?", lambda c, d, p: c == 200 and cap(d) == "purchase_orders.find" and len(res_of(d).get("orders") or []) >= 3),
         U("U5", "The screws from Hardware Hub just arrived, 8 boxes", exp_held("goods.receive", lambda p: p.get("orderId") == C and one_line(p, 1, 8000))),
