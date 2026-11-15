@@ -1,18 +1,27 @@
 {
- "commit": "7666632",
- "when": "2026-11-15T13:30:19.065036+00:00",
+ "commit": "736ef95",
+ "when": "2026-11-15T15:55:19.021428+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
- "tests": "success",
- "failing_lines": [],
+ "tests": "failure",
+ "failing_lines": [
+  "::group::\u274c /home/runner/work/the-office/the-office/app/test/stock_room_test.dart: each item shows what there is, what is promised, and a low-stock note (failed)",
+  "Expected: exactly one matching candidate",
+  "Actual: _TextContainingWidgetFinder:<Found 0 widgets with text containing 9000: []>",
+  "Which: means none were found but one was expected",
+  "::group::\u274c /home/runner/work/the-office/the-office/app/test/stock_room_test.dart: an empty list and an unreadable answer each say so, and refresh reads again (failed)",
+  "Expected: exactly one matching candidate",
+  "Actual: _KeyWidgetFinder:<Found 0 widgets with key [<'stock-error'>]: []>",
+  "Which: means none were found but one was expected"
+ ],
  "test_tail": [
   "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: the address to give an assistant is the API base plus /mcp, whatever slashes the base ends with",
   "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: the lines on a key say when it was made and used, in plain words",
   "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: a typed label is tidied: trimmed, control characters removed, at most 60 characters, and nothing usable is null",
   "::endgroup::",
   "",
-  "\ud83c\udf89 325 tests passed."
+  "::error::329 tests passed, 2 failed."
  ],
- "build": "success"
+ "build": "skipped"
 }
