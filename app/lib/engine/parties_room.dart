@@ -15,11 +15,11 @@ class PartiesRoom extends StatefulWidget {
 }
 
 class _PartiesRoomState extends State<PartiesRoom> {
-  List<AssistantParty> _rows = <AssistantParty>[];
+  List<PartyEntry> _rows = <PartyEntry>[];
   bool _loading = true;
   bool _failed = false;
 
-  AssistantParty? _open;
+  PartyEntry? _open;
   bool _owedLoading = false;
   SliceRead? _owed;
 
@@ -34,7 +34,7 @@ class _PartiesRoomState extends State<PartiesRoom> {
       _loading = true;
       _failed = false;
     });
-    List<AssistantParty>? rows;
+    List<PartyEntry>? rows;
     try {
       final response = await widget.api.parties();
       rows = parsePartyList(response.status, response.body);
@@ -43,13 +43,13 @@ class _PartiesRoomState extends State<PartiesRoom> {
     }
     if (!mounted) return;
     setState(() {
-      _rows = rows ?? <AssistantParty>[];
+      _rows = rows ?? <PartyEntry>[];
       _failed = rows == null;
       _loading = false;
     });
   }
 
-  Future<void> _show(AssistantParty p) async {
+  Future<void> _show(PartyEntry p) async {
     if (!p.isCustomer) return;
     setState(() {
       _open = p;
@@ -72,7 +72,7 @@ class _PartiesRoomState extends State<PartiesRoom> {
 
   static const _grey = TextStyle(fontSize: 12, color: Color(0xFF8A8A90));
 
-  Widget _row(AssistantParty p) {
+  Widget _row(PartyEntry p) {
     final role = p.isCustomer ? 'Customer' : (p.roles.contains('supplier') ? 'Supplier' : '');
     final contact = <String>[if (p.email.isNotEmpty) p.email, if (p.phone.isNotEmpty) p.phone].join(' · ');
     return Card(
@@ -95,7 +95,7 @@ class _PartiesRoomState extends State<PartiesRoom> {
     );
   }
 
-  Widget _detail(AssistantParty p) {
+  Widget _detail(PartyEntry p) {
     final read = _owed;
     Widget body;
     if (_owedLoading || read == null) {
