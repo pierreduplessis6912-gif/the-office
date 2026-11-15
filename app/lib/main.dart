@@ -24,6 +24,8 @@ import 'history_model.dart';
 import 'mcp_keys_model.dart';
 import 'mcp_created_model.dart';
 import 'customer_contact_model.dart';
+import 'engine/engine_live_home.dart';
+import 'engine/engine_mode.dart';
 import 'plans_link.dart';
 import 'refusal_view.dart';
 import 'reply_envelope.dart';
@@ -440,6 +442,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   String? _sessionToken;
   String? _userEmail;
   String? _userRole;
+  // Which kind of business the server says this is (engine or legacy), from GET /auth/me. Only an explicit engine answer opens the engine screen; unknown, an older server or a failed read keeps the existing app.
+  BusinessMode _businessMode = BusinessMode.unknown;
   bool get _isSignedIn => _sessionToken != null;
 
   @override
@@ -600,6 +604,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
             _sessionToken = token;
             _userEmail = data['email'] as String?;
             _userRole = data['role'] as String?;
+            _businessMode = businessModeFrom(data);
           });
           return;
         }
@@ -650,6 +655,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         _userEmail = email;
         _userRole = role;
       });
+      _loadBusinessMode();
       _loadEmberCounts();
     } catch (_) {
       _addMessage(MessageRole.office, 'Sign-in was cancelled or failed.');
@@ -667,7 +673,22 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       _sessionToken = null;
       _userEmail = null;
       _userRole = null;
+      _businessMode = BusinessMode.unknown;
     });
+  }
+
+  // After a fresh sign-in the callback carries no mode, so it is asked of the server. Any failure leaves the mode unknown, which is the existing app.
+  Future<void> _loadBusinessMode() async {
+    final token = _sessionToken;
+    if (token == null) return;
+    try {
+      final response = await http.get(Uri.parse('$officeApiBase/auth/me'), headers: {'Authorization': 'Bearer $token'});
+      if (response.statusCode != 200) return;
+      final mode = businessModeFrom(jsonDecode(response.body));
+      if (mounted && _sessionToken == token) setState(() => _businessMode = mode);
+    } catch (_) {
+      // unknown mode: the existing app
+    }
   }
 
   // Real feature 2026-07-27 — the one, shared helper every real HTTP
@@ -1459,6 +1480,9 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    if (_isSignedIn && showsEngineShell(_businessMode)) {
+      return EngineLiveHome(baseUrl: officeApiBase, sessionToken: _sessionToken!, onSignOut: _signOut);
+    }
     return Scaffold(
       // Real, direct fix: the persistent "THE OFFICE" title and a
       // full-opacity menu icon were still saying "here's the
