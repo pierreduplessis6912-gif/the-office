@@ -46,6 +46,9 @@ abstract class EngineApi {
   /// The expenses recorded: GET /engine/expenses (a read; an expense is recorded or voided only through a held proposal).
   Future<EngineResponse> expenses();
 
+  /// What the business has of each stock item (GET /engine/stock). Read only.
+  Future<EngineResponse> stock();
+
   /// A sentence the person typed, read by the engine's interpreter: POST /engine/interpret. The engine answers a read, HOLDS a write (nothing is recorded until it is confirmed), or says it did not understand.
   Future<EngineResponse> interpret(String text);
 
@@ -170,6 +173,9 @@ class FixtureEngineApi implements EngineApi {
 
   @override
   Future<EngineResponse> expenses() async => fixtures['assistant-expenses'] ?? _missing;
+
+  @override
+  Future<EngineResponse> stock() async => fixtures['assistant-stock'] ?? _missing;
 
   @override
   Future<EngineResponse> captureAudio(List<int> bytes, {required String idempotencyKey, String filename = 'note.m4a', String contentType = 'audio/m4a'}) async =>

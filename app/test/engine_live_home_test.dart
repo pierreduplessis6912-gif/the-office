@@ -71,6 +71,15 @@ void main() {
     expect(find.byKey(const Key('expenses-refresh')), findsOneWidget);
   });
 
+  testWidgets('the fifth room lists the stock', (tester) async {
+    await tester.pumpWidget(app());
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('Stock')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const Key('stock-refresh')), findsOneWidget);
+  });
+
   testWidgets('signing out is the person\'s own button and calls back', (tester) async {
     var out = 0;
     await tester.pumpWidget(app(onSignOut: () => out++));

@@ -301,3 +301,41 @@ AssistantOutcome parseDecision(int status, Object? body, {required bool confirme
   }
   return AssistantOutcome(ok: false, message: _text(b['message']) ?? _text(b['error']) ?? 'That was not possible.');
 }
+
+/// One stock item as the engine reports it. Quantities are in thousandths of the unit; the value is null when the person may not see money.
+class AssistantStockRow {
+  final int id;
+  final String name;
+  final String unit;
+  final int quantityMilli;
+  final int reservedMilli;
+  final int availableMilli;
+  final bool belowReorder;
+  final int? valueMinor;
+  const AssistantStockRow({required this.id, required this.name, required this.unit, required this.quantityMilli, required this.reservedMilli, required this.availableMilli, required this.belowReorder, required this.valueMinor});
+}
+
+/// A quantity in thousandths as a plain number: 12000 is "12", 2500 is "2.5".
+String quantityFromMilli(int milli) {
+  final whole = milli ~/ 1000;
+  final frac = (milli.abs() % 1000).toString().padLeft(3, '0').replaceFirst(RegExp(r'0+$'), '');
+  final sign = milli < 0 && whole == 0 ? '-' : '';
+  return frac.isEmpty ? '$whole' : '$sign$whole.$frac';
+}
+
+/// The stock the engine listed, or null when the answer cannot be read. A row without its figures is left out; nothing is guessed.
+List<AssistantStockRow>? parseStockList(int status, Object? body) {
+  final b = _map(body);
+  if (status != 200 || b == null || b['status'] != 'ok') return null;
+  final r = _map(b['result']);
+  if (r == null || r['stock'] is! List) return null;
+  final rows = <AssistantStockRow>[];
+  for (final item in _list(r['stock'])) {
+    final m = _map(item);
+    final id = m == null ? null : _int(m['itemId']);
+    final q = m == null ? null : _int(m['quantityMilli']);
+    if (m == null || id == null || q == null) continue;
+    rows.add(AssistantStockRow(id: id, name: _text(m['name']) ?? 'Item', unit: _text(m['unit']) ?? '', quantityMilli: q, reservedMilli: _int(m['reservedMilli']) ?? 0, availableMilli: _int(m['availableMilli']) ?? q, belowReorder: m['belowReorder'] == true, valueMinor: _int(m['valueMinor'])));
+  }
+  return rows;
+}
