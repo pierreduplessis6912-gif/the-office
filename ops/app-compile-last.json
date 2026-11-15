@@ -1,17 +1,18 @@
 {
- "commit": "2f67ef3",
- "when": "2026-11-15T17:16:46.891435+00:00",
- "analyze": "failure",
- "analyze_errors": 5,
- "analyze_error_lines": [
-  "error \u2022 The name 'AssistantParty' is already defined. Try renaming one of the declarations \u2022 lib/engine/assistant_model.dart:432:7 \u2022 duplicate_definition",
-  "error \u2022 The argument type 'List<String>' can't be assigned to the parameter type 'String'.  \u2022 lib/engine/assistant_model.dart:456:56 \u2022 argument_type_not_assignable",
-  "error \u2022 The named parameter 'email' isn't defined. Try correcting the name to an existing named parameter's name, or defining a named parameter with the name 'email' \u2022 lib/engine/assistant_model.dart:",
-  "error \u2022 The named parameter 'phone' isn't defined. Try correcting the name to an existing named parameter's name, or defining a named parameter with the name 'phone' \u2022 lib/engine/assistant_model.dart:",
-  "error \u2022 A value of type 'List<AssistantParty>? (where AssistantParty is defined in /home/runner/work/the-office/the-office/app/lib/engine/assistant_model.dart)' can't be assigned to a variable of type"
- ],
- "tests": "skipped",
+ "commit": "36b7527",
+ "when": "2026-11-15T17:19:28.552279+00:00",
+ "analyze": "success",
+ "analyze_errors": 0,
+ "analyze_error_lines": [],
+ "tests": "success",
  "failing_lines": [],
- "test_tail": [],
- "build": "skipped"
+ "test_tail": [
+  "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: the address to give an assistant is the API base plus /mcp, whatever slashes the base ends with",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: the lines on a key say when it was made and used, in plain words",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: a typed label is tidied: trimmed, control characters removed, at most 60 characters, and nothing usable is null",
+  "::endgroup::",
+  "",
+  "\ud83c\udf89 349 tests passed."
+ ],
+ "build": "success"
 }
