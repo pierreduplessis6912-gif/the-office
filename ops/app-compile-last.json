@@ -1,15 +1,15 @@
 {
- "commit": "607ed17",
- "when": "2026-11-15T16:08:55.630900+00:00",
+ "commit": "1a36e2f",
+ "when": "2026-11-15T16:32:51.085947+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
  "tests": "success",
  "failing_lines": [],
  "test_tail": [
-  "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: a typed label is tidied: trimmed, control characters removed, at most 60 characters, and nothing usable is null",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: anything open on top (a dialog, a pushed page) is closed when access ends",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: the screen is announced to a screen reader (live region) and has no way to continue except signing in",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/slice_model_test.dart: the journey an ambiguous name, a refusal and a missing customer end where they should",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/slice_model_test.dart: the journey a transition that does not make sense from here changes nothing",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/slice_model_test.dart: the journey a repeated approval cannot record twice from the screen",
   "::endgroup::",
   "",
   "\ud83c\udf89 335 tests passed."
