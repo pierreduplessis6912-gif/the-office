@@ -64,3 +64,5 @@ Fifth room, **Stock** (`stock_room.dart`, `GET /engine/stock`): quantity, what i
 Sixth room, **Bills** (`bills_room.dart`, `GET /engine/supplier-invoices?status=outstanding`): supplier, invoice number, due date, owed and total. Read only. Test `app/test/bills_room_test.dart`.
 
 Navigation (2026-11-15): four tabs (What is owed, Assistant, To approve, More); More lists Expenses, Stock and Bills to pay, each with a back button. New rooms go in the More list.
+
+More list, fourth entry: **Orders waiting for goods** (`orders_room.dart`, `GET /engine/purchase-orders?status=outstanding`): supplier, number, ordered and expected dates, total. Read only. Test `app/test/orders_room_test.dart`.

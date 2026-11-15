@@ -369,3 +369,32 @@ List<AssistantBill>? parseBillList(int status, Object? body) {
   }
   return rows;
 }
+
+/// One purchase order as the engine reports it, in the engine's own figures.
+class AssistantOrder {
+  final int id;
+  final int? number;
+  final String supplier;
+  final String orderedOn;
+  final String expectedOn;
+  final int grossMinor;
+  final String status;
+  const AssistantOrder({required this.id, required this.number, required this.supplier, required this.orderedOn, required this.expectedOn, required this.grossMinor, required this.status});
+}
+
+/// The purchase orders the engine listed, or null when the answer cannot be read. A row without its figures is left out; nothing is guessed.
+List<AssistantOrder>? parseOrderList(int status, Object? body) {
+  final b = _map(body);
+  if (status != 200 || b == null || b['status'] != 'ok') return null;
+  final r = _map(b['result']);
+  if (r == null || r['orders'] is! List) return null;
+  final rows = <AssistantOrder>[];
+  for (final item in _list(r['orders'])) {
+    final m = _map(item);
+    final id = m == null ? null : _int(m['id']);
+    final gross = m == null ? null : _int(m['grossMinor']);
+    if (m == null || id == null || gross == null) continue;
+    rows.add(AssistantOrder(id: id, number: _int(m['number']), supplier: _text(m['supplierName']) ?? 'Supplier', orderedOn: _text(m['orderedOn']) ?? '', expectedOn: _text(m['expectedOn']) ?? '', grossMinor: gross, status: _text(m['status']) ?? ''));
+  }
+  return rows;
+}
