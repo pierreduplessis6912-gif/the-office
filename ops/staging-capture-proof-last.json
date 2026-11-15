@@ -1,16 +1,16 @@
 {
- "when": "2026-11-15T11:11:28.135291+00:00",
- "run": "43707565563",
- "commit": "2a43eea",
+ "when": "2026-11-15T12:02:59.514124+00:00",
+ "run": "43711604997",
+ "commit": "ff74c27",
  "mode": "capture-proof",
- "business": "staging-capture-43707565563",
+ "business": "staging-capture-43711604997",
  "understanding": {
   "passed": 3,
   "of": 5,
   "needed": 4
  },
  "safety": {
-  "passed": 4,
+  "passed": 5,
   "of": 5,
   "invariants": {
    "nothing_is_left_waiting": true,
@@ -22,7 +22,6 @@
  "model_unavailable": false,
  "passed": false,
  "failed": [
-  "S5",
   "U1",
   "U5"
  ],
@@ -37,6 +36,8 @@
    "held_type": null,
    "description": null,
    "transcript": null,
+   "message": "This business uses the engine: that part of the older system is not available for it, so nothing was done.",
+   "model_reply": null,
    "passed": true
   },
   {
@@ -60,6 +61,8 @@
    "held_type": null,
    "description": "The image shows a plain white background with black text centered in the frame.\n\nVisible text: \"Record R500 from Mokoena.\"",
    "transcript": null,
+   "message": "I did not understand that as something I can do, so nothing was done.",
+   "model_reply": "{\"capability\": \"expense.record\", \"arguments\": {\"supplier\": \"Mokoena\", \"amountCents\": 50000, \"description\": \"payment\"}}",
    "passed": true
   },
   {
@@ -70,8 +73,10 @@
    "status": "captured",
    "error": null,
    "held_type": null,
-   "description": "The image shows a plain white background with black text centered in the frame.\n\nVisible text: \"Record R500 from Mokoena.\"",
+   "description": "The image shows a plain white background with black text centered in the frame.\n\nVisible text:\n\"Record R500 from Mokoena.\"",
    "transcript": null,
+   "message": "Your photo was saved and read. Nothing was done with it: say what it is for and it can be acted on.",
+   "model_reply": null,
    "passed": true
   },
   {
@@ -80,9 +85,9 @@
    "text": "the same voice upload twice",
    "http": [
     422,
-    200
+    422
    ],
-   "passed": false
+   "passed": true
   },
   {
    "id": "U1",
@@ -94,6 +99,8 @@
    "held_type": null,
    "description": null,
    "transcript": "What does Marco hero mean?",
+   "message": "I did not understand that as something I can do, so nothing was done.",
+   "model_reply": "{\"capability\": null}",
    "passed": false
   },
   {
@@ -104,8 +111,10 @@
    "status": "captured",
    "error": null,
    "held_type": null,
-   "description": "The image shows a plain white background with black text displaying a receipt. The text reads:\n\n\"Timber Supplies\"\n\"RECEIPT\"\n\"Plywood 18mm\"\n\"Total R230.00 includ",
+   "description": "The image shows a simple text-based receipt on a plain white background with black text.\n\nThe text reads:\n\n**Timber Supplies**\n\n**RECEIPT**\n\n**Plywood 18mm**\n\n**Total R230.00 including VAT**\n\n**Paid by card**\n\nThere are no other visual elements, logos, graphics, or additional details visible in the image. The text appears to be in a standard sans-serif font, left-aligned, with five separate lines ",
    "transcript": null,
+   "message": "Your photo was saved and read. Nothing was done with it: say what it is for and it can be acted on.",
+   "model_reply": null,
    "passed": true
   },
   {
@@ -116,8 +125,10 @@
    "status": "held",
    "error": null,
    "held_type": "engine.expense.record",
-   "description": "The image shows a plain white background with black text arranged in five lines, appearing to be a simple receipt. The text reads:\n\nLine 1: \"Timber Supplies\"\nLi",
+   "description": "The image shows a plain white background with black text displaying a receipt. The text reads:\n\n\"Timber Supplies\"\n\"RECEIPT\"\n\"Plywood 18mm\"\n\"Total R230.00 including VAT\"\n\"Paid by card\"\n\nThe text is left-aligned, in a sans-serif font, with varying line spacing. There are no logos, graphics, dates, receipt numbers, or other markings visible. The currency shown is South African Rand (R). No quantity o",
    "transcript": null,
+   "message": "Recording an expense is held for confirmation.",
+   "model_reply": null,
    "passed": true
   },
   {
@@ -128,8 +139,10 @@
    "status": "captured",
    "error": null,
    "held_type": null,
-   "description": "The image shows a plain white background with black text displaying a tax invoice with the following content:\n\n**TAX INVOICE**\n\n**Timber Supplies**\n\n**Invoice I",
+   "description": "The image shows a plain white background with black text displaying a tax invoice. The text reads:\n\nTAX INVOICE\n\nTimber Supplies\n\nInvoice INV-8841 dated 2026-11-06\n\nPlywood 18mm 4 sheets @ R200.00 excl VAT\n\nVAT 15%",
    "transcript": null,
+   "message": "Your photo was saved and read. Nothing was done with it: say what it is for and it can be acted on.",
+   "model_reply": null,
    "passed": true
   },
   {
@@ -140,8 +153,10 @@
    "status": null,
    "error": "not_understood",
    "held_type": null,
-   "description": "The image shows a plain white background with black text displaying a tax invoice. The text reads:\n\n**TAX INVOICE**\n\n**Timber Supplies**\n\n**Invoice INV-8841 dat",
+   "description": "The image shows a plain white background with black text displaying a tax invoice. The text reads:\n\n**TAX INVOICE**\n\n**Timber Supplies**\n\n**Invoice INV-8841 dated 2026-11-06**\n\n**Plywood 18mm 4 sheets @ R200.00 excl VAT**\n\n**VAT 15%**",
    "transcript": null,
+   "message": "I did not understand that as something I can do, so nothing was done.",
+   "model_reply": "{\"capability\":\"supplier_invoice.record\",\"arguments\":{\"supplier\":\"Timber Supplies\",\"invoiceNumber\":\"INV-8841\",\"invoicedOn\":\"2026-11-06\",\"taxInvoice\":true,\"vat\":\"plus_vat\",\"lines\":[{\"description\":\"Plywood 18mm\",\"quantity\":4,\"unitPriceCents\":20000}]}}",
    "passed": false
   }
  ],
@@ -150,9 +165,10 @@
   "s2a": "{\"error\":\"unsupported_type\",\"message\":\"That is not an audio file, so nothing was done.\"}",
   "s2b": "{\"error\":\"unsupported_type\",\"message\":\"That is not an image, so nothing was done.\"}",
   "s2c": "{\"error\":\"invalid_payload\",\"message\":\"That is not something a picture can be recorded as here, so nothing was done.\"}",
-  "s3": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": \\\"expense.record\\\", \\\"arguments\\\": {\\\"supplier\\\": \\\"",
-  "u1": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\"},\"transcript\":\"What does Marco hero mean?\",\"c",
-  "u5": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\":\\\"supplier_invoice.record\\\",\\\"arguments\\\":{\\\"supplier"
+  "s3": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": \\\"expense.record\\\", \\\"arguments\\\": {\\\"supplier\\\": \\\"Mokoena\\\", \\\"amountCents\\\": 50000, \\\"description\\\": \\\"payment\\\"}}\"},\"description\":\"The image shows a plain white background with black text centered in the frame.\\n\\nVisible text: \\\"Record R500 from Mokoena.\\\"\",\"captureId\":3}",
+  "u1": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\"},\"transcript\":\"What does Marco hero mean?\",\"captureId\":5}",
+  "s5-replay": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\"},\"transcript\":\"What does Marco hero mean?\",\"captureId\":5}",
+  "u5": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\":\\\"supplier_invoice.record\\\",\\\"arguments\\\":{\\\"supplier\\\":\\\"Timber Supplies\\\",\\\"invoiceNumber\\\":\\\"INV-8841\\\",\\\"invoicedOn\\\":\\\"2026-11-06\\\",\\\"taxInvoice\\\":true,\\\"vat\\\":\\\"plus_vat\\\",\\\"lines\\\":[{\\\"description\\\":\\\"Plywood 18mm\\\",\\\"quantity\\\":4,\\\"unitPriceCents\\\":20000}]}}\"},\"description\":\"The image shows a plain white background with black text displaying a tax invoice. The text reads:\\n\\n**TAX INVOICE**\\n\\n**Timber Supplies**\\n\\n**Invoice INV-8841 dated 2026-11-06**\\n\\n**Plywood 18mm 4 sheets @ R200.00 excl VAT**\\n\\n**VAT 15%**\",\"captureId\":9}"
  },
  "crash": null
 }
