@@ -119,3 +119,8 @@ After G2, a real-model run to check the sentences for the new reads is a separat
 - Migration 0006 edited in place again (source kind `manual`): still never deployed anywhere.
 - Tests: tools/engine-gl-books.test.js (36 checks) and 11 more breakages.
 
+## G4a as built (2026-11-16): the reads
+- worker/src/engine/ledger-reports.ts (reads only): trial balance (to a date), an account's ledger with a running balance and the fact behind each line, profit and loss for a period, balance sheet (assets = liabilities + equity + profit earned to date; the books are not yet closed off year by year), the suspense report, and the reconciliation of receivables, payables and inventory to the customer, supplier and stock records (a difference is reported by account and amount, not hidden and not an integrity failure, because facts that pre-date the ledger can legitimately differ).
+- Six read capabilities `ledger.*`, permission `ledger.read` for the owner and whoever may know profit (`can_know_profit` is now mapped; it was in the unmapped list), HTTP `GET /engine/ledger/...`. Tests: tools/engine-gl-reports.test.js (23 checks, figures worked out by hand) and 8 more breakages.
+- Still to do in G4: assistant sentences (interpreter) and an app room.
+

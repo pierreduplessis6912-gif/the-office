@@ -94,6 +94,16 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
     const iid = q("itemId");
     return answer(await invokeRead(env, member, "stock.valuation", { ...(q("asOf") !== null ? { asOf: q("asOf") } : {}), ...(iid !== null ? { itemId: /^\d+$/.test(iid) ? Number(iid) : iid } : {}) }));
   }
+  // The books (G4, read-only): each path is one read capability, its query parameters passed through as given (the capability checks them).
+  const LEDGER_READS: Record<string, { id: string; params: string[] }> = {
+    "/engine/ledger/trial-balance": { id: "ledger.trial_balance", params: ["asOf"] }, "/engine/ledger/account": { id: "ledger.account", params: ["code", "from", "to"] },
+    "/engine/ledger/profit-and-loss": { id: "ledger.profit_and_loss", params: ["from", "to"] }, "/engine/ledger/balance-sheet": { id: "ledger.balance_sheet", params: ["asOf"] },
+    "/engine/ledger/suspense": { id: "ledger.suspense", params: [] }, "/engine/ledger/reconciliation": { id: "ledger.reconciliation", params: [] },
+  };
+  if (request.method === "GET" && LEDGER_READS[path]) {
+    const spec = LEDGER_READS[path];
+    return answer(await invokeRead(env, member, spec.id, Object.fromEntries(spec.params.filter((k) => url.searchParams.get(k) !== null).map((k) => [k, url.searchParams.get(k)]))));
+  }
   if (request.method === "GET" && path === "/engine/stock/rollforward") {
     const q = (k: string) => url.searchParams.get(k);
     return answer(await invokeRead(env, member, "stock.rollforward", { ...(q("from") !== null ? { from: q("from") } : {}), ...(q("to") !== null ? { to: q("to") } : {}) }));

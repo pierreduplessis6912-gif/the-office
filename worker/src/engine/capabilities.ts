@@ -8,6 +8,7 @@ import { EngineError } from "./errors";
 import * as facts from "./facts";
 import { isEffective, outstandingForDocument, outstandingForParty } from "./ledger";
 import { issueDraft, readDraft } from "./drafts";
+import * as reports from "./ledger-reports";
 import { booksLockDate, checkJournalInput, planJournal, planJournalReversal, type JournalInput } from "./journal";
 import { RECORD_KINDS, recordView, versionOf, type RecordKind, type ViewerContext } from "./records";
 import type { EnginePermission } from "./permissions";
@@ -1270,7 +1271,30 @@ export const stockRollforwardRead: ReadCapability<{ from: string; to: string }> 
   async run(env, _viewer, v) { return { ...(await rollforward(env, v.from, v.to)), notes: ["Opening plus the value of every kind of movement equals closing, and closing is also the valuation at the end: the two must agree, and the read says whether they do."], derivedBy: "stock.rollforward" }; },
 };
 
-export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
+// ---- the books: read-only (G4). Who may read: the owner, and whoever may know profit. ---------------------------------------------------------------------------------------------------------------------------
+const dateParam = (params: Record<string, unknown>, key: string, required: boolean): Checked<string | null> => { if (params[key] === undefined) return required ? { ok: false, reason: `${key} is required` } : { ok: true, value: null }; return checkDate(params[key], key); };
+const bookRead = <P>(id: string, label: string, keys: string[], parse: (p: Record<string, unknown>) => Checked<P>, run: (env: Env, v: P) => Promise<unknown>): ReadCapability<P> => ({
+  id, label, permissions: ["ledger.read"],
+  validate(params) { if (!isObj(params)) return { ok: false, reason: "the request must be an object" }; const s = stray(params, keys); if (s) return { ok: false, reason: `${s} is not a field of this request` }; return parse(params); },
+  async run(env, _viewer, v) { return { ...(await run(env, v) as object), derivedBy: "ledger-reports" }; },
+});
+export const ledgerTrialBalance = bookRead<{ asOf: string | null }>("ledger.trial_balance", "The trial balance", ["asOf"], (p) => { const d = dateParam(p, "asOf", false); return d.ok ? { ok: true, value: { asOf: d.value } } : d; }, (env, v) => reports.trialBalanceAsAt(env, v.asOf));
+export const ledgerAccount = bookRead<{ code: string; from: string | null; to: string | null }>("ledger.account", "One account's ledger", ["code", "from", "to"], (p) => {
+  if (typeof p.code !== "string" || !/^[0-9]{4}$/.test(p.code)) return { ok: false, reason: "code must be an account code such as 1000" };
+  const f = dateParam(p, "from", false); if (!f.ok) return f; const t = dateParam(p, "to", false); if (!t.ok) return t;
+  if (f.value && t.value && t.value < f.value) return { ok: false, reason: "to cannot be before from" };
+  return { ok: true, value: { code: p.code, from: f.value, to: t.value } };
+}, async (env, v) => { const r = await reports.accountLedger(env, v.code, v.from, v.to); if (!r) throw new EngineError("not_found", `There is no account ${v.code}.`); return r; });
+export const ledgerProfitAndLoss = bookRead<{ from: string; to: string }>("ledger.profit_and_loss", "Profit and loss", ["from", "to"], (p) => {
+  const f = dateParam(p, "from", true), t = dateParam(p, "to", true); if (!f.ok) return f; if (!t.ok) return t;
+  if ((t.value as string) < (f.value as string)) return { ok: false, reason: "to cannot be before from" };
+  return { ok: true, value: { from: f.value as string, to: t.value as string } };
+}, (env, v) => reports.profitAndLoss(env, v.from, v.to));
+export const ledgerBalanceSheet = bookRead<{ asOf: string }>("ledger.balance_sheet", "The balance sheet", ["asOf"], (p) => { const d = dateParam(p, "asOf", true); return d.ok ? { ok: true, value: { asOf: d.value as string } } : d; }, (env, v) => reports.balanceSheet(env, v.asOf));
+export const ledgerSuspense = bookRead<Record<string, never>>("ledger.suspense", "What is in suspense", [], () => ({ ok: true, value: {} }), (env) => reports.suspenseReport(env));
+export const ledgerReconciliation = bookRead<Record<string, never>>("ledger.reconciliation", "Control accounts against their records", [], () => ({ ok: true, value: {} }), (env) => reports.reconciliation(env));
+
+export const READS: readonly ReadCapability<any>[] = [ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({

@@ -90,6 +90,12 @@ const HINTS: Record<string, string> = {
   "tax_lock.set": "payload {lockDate}: lock the tax period up to a date (it only moves forward).",
   "books_lock.set": "payload {lockDate, reason?}: lock the books up to a date: nothing can be posted on or before it. Moving it back (unlocking) needs a reason.",
   "journal.post": "payload {date, kind: manual | opening, reason, lines: [{account: code, debitMinor | creditMinor}]}: a balanced manual journal (an accrual, a prepayment, depreciation) or the opening balances. Owner only. Accounts the engine keeps from invoices, bills and stock cannot be journalled into.",
+  "ledger.trial_balance": "params {asOf?: date}: every account with its debits and credits to a date, and whether the books balance.",
+  "ledger.account": "params {code, from?, to?}: one account's entries in date order with a running balance, each traced to the fact that caused it.",
+  "ledger.profit_and_loss": "params {from, to: dates}: income, cost of sales, gross profit, expenses and profit for a period, by account.",
+  "ledger.balance_sheet": "params {asOf: date}: assets, liabilities, equity and the profit earned to the date, and whether they balance.",
+  "ledger.suspense": "params none: what the engine could not place, which sits in suspense until it is journalled where it belongs.",
+  "ledger.reconciliation": "params none: the receivables, payables and inventory accounts against what the customer, supplier and stock records say, and any difference.",
   "journal.reverse": "payload {journalEventId, date, reason}: turn a manual journal round with a reversing entry.",
 };
 

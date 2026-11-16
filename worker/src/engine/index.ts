@@ -29,4 +29,5 @@ import * as purchasing from "./purchasing";
 import * as bills from "./bills";
 import * as stock from "./stock";
 import * as journal from "./journal";
-export { boundary, permissions, drafts, records, operations, capabilities, parties, quotations, credits, business, config, expenses, purchasing, bills, stock, journal };
+import * as ledgerReports from "./ledger-reports";
+export { boundary, permissions, drafts, records, operations, capabilities, parties, quotations, credits, business, config, expenses, purchasing, bills, stock, journal, ledgerReports };
