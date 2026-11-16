@@ -2,7 +2,7 @@
 // exactly what the form sends is HELD (nothing recorded), becomes a customer/supplier only on approval, and a refusal carries the engine's own reason for the form to show.
 const kit = require('./engine-kit.js');
 
-module.exports = kit.guard('engine form payloads (F1)', async ({ check }) => {
+module.exports = kit.guard('engine form payloads (F1, F2)', async ({ check }) => {
   const AV = [...kit.ALL_CAPABILITIES, 'party.create', 'parties.find'];
   const run = (spec) => kit.route({ env: { BUSINESS_ID: 'eng-a' }, seed: kit.seedReceivables(AV), ...spec });
   const body = (r) => (r.result && r.result.body) || {};
@@ -33,5 +33,21 @@ module.exports = kit.guard('engine form payloads (F1)', async ({ check }) => {
   check(status(r) >= 400, 'no role is refused');
   r = await run(send('installer', small));
   check(status(r) >= 400 && added(r, 'eng_party') === 0, `someone who may not add parties is refused (${status(r)})`);
+
+  // ---- F2: record a payment received -------------------------------------------------------------------------------------------------------------------------------------------------------
+  const payForm = { partyId: 1, amountMinor: 45050, currency: 'ZAR', occurredOn: '2026-11-16', method: 'eft', allocate: 'oldest_first' };
+  const pay = (role, payload) => ({ method: 'POST', path: '/engine/proposals', role, body: { capability: 'payment.record', payload, transcript: 'Added from the Record a payment form', source: 'app' } });
+  r = await run(pay('accountant', payForm));
+  check(status(r) === 200 && body(r).status === 'held' && added(r, 'eng_money_movement') === 0, 'the payment form\'s payload is held and records nothing');
+  r = await run({ before: [pay('accountant', payForm)], method: 'POST', path: '/actions/1/confirm', role: 'accountant', body: {} });
+  check(status(r) === 200 && added(r, 'eng_money_movement') === 1 && added(r, 'eng_allocation') === 1, `approving it records the payment and settles the oldest invoice (${status(r)})`);
+  r = await run(pay('accountant', { ...payForm, bankAccountId: 999 }));
+  check(status(r) >= 400 && /not one of the business's bank accounts/.test(String(body(r).message)), `a bank account that does not exist is refused with the engine's reason (${body(r).message})`);
+  r = await run(pay('accountant', { ...payForm, method: 'cash', bankAccountId: 1 }));
+  check(status(r) >= 400, 'cash naming a bank account is refused');
+  r = await run(pay('accountant', { ...payForm, amountMinor: 0 }));
+  check(status(r) >= 400, 'an amount of nothing is refused');
+  r = await run(pay('installer', payForm));
+  check(status(r) >= 400 && added(r, 'eng_money_movement') === 0, 'someone who may not record payments is refused');
 });
 if (require.main === module) kit.standalone(module.exports);

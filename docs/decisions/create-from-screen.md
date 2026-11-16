@@ -1,4 +1,4 @@
-> **Status:** approved 2026-11-16 (Pierre: "Yes"); F1 built, F2 and F3 not yet. **Verified:** not yet. **Owns:** none.
+> **Status:** approved 2026-11-16 (Pierre: "Yes"); F1 and F2 built, F3 not yet. **Verified:** not yet. **Owns:** none.
 
 # Create from the screen: forms that propose, never write
 
@@ -28,4 +28,9 @@ App only: `propose`, one small form widget per form (validated on screen for the
 - App: `EngineApi.propose(capability, payload, transcript)` (HTTP posts to `/engine/proposals`; the fixture client records what was proposed). `PartyForm` (name, person or business, customer and/or supplier, optional phone and email) sends the exact `party.create` payload, shows "Sent for approval" or the engine's own reason, and keeps what was typed on a refusal. A "+" in the customers and suppliers room opens it; closing it reads the list again. The app refuses only an empty name or no role.
 - Engine: no change. `tools/engine-form-payloads.test.js` pins that the form's payload is held (nothing recorded), recorded on approval, and refused with the engine's own reason for a used name, a blank name, no role, or a role that may not add parties.
 - Umbrella 11775/11775; the app's compile check and Dart tests are proved by CI.
-- Next: F2 (payment received), F3 (expense).
+- Next: F3 (expense).
+
+## F2 as built (2026-11-16): record a payment received
+- `PaymentForm` behind a "+" (key `invoices-pay`) in the Invoices room. Customer picked from the customers list; it shows what they owe from the engine's own receivables figure; amount typed in rand becomes exact cents (`randToMinor`, never rounded or guessed); date prefilled with today; method; bank account asked only when there is more than one and the method is not cash; oldest-first switch. It proposes `payment.record` and never writes; the engine's own refusal reason is shown. A customer with no invoices is refused on screen (no currency is guessed).
+- Proof: Dart `money_input_test`, `payment_form_test`; engine `engine-form-payloads` (15) covers the payload held, approved, bad account, cash with account, zero amount, wrong role.
+- Also fixed: `scheduleJob` (mcp-changes.ts) read the SAST-shifted clock with local getters, so under a SAST process timezone it double-shifted and refused "today" after 22:00; it now reads UTC getters.

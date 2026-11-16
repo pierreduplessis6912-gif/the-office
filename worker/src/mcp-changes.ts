@@ -94,9 +94,9 @@ export async function scheduleJob(env: Env, keyId: string, input: { job_id: unkn
   const date = input.date;
   if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`)) || new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date) return refuse("date must be a real date, YYYY-MM-DD.");
   const now = nowInBusinessTimezone();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const today = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`; // the helper already shifted the clock to SAST: read it as UTC, never in the process timezone
   if (date < today) return refuse("A job cannot be scheduled in the past.");
-  if (date > `${now.getFullYear() + 2}-12-31`) return refuse("That date is too far ahead.");
+  if (date > `${now.getUTCFullYear() + 2}-12-31`) return refuse("That date is too far ahead.");
   const job = await env.OFFICE_DB.prepare("SELECT id, scheduled_date, scheduled_date_raw FROM job_scopes WHERE id = ?").bind(input.job_id).first<{ id: number; scheduled_date: string | null; scheduled_date_raw: string | null }>();
   if (!job) return refuse("That job was not found.", "not_found");
   if (job.scheduled_date === date) return { ok: true, data: { jobId: job.id, scheduledDate: date, note: "It was already scheduled for that date." } };
