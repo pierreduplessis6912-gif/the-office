@@ -115,6 +115,9 @@ class HttpEngineApi implements EngineApi {
   Future<EngineResponse> reconciliation() => _get('/engine/ledger/reconciliation');
 
   @override
+  Future<EngineResponse> years() => _get('/engine/ledger/years');
+
+  @override
   Future<EngineResponse> bankReconciliation() => _get('/engine/ledger/bank-reconciliation');
 
   @override

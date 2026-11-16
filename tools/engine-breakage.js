@@ -618,6 +618,13 @@ const MUTATIONS = [
   { name: 'year close: the year-end can move while a year is closed', suite: 'engine-year-close.test.js', file: 'worker/src/engine/facts.ts', find: 'if ((await closedYears(tx)).length > 0) throw', replace: 'if (false) throw' },
   { name: 'year close: the verifier ignores a profit and loss account that does not net to nothing', suite: 'engine-year-close.test.js', file: 'worker/src/engine/periods.ts', find: 'GROUP BY a.id HAVING n <> 0", y.start, y.end))', replace: 'GROUP BY a.id HAVING n > 1000000000", y.start, y.end))' },
   { name: 'year close: the verifier ignores a lock moved under a closed year', suite: 'engine-year-close.test.js', file: 'worker/src/engine/periods.ts', find: 'if (lock === null || lock < closed[closed.length - 1].end) report', replace: 'if (false) report' },
+  { name: 'periods: an asset that grows is shown as cash gained', suite: 'engine-cash-indirect.test.js', file: 'worker/src/engine/ledger-reports.ts', find: 'const effect = -net;', replace: 'const effect = net;' },
+  { name: 'periods: the indirect cash flow counts the closing entry', suite: 'engine-cash-indirect.test.js', file: 'worker/src/engine/ledger-reports.ts', find: 'je.entry_date <= ? AND NOT " + CLOSING_ENTRY + ") l ON l.account_id = a.id GROUP BY a.id", from, to);', replace: 'je.entry_date <= ?) l ON l.account_id = a.id GROUP BY a.id", from, to);' },
+  { name: "periods: the owner's own money is treated as an operating adjustment", suite: 'engine-cash-indirect.test.js', file: 'worker/src/engine/ledger-reports.ts', find: 'if (r.type === "equity") {', replace: 'if (false) {' },
+  { name: 'periods: last financial year is this one', suite: 'engine-cash-indirect.test.js', file: 'worker/src/engine/periods.ts', find: 'y = period === "this_financial_year" ? cur : previousYear(cur, month);', replace: 'y = cur;' },
+  { name: 'periods: last month is this month', suite: 'engine-cash-indirect.test.js', file: 'worker/src/engine/periods.ts', find: 't.getUTCMonth() + (period === "last_month" ? -1 : 0), 1));\n    return', replace: 't.getUTCMonth(), 1));\n    return' },
+  { name: 'periods: the close sentence need not say close', suite: 'engine-interpret-books.test.js', file: 'worker/src/engine/interpret.ts', find: '|| !/\\bclos(e|ing)\\b/i.test(text)) return notUnderstood', replace: '|| false) return notUnderstood' },
+  { name: 'periods: the close sentence proposes the current year', suite: 'engine-interpret-books.test.js', file: 'worker/src/engine/interpret.ts', find: 'payload: { yearEnd: years.previous.end }', replace: 'payload: { yearEnd: years.current.end }' },
 ];
 
 let opts;

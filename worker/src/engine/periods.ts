@@ -101,3 +101,16 @@ export async function verifyYears(env: Env, report: (code: string, detail: strin
   }
   if (closed.length > 0) { const lock = await booksLockDate(env); if (lock === null || lock < closed[closed.length - 1].end) report("year_close_inconsistent", `the books are locked to ${lock ?? "nothing"}, before the end of the last closed year (${closed[closed.length - 1].end})`); }
 }
+
+// A period the person names in words, as dates the ENGINE works out: this_month, last_month, this_financial_year, last_financial_year. Null for anything else (nothing is guessed).
+export async function periodRange(env: Env, period: string, today: string): Promise<{ from: string; to: string } | null> {
+  if (period === "this_month" || period === "last_month") {
+    const t = new Date(today + "T00:00:00Z"), first = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + (period === "last_month" ? -1 : 0), 1));
+    return { from: iso(first), to: iso(new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0))) };
+  }
+  if (period === "this_financial_year" || period === "last_financial_year") {
+    const { month } = await yearEndMonth(env), cur = financialYearOf(today, month), y = period === "this_financial_year" ? cur : previousYear(cur, month);
+    return { from: y.start, to: y.end };
+  }
+  return null;
+}

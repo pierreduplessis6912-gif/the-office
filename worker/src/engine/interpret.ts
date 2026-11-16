@@ -9,6 +9,7 @@ import { withEngineAvailability } from "./availability";
 import { ENGINE_CONTRACTS, READS } from "./capabilities";
 import { STANDARD_RATE_BP } from "./business";
 import { EXPENSE_CATEGORIES, EXPENSE_METHODS } from "./expenses";
+import { periodRange, yearsView } from "./periods";
 import { invokeRead, proposeCapabilityAs, type Member, type ReadOutcome } from "./operations";
 import { allOrders, orderProgress } from "./purchasing";
 import { permissionsFor, type EnginePermission } from "./permissions";
@@ -55,8 +56,10 @@ function catalogue(): Entry[] {
     { id: "goods.receive", describes: "Record that a delivery of an item arrived from a supplier (it is only proposed; a person approves it).", arguments: { supplier: "the supplier's name, as the person said it", item: "the product name only (or its code), as the person said it, without the unit or a quantity (screws, not boxes of screws)", quantity: "a plain number of the item's own units, for example 5 or 2.5", deliveryNote: "the delivery note number, only if the person said one" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "goods.receive")?.permissions ?? [] },
     { id: "supplier_payment.record", describes: "Record a payment the business has made to a supplier (it is only proposed; a person approves it).", arguments: { supplier: "the supplier's name, as the person said it", amountCents: "the amount as a whole number of cents; R500 is 50000", method: `how it was paid: one of ${SUPPLIER_PAY_METHODS.join(", ")}; required, so if the sentence does not say how, answer {"capability": null}` }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "supplier_payment.record")?.permissions ?? [] },
     { id: "vat.summary", describes: "The VAT position for a month.", arguments: { period: "this_month or last_month: required" }, permissions: READS.find((r) => r.id === "vat.summary")?.permissions ?? [] },
-    { id: "ledger.profit_and_loss", describes: "Profit and loss for a month: what the business earned, what it cost and what it spent, and the profit.", arguments: { period: "this_month or last_month: required" }, permissions: READS.find((r) => r.id === "ledger.profit_and_loss")?.permissions ?? [] },
-    { id: "ledger.cash_flow", describes: "Cash flow for a month: what came into the bank and cash and what went out.", arguments: { period: "this_month or last_month: required" }, permissions: READS.find((r) => r.id === "ledger.cash_flow")?.permissions ?? [] },
+    { id: "ledger.profit_and_loss", describes: "Profit and loss for a month: what the business earned, what it cost and what it spent, and the profit.", arguments: { period: "this_month, last_month, this_financial_year or last_financial_year: required" }, permissions: READS.find((r) => r.id === "ledger.profit_and_loss")?.permissions ?? [] },
+    { id: "ledger.cash_flow", describes: "Cash flow for a month: what came into the bank and cash and what went out.", arguments: { period: "this_month, last_month, this_financial_year or last_financial_year: required" }, permissions: READS.find((r) => r.id === "ledger.cash_flow")?.permissions ?? [] },
+    { id: "ledger.cash_flow_indirect", describes: "Why cash changed over a period, starting from profit: adjusted for what customers owe, stock and what is owed to suppliers.", arguments: { period: "this_month, last_month, this_financial_year or last_financial_year: required" }, permissions: READS.find((r) => r.id === "ledger.cash_flow_indirect")?.permissions ?? [] },
+    { id: "year.close", describes: "Close the last financial year (it is only proposed; the owner approves it): the profit moves into retained earnings and the books are locked to the year's end.", arguments: { year: "last_financial_year: required" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "year.close")?.permissions ?? [] },
     { id: "ledger.bank_reconciliation", describes: "Whether the bank account agrees with the latest bank statement, and what explains any difference.", arguments: {}, permissions: READS.find((r) => r.id === "ledger.bank_reconciliation")?.permissions ?? [] },
     { id: "ledger.balance_sheet", describes: "What the business owns and owes today (the balance sheet).", arguments: {}, permissions: READS.find((r) => r.id === "ledger.balance_sheet")?.permissions ?? [] },
   ];
@@ -288,14 +291,25 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
     return { kind: "read", understood, outcome: await invokeRead(env, member, "vat.summary", range) };
   }
   if (chosen.id === "ledger.profit_and_loss") {
-    const range = typeof args.period === "string" ? monthOf(args.period, today) : null;
+    const range = typeof args.period === "string" ? await periodRange(env, args.period, today) : null;
     if (!range) return notUnderstood(env, member, text);
     return { kind: "read", understood, outcome: await invokeRead(env, member, "ledger.profit_and_loss", range) };
   }
   if (chosen.id === "ledger.cash_flow") {
-    const range = typeof args.period === "string" ? monthOf(args.period, today) : null;
+    const range = typeof args.period === "string" ? await periodRange(env, args.period, today) : null;
     if (!range) return notUnderstood(env, member, text);
     return { kind: "read", understood, outcome: await invokeRead(env, member, "ledger.cash_flow", range) };
+  }
+  if (chosen.id === "ledger.cash_flow_indirect") {
+    const range = typeof args.period === "string" ? await periodRange(env, args.period, today) : null;
+    if (!range) return notUnderstood(env, member, text);
+    return { kind: "read", understood, outcome: await invokeRead(env, member, "ledger.cash_flow_indirect", range) };
+  }
+  if (chosen.id === "year.close") {
+    // a write, so the sentence itself must say it: a model never closes a year the person only asked about. The date is the engine's (the year before the current one), never the model's.
+    if (args.year !== "last_financial_year" || Object.keys(args).length !== 1 || !/\bclos(e|ing)\b/i.test(text)) return notUnderstood(env, member, text);
+    const years = await yearsView(env, today);
+    return heldOrRefused(await proposeCapabilityAs(env, member, { capability: "year.close", payload: { yearEnd: years.previous.end }, transcript: text, source: "app", interpreter: "model" }));
   }
   if (chosen.id === "ledger.bank_reconciliation") {
     if (Object.keys(args).length > 0) return notUnderstood(env, member, text);

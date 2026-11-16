@@ -610,3 +610,37 @@ CashFlow? parseCashFlow(int status, Object? body) {
   if (opening == null || net == null || closing == null) return null;
   return CashFlow(from: _text(r['from']) ?? '', to: _text(r['to']) ?? '', openingMinor: opening, inflows: _bookLines(r['inflows']), outflows: _bookLines(r['outflows']), netMinor: net, closingMinor: closing);
 }
+
+class ClosedYearEntry {
+  final String end;
+  final int profitMinor;
+  const ClosedYearEntry(this.end, this.profitMinor);
+}
+
+class BookYears {
+  final String monthName;
+  final String currentFrom;
+  final String currentTo;
+  final List<ClosedYearEntry> closed;
+  final String? nextEnd;
+  final bool nextEnded;
+  const BookYears({required this.monthName, required this.currentFrom, required this.currentTo, required this.closed, required this.nextEnd, required this.nextEnded});
+}
+
+BookYears? parseYears(int status, Object? body) {
+  final r = _bookResult(status, body);
+  final cur = r == null ? null : _map(r['current']);
+  if (r == null || cur == null) return null;
+  final from = _text(cur['start']), to = _text(cur['end']);
+  if (from == null || to == null) return null;
+  final closed = <ClosedYearEntry>[];
+  for (final item in _list(r['closed'])) {
+    final m = _map(item);
+    final p = m == null ? null : _int(m['profitMinor']);
+    final e = m == null ? null : _text(m['end']);
+    if (m == null || p == null || e == null) continue;
+    closed.add(ClosedYearEntry(e, p));
+  }
+  final next = _map(r['nextToClose']);
+  return BookYears(monthName: _text(r['yearEndMonthName']) ?? '', currentFrom: from, currentTo: to, closed: closed, nextEnd: next == null ? null : _text(next['end']), nextEnded: next != null && next['ended'] == true);
+}

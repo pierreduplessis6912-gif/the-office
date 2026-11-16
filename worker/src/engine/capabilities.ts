@@ -1338,6 +1338,11 @@ export const ledgerSuspense = bookRead<Record<string, never>>("ledger.suspense",
 export const ledgerReconciliation = bookRead<Record<string, never>>("ledger.reconciliation", "Control accounts against their records", [], () => ({ ok: true, value: {} }), (env) => reports.reconciliation(env));
 
 export const ledgerYears = bookRead<{ asOf: string }>("ledger.years", "Financial years", ["asOf"], (p) => { const d = dateParam(p, "asOf", true); return d.ok ? { ok: true, value: { asOf: d.value as string } } : d; }, (env, v) => yearsView(env, v.asOf));
+export const ledgerCashFlowIndirect = bookRead<{ from: string; to: string }>("ledger.cash_flow_indirect", "Why cash changed", ["from", "to"], (p) => {
+  const f = dateParam(p, "from", true), t = dateParam(p, "to", true); if (!f.ok) return f; if (!t.ok) return t;
+  if ((t.value as string) < (f.value as string)) return { ok: false, reason: "to is before from" };
+  return { ok: true, value: { from: f.value as string, to: t.value as string } };
+}, (env, v) => reports.indirectCashFlow(env, v.from, v.to));
 export const ledgerBankReconciliation = bookRead<{ asOf: string | null }>("ledger.bank_reconciliation", "The bank against the statement", ["asOf"], (p) => { const d = dateParam(p, "asOf", false); return d.ok ? { ok: true, value: { asOf: d.value } } : d; }, (env, v) => reports.bankReconciliation(env, v.asOf));
 export const ledgerCashFlow = bookRead<{ from: string; to: string }>("ledger.cash_flow", "Cash flow", ["from", "to"], (p) => {
   const f = dateParam(p, "from", true), t = dateParam(p, "to", true); if (!f.ok) return f; if (!t.ok) return t;
@@ -1345,7 +1350,7 @@ export const ledgerCashFlow = bookRead<{ from: string; to: string }>("ledger.cas
   return { ok: true, value: { from: f.value as string, to: t.value as string } };
 }, (env, v) => reports.cashFlow(env, v.from, v.to));
 export const ledgerBankSuggestions = bookRead<Record<string, never>>("ledger.bank_suggestions", "Suggested bank matches", [], () => ({ ok: true, value: {} }), (env) => suggestMatches(env));
-export const READS: readonly ReadCapability<any>[] = [ledgerYears, ledgerBankReconciliation, ledgerCashFlow, ledgerBankSuggestions, ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
+export const READS: readonly ReadCapability<any>[] = [ledgerCashFlowIndirect, ledgerYears, ledgerBankReconciliation, ledgerCashFlow, ledgerBankSuggestions, ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({

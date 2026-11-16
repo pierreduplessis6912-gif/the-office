@@ -8,8 +8,11 @@ import 'package:the_office/engine/books_room.dart';
 
 class _BooksApi extends FixtureEngineApi {
   final EngineResponse profit, balance, recon;
+  final EngineResponse? yearsAnswer;
   int reads = 0;
-  _BooksApi(Map<String, EngineResponse> fixtures, this.profit, this.balance, this.recon) : super(fixtures);
+  _BooksApi(Map<String, EngineResponse> fixtures, this.profit, this.balance, this.recon, {this.yearsAnswer}) : super(fixtures);
+  @override
+  Future<EngineResponse> years() async => yearsAnswer ?? await super.years();
   @override
   Future<EngineResponse> profitAndLoss(String period) async { reads++; return profit; }
   @override
@@ -52,6 +55,20 @@ void main() {
     expect(find.byKey(const Key('books-agrees')), findsOneWidget);
   });
 
+  testWidgets('shows the financial years: this year, closed years and the next to close', (tester) async {
+    final years = _ok(<String, Object?>{
+      'yearEndMonthName': 'February', 'current': <String, Object?>{'start': '2026-03-01', 'end': '2027-02-28'},
+      'closed': [<String, Object?>{'start': '2024-03-01', 'end': '2025-02-28', 'profitMinor': 80000}],
+      'nextToClose': <String, Object?>{'start': '2025-03-01', 'end': '2026-02-28', 'ended': true},
+    });
+    await _open(tester, _BooksApi(engineResponsesFrom(engineFixtureJson), _profit, _balance, _agree, yearsAnswer: years));
+    expect(find.byKey(const Key('books-this-year')), findsOneWidget);
+    expect(find.text('Closed 2025-02-28'), findsOneWidget);
+    expect(find.text('R800.00'), findsWidgets);
+    expect(find.textContaining('the year ending 2026-02-28'), findsOneWidget);
+    expect(find.byKey(const Key('books-no-closed')), findsNothing);
+  });
+
   testWidgets('says so when nothing is booked', (tester) async {
     final emptyP = _ok(<String, Object?>{'from': 'a', 'to': 'b', 'income': <Object?>[], 'costOfSales': <Object?>[], 'expenses': <Object?>[], 'totals': <String, Object?>{'incomeMinor': 0, 'grossProfitMinor': 0, 'profitMinor': 0}});
     final emptyB = _ok(<String, Object?>{'asOf': 'c', 'assets': <Object?>[], 'liabilities': <Object?>[], 'equity': <Object?>[], 'earningsMinor': 0, 'totals': <String, Object?>{'assetsMinor': 0}, 'balanced': true});
@@ -72,5 +89,6 @@ void main() {
     expect(parseProfit(200, <String, Object?>{'status': 'ok', 'result': <String, Object?>{}}), isNull);
     expect(parseBalance(500, null), isNull);
     expect(parseReconciliation(200, <String, Object?>{'status': 'ok', 'result': <String, Object?>{'lines': 5}}), isNull);
+    expect(parseYears(200, <String, Object?>{'status': 'ok', 'result': <String, Object?>{}}), isNull);
   });
 }

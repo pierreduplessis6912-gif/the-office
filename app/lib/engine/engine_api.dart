@@ -64,6 +64,9 @@ abstract class EngineApi {
   /// The control accounts against the records (GET /engine/ledger/reconciliation). Read only.
   Future<EngineResponse> reconciliation();
 
+  /// Where the financial year ends, this year, and the years already closed (GET /engine/ledger/years; the engine says which day today is). Read only.
+  Future<EngineResponse> years();
+
   /// The bank account against the latest bank statement (GET /engine/ledger/bank-reconciliation). Read only.
   Future<EngineResponse> bankReconciliation();
 
@@ -218,6 +221,9 @@ class FixtureEngineApi implements EngineApi {
 
   @override
   Future<EngineResponse> reconciliation() async => fixtures['assistant-books-reconciliation'] ?? _missing;
+
+  @override
+  Future<EngineResponse> years() async => fixtures['assistant-books-years'] ?? _missing;
 
   @override
   Future<EngineResponse> bankReconciliation() async => fixtures['assistant-bank-reconciliation'] ?? _missing;

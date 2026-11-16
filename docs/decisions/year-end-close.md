@@ -1,4 +1,4 @@
-> **Status:** approved 2026-11-16 (Pierre: year-end is a setting defaulting to February; reopening allowed with a reason); P1 and P2 built. **Verified:** not yet. **Owns:** none.
+> **Status:** approved 2026-11-16 (Pierre: year-end is a setting defaulting to February; reopening allowed with a reason); P1, P2 and P3 built. **Verified:** not yet. **Owns:** none.
 
 # DECISIONS: year-end-close (periods)
 
@@ -63,3 +63,10 @@ No multi-year comparison reports yet. One legal entity, one currency. A year can
 - Limits: reopening moves the lock back to the previous closed year's end even if the owner had locked later for other reasons; closing writes no annual statements.
 - Tests: tools/engine-year-close.test.js (34), 13 breakages. Umbrella 11650/11650.
 - Next: P3 (the indirect cash flow, sentences, a read-only years view in the app).
+
+## P3 as built (2026-11-16): indirect cash flow, sentences, years view
+- `periodRange` (periods.ts): this_month, last_month, this_financial_year, last_financial_year turned into dates by the engine; used by profit and loss, cash flow and the new read. Anything else: 422.
+- `indirectCashFlow` (ledger-reports.ts), read `ledger.cash_flow_indirect` (GET /engine/ledger/cash-flow-indirect): starts from profit, adjusts for money customers owe, stock, goods received not yet billed, money owed to suppliers, VAT and other assets/liabilities, adds the owner's money in and out. Closing entries are left out. It must agree with the direct cash flow (`agrees`).
+- Sentences: "profit this financial year", cash flow via periodRange, and "close last year" (held `year.close`; the sentence must say close/closing, args exactly last_financial_year).
+- App: read-only financial years section in the Books room (year-end month, this year, closed years with profit, next to close).
+- Umbrella 11674/11674.

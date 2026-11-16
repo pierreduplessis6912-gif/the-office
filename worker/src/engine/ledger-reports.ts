@@ -123,3 +123,31 @@ export async function cashFlow(env: Env, from: string, to: string) {
   const closing = ids.length ? Number((await one<{ b: number | null }>(env, `SELECT COALESCE(SUM(l.debit_minor - l.credit_minor), 0) AS b FROM eng_journal_line l JOIN eng_journal_entry e ON e.id = l.entry_id WHERE l.account_id IN (${marks}) AND e.entry_date <= ?`, ...ids, to))?.b ?? 0) : 0;
   return { from, to, openingMinor: opening, inflows, outflows, netMinor, closingMinor: closing, balanced: opening + netMinor === closing };
 }
+
+// The INDIRECT cash flow: why cash changed, starting from profit. Profit is adjusted by what moved on the other accounts: money customers owe (more owed is less cash), stock, money owed to suppliers, VAT, and
+// the owner's own money in and out. Every figure is a movement of an account over the period, closing entries left out (the year's profit would otherwise be counted twice), and the total is CHECKED against
+// the direct cash flow: the two must give the same change in cash, and a difference is reported, never hidden.
+export async function indirectCashFlow(env: Env, from: string, to: string) {
+  const rows = await many<{ id: number; type: AccountType; name: string; d: number; c: number }>(env,
+    "SELECT a.id, a.type, a.name, COALESCE(SUM(l.debit_minor), 0) AS d, COALESCE(SUM(l.credit_minor), 0) AS c FROM eng_account a LEFT JOIN (SELECT jl.account_id, jl.debit_minor, jl.credit_minor FROM eng_journal_line jl JOIN eng_journal_entry je ON je.id = jl.entry_id WHERE je.entry_date >= ? AND je.entry_date <= ? AND NOT " + CLOSING_ENTRY + ") l ON l.account_id = a.id GROUP BY a.id", from, to);
+  const roleOf = new Map<number, string>();
+  for (const r of await many<{ role: string; account_id: number }>(env, "SELECT r.role, r.account_id FROM eng_account_role r WHERE r.id = (SELECT MAX(id) FROM eng_account_role WHERE role = r.role)")) roleOf.set(Number(r.account_id), r.role);
+  const WORDS: Record<string, string> = { receivables_control: "Money customers owe", inventory: "Stock", goods_received_not_invoiced: "Goods received, not yet billed", payables_control: "Money owed to suppliers", vat_input: "VAT", vat_output: "VAT" };
+  const adjustments = new Map<string, number>(), financing = new Map<string, number>();
+  let profit = 0;
+  for (const r of rows) {
+    const net = Number(r.d) - Number(r.c), role = roleOf.get(Number(r.id));
+    if (role === "bank" || role === "cash") continue;                                   // cash is the answer, not a cause
+    if (r.type === "income" || r.type === "cost_of_sales" || r.type === "expense") { profit += -net; continue; }
+    if (net === 0) continue;
+    const effect = -net;                                                                // an asset that grows takes cash; a liability or equity that grows brings it
+    if (r.type === "equity") { financing.set("The owner's money in and out", (financing.get("The owner's money in and out") ?? 0) + effect); continue; }
+    const label = (role && WORDS[role]) ?? (r.type === "asset" ? "Other assets" : "Other liabilities");
+    adjustments.set(label, (adjustments.get(label) ?? 0) + effect);
+  }
+  const list = (m: Map<string, number>) => [...m.entries()].map(([name, amountMinor]) => ({ name, amountMinor })).filter((x) => x.amountMinor !== 0);
+  const adj = list(adjustments), fin = list(financing);
+  const operatingMinor = profit + adj.reduce((s, x) => s + x.amountMinor, 0), netMinor = operatingMinor + fin.reduce((s, x) => s + x.amountMinor, 0);
+  const direct = await cashFlow(env, from, to);
+  return { from, to, profitMinor: profit, adjustments: adj, operatingMinor, financing: fin, netMinor, directNetMinor: direct.netMinor, agrees: netMinor === direct.netMinor, openingMinor: direct.openingMinor, closingMinor: direct.closingMinor };
+}

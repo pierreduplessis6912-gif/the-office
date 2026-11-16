@@ -101,6 +101,7 @@ const HINTS: Record<string, string> = {
   "ledger.profit_and_loss": "params {from, to: dates}: income, cost of sales, gross profit, expenses and profit for a period, by account.",
   "ledger.balance_sheet": "params {asOf: date}: assets, liabilities, equity and the profit earned to the date, and whether they balance.",
   "ledger.bank_suggestions": "params none: for bank statement lines not yet matched, which entries on the bank account they probably are: strong (one fit, the name appears), weak (one fit, no name: ask), ambiguous (several), unexplained (nothing fits: a fee, interest, an unknown deposit).",
+  "ledger.cash_flow_indirect": "params from, to: why cash changed over a period, starting from profit: adjusted by what customers owe, stock, what is owed to suppliers, VAT and the owner's own money in and out; checked against the direct cash flow.",
   "ledger.years": "params asOf: where the financial year ends (a month; February until the owner sets it), the current and the previous financial year as dates, and the years already closed.",
   "ledger.bank_reconciliation": "params asOf?: the bank account against the latest bank statement: what the books say, what the statement says, the entries not yet on the statement, the statement lines not yet in the books, and anything unexplained.",
   "ledger.cash_flow": "params from, to: cash flow for a period from the bank and cash accounts: what came in and went out by cause, opening and closing balance.",

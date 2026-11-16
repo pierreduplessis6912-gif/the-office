@@ -54,7 +54,7 @@ Legend for the columns: **E** engine, **C** CI-tested, **R** real platform, **V*
 | Document output (PDF, share links) | Documents | - | - | - | - | - | - | - | Exports are listed unavailable |
 | Governed reports and measures beyond receivables | Intelligence | - | - | - | - | - | - | - | Legacy reports exist on the live system only |
 | Bank reconciliation and cash flow (G5: statement import, matching, reconciliation and cash-flow reads) | Finance | ✓ | ✓ | - | - | ✓ | p | - | Built 2026-11-16 on migrations 0007 and 0008 (three additive tables). Statements come in by CSV or lines; matching is proposed by the engine and approved by the owner; reads and two sentences; read-only app room on recorded answers. One bank account plus cash. See docs/decisions/bank-reconciliation.md. |
-| Periods: closing the books year by year, the indirect cash flow | Finance | - | - | - | - | - | - | - | Not built: needs a design (the books lock exists; closing entries do not) |
+| Periods: closing the books year by year, the indirect cash flow | Finance | - | - | - | - | - | - | - | Built: year-end setting, close and reopen, indirect cash flow, sentences, read-only years view (docs/decisions/year-end-close.md) |
 | Field service capacity and scheduling | Field service | - | - | - | - | - | - | - | Not even walked |
 
 ## Reach (the future-capabilities register groups, `FUTURE_CAPABILITIES.md`)

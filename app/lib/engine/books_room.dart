@@ -18,6 +18,7 @@ class _BooksRoomState extends State<BooksRoom> {
   BookProfit? _profit;
   BookBalance? _balance;
   BookReconciliation? _recon;
+  BookYears? _years;
 
   @override
   void initState() {
@@ -31,12 +32,14 @@ class _BooksRoomState extends State<BooksRoom> {
       final p = await widget.api.profitAndLoss('this_month');
       final b = await widget.api.balanceSheet();
       final r = await widget.api.reconciliation();
+      final y = await widget.api.years();
       if (!mounted) return;
       setState(() {
         _profit = parseProfit(p.status, p.body);
         _balance = parseBalance(b.status, b.body);
         _recon = parseReconciliation(r.status, r.body);
-        _failed = _profit == null && _balance == null && _recon == null;
+        _years = parseYears(y.status, y.body);
+        _failed = _profit == null && _balance == null && _recon == null && _years == null;
         _loading = false;
       });
     } catch (_) {
@@ -65,7 +68,7 @@ class _BooksRoomState extends State<BooksRoom> {
     } else if (_failed) {
       body = const Padding(key: Key('books-error'), padding: EdgeInsets.all(16), child: Text('The books could not be read just now. Check again in a moment.'));
     } else {
-      final p = _profit, b = _balance, r = _recon;
+      final p = _profit, b = _balance, r = _recon, y = _years;
       final empty = (p == null || (p.income.isEmpty && p.costOfSales.isEmpty && p.expenses.isEmpty)) && (b == null || (b.assets.isEmpty && b.liabilities.isEmpty && b.equity.isEmpty));
       body = empty
           ? const Padding(key: Key('books-empty'), padding: EdgeInsets.all(16), child: Text('Nothing has been booked yet.'))
@@ -90,6 +93,13 @@ class _BooksRoomState extends State<BooksRoom> {
                 if (!b.balanced) const Text('The books do not balance.', key: Key('books-unbalanced')),
               ] else
                 const Text('The balance sheet could not be read.', key: Key('books-balance-error')),
+              if (y != null) ...[
+                _heading('Financial years (the year ends in ${y.monthName})'),
+                Text('This year: ${y.currentFrom} to ${y.currentTo}', key: const Key('books-this-year')),
+                for (final c in y.closed) _row('Closed ${c.end}', c.profitMinor),
+                if (y.closed.isEmpty) const Text('No year has been closed yet.', key: Key('books-no-closed')),
+                if (y.nextEnd != null) Text(y.nextEnded ? 'Next to close: the year ending ${y.nextEnd}' : 'Next to close, when it ends: the year ending ${y.nextEnd}', key: const Key('books-next-close')),
+              ],
               if (r != null) ...[
                 _heading('Do the books agree with the records?'),
                 if (r.agrees) const Text('Yes, everything agrees.', key: Key('books-agrees')) else ...[
