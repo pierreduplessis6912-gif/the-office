@@ -3,6 +3,7 @@
 import type { Env } from "../types";
 import { allBills } from "./bills";
 import { accountForRole, type AccountType } from "./journal";
+import { accountOf } from "./bank";
 import { outstandingForParty, unappliedCreditForParty } from "./ledger";
 import { valuationAsAt } from "./stock";
 import { openBankEntries, openStatementLines } from "./bank";
@@ -88,13 +89,14 @@ export async function reconciliation(env: Env) {
 // ---- G5c: the bank against the statement, and cash flow --------------------------------------------------------------------------------------------------------------------------------------------------
 // BANK RECONCILIATION as at a statement: what the books say the bank holds, what the statement says, and what explains the gap. The books hold more than the statement by the entries not yet on it
 // (a payment made today that has not cleared) and less by the statement lines not yet in the books (a fee, interest, an unknown deposit). Whatever is left over is UNEXPLAINED, and is a finding.
-export async function bankReconciliation(env: Env, asOf: string | null) {
-  const st = await one<{ id: number; period_from: string; period_to: string; opening_minor: number; closing_minor: number }>(env,
-    "SELECT id, period_from, period_to, opening_minor, closing_minor FROM eng_bank_statement WHERE (? IS NULL OR period_to <= ?) ORDER BY period_to DESC, id DESC LIMIT 1", asOf, asOf);
-  if (!st) return { statement: null, ledgerMinor: null, statementMinor: null, outstandingEntries: [], unmatchedLines: [], outstandingMinor: 0, unmatchedMinor: 0, unexplainedMinor: 0, agrees: true, reconciled: false };
-  const acct = await accountForRole(env, "bank");
-  const ledger = acct ? Number((await one<{ b: number | null }>(env, "SELECT COALESCE(SUM(l.debit_minor - l.credit_minor), 0) AS b FROM eng_journal_line l JOIN eng_journal_entry e ON e.id = l.entry_id WHERE l.account_id = ? AND e.entry_date <= ?", acct.id, st.period_to))?.b ?? 0) : 0;
-  const entries = (await openBankEntries(env)).filter((e) => e.date <= st.period_to), lines = (await openStatementLines(env)).filter((l) => l.date <= st.period_to);
+export async function bankReconciliation(env: Env, asOf: string | null, bankAccountId?: number) {
+  const acct = await accountOf(env, bankAccountId).catch((e) => { if (bankAccountId === undefined) return null; throw e; });
+  const def = (await accountForRole(env, "bank"))?.id ?? 0;
+  const st = acct === null ? null : await one<{ id: number; period_from: string; period_to: string; opening_minor: number; closing_minor: number }>(env,
+    "SELECT id, period_from, period_to, opening_minor, closing_minor FROM eng_bank_statement WHERE COALESCE(bank_account_id, ?) = ? AND (? IS NULL OR period_to <= ?) ORDER BY period_to DESC, id DESC LIMIT 1", def, acct.id, asOf, asOf);
+  if (!st || acct === null) return { statement: null, ledgerMinor: null, statementMinor: null, outstandingEntries: [], unmatchedLines: [], outstandingMinor: 0, unmatchedMinor: 0, unexplainedMinor: 0, agrees: true, reconciled: false };
+  const ledger = Number((await one<{ b: number | null }>(env, "SELECT COALESCE(SUM(l.debit_minor - l.credit_minor), 0) AS b FROM eng_journal_line l JOIN eng_journal_entry e ON e.id = l.entry_id WHERE l.account_id = ? AND e.entry_date <= ?", acct.id, st.period_to))?.b ?? 0);
+  const entries = (await openBankEntries(env, acct.id)).filter((e) => e.date <= st.period_to), lines = (await openStatementLines(env, acct.id)).filter((l) => l.date <= st.period_to);
   const outstandingMinor = entries.reduce((s, e) => s + e.amountMinor, 0), unmatchedMinor = lines.reduce((s, l) => s + l.amountMinor, 0);
   const unexplainedMinor = ledger - (Number(st.closing_minor) + outstandingMinor - unmatchedMinor);
   return {

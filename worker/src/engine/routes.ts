@@ -103,13 +103,14 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
   const LEDGER_READS: Record<string, { id: string; params: string[] }> = {
     "/engine/ledger/trial-balance": { id: "ledger.trial_balance", params: ["asOf"] }, "/engine/ledger/account": { id: "ledger.account", params: ["code", "from", "to"] },
     "/engine/ledger/profit-and-loss": { id: "ledger.profit_and_loss", params: ["from", "to"] }, "/engine/ledger/balance-sheet": { id: "ledger.balance_sheet", params: ["asOf"] },
-    "/engine/ledger/suspense": { id: "ledger.suspense", params: [] }, "/engine/ledger/reconciliation": { id: "ledger.reconciliation", params: [] }, "/engine/ledger/bank-suggestions": { id: "ledger.bank_suggestions", params: [] }, "/engine/ledger/years": { id: "ledger.years", params: ["asOf"] },
+    "/engine/ledger/suspense": { id: "ledger.suspense", params: [] }, "/engine/ledger/reconciliation": { id: "ledger.reconciliation", params: [] }, "/engine/ledger/bank-suggestions": { id: "ledger.bank_suggestions", params: ["bankAccountId"] }, "/engine/ledger/years": { id: "ledger.years", params: ["asOf"] },
     "/engine/ledger/bank-accounts": { id: "ledger.bank_accounts", params: [] },
-    "/engine/ledger/bank-reconciliation": { id: "ledger.bank_reconciliation", params: ["asOf"] }, "/engine/ledger/cash-flow": { id: "ledger.cash_flow", params: ["from", "to"] }, "/engine/ledger/cash-flow-indirect": { id: "ledger.cash_flow_indirect", params: ["from", "to"] },
+    "/engine/ledger/bank-reconciliation": { id: "ledger.bank_reconciliation", params: ["asOf", "bankAccountId"] }, "/engine/ledger/cash-flow": { id: "ledger.cash_flow", params: ["from", "to"] }, "/engine/ledger/cash-flow-indirect": { id: "ledger.cash_flow_indirect", params: ["from", "to"] },
   };
   if (request.method === "GET" && LEDGER_READS[path]) {
     const spec = LEDGER_READS[path];
     const params: Record<string, unknown> = Object.fromEntries(spec.params.filter((k) => url.searchParams.get(k) !== null).map((k) => [k, url.searchParams.get(k)]));
+    if (typeof params.bankAccountId === "string" && /^\d+$/.test(params.bankAccountId)) params.bankAccountId = Number(params.bankAccountId);
     const today = new Date().toISOString().slice(0, 10);
     // The app never works out a date: it may ask for "this_month" or "last_month" (profit and loss) or leave the balance sheet's date out (today), and the ENGINE says which dates those are.
     const period = url.searchParams.get("period");

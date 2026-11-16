@@ -1,4 +1,4 @@
-> **Status:** approved 2026-11-16 (Pierre: "Yes"); B1 built. **Verified:** not yet. **Owns:** none.
+> **Status:** approved 2026-11-16 (Pierre: "Yes"); B1 and B2 built. **Verified:** not yet. **Owns:** none.
 
 # Several bank accounts (current, savings, card)
 
@@ -27,3 +27,10 @@ Foreign-currency accounts, automatic bank feeds, per-account opening balances be
 - Verifier: `bank_account_inconsistent` (a listed account that is not an asset or is the default; a payment or statement naming a non-bank account; a payment whose entry misses its account).
 - Umbrella 11717/11717.
 - Next: B2 (a statement per account, reconciliation per account), B3 (transfers, cash flow, sentences, app).
+
+## B2 as built (2026-11-16): statements and reconciliation per account
+- `bank_statement.import` takes an optional `bankAccountId`; none (or the default) means the default account, and a default statement keeps `bank_account_id` empty so everything before is unchanged. The event names the account only when it is not the default.
+- Duplicate skipping is per account: lines of another account carry an `a<id>|` fingerprint prefix, so identical lines on two accounts are not duplicates; the same file twice on one account still is.
+- Open lines and open entries carry their account; `suggestMatches` and `ledger.bank_suggestions` take `bankAccountId`; a match across accounts is refused when confirmed and found by the verifier.
+- `ledger.bank_reconciliation` takes `bankAccountId`: the latest statement of that account against that account's ledger balance. An account with no statement says so and is never "reconciled"; one account's statement never answers for another.
+- Umbrella 11740/11740. Next: B3 (transfers between accounts, cash flow across all accounts, sentences, app).

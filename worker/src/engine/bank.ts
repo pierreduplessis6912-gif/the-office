@@ -5,6 +5,7 @@ import type { Env } from "../types";
 import { EngineError } from "./errors";
 import { checkDate } from "./quotations";
 import { accountForRole } from "./journal";
+import { bankAccounts, checkedBankAccount } from "./bank-accounts";
 
 type Checked<T> = { ok: true; value: T } | { ok: false; reason: string };
 const one = <T>(env: Env, sql: string, ...binds: unknown[]) => env.OFFICE_DB.prepare(sql).bind(...binds).first<T>();
@@ -12,7 +13,7 @@ const many = async <T>(env: Env, sql: string, ...binds: unknown[]): Promise<T[]>
 
 export const MAX_STATEMENT_LINES = 500;
 export interface StatementLine { date: string; description: string; amountMinor: number; balanceMinor: number | null }
-export interface StatementInput { periodFrom: string; periodTo: string; openingMinor: number; closingMinor: number; sourceName: string | null; lines: StatementLine[] }
+export interface StatementInput { bankAccountId?: number; periodFrom: string; periodTo: string; openingMinor: number; closingMinor: number; sourceName: string | null; lines: StatementLine[] }
 
 const SAFE = Number.MAX_SAFE_INTEGER;
 const wholeCents = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && Math.abs(v) <= SAFE;
@@ -86,12 +87,13 @@ const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object
 
 export function checkStatementInput(payload: unknown): Checked<StatementInput> {
   if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
-  const allowed = ["periodFrom", "periodTo", "openingMinor", "closingMinor", "sourceName", "lines", "csv"];
+  const allowed = ["bankAccountId", "periodFrom", "periodTo", "openingMinor", "closingMinor", "sourceName", "lines", "csv"];
   const stray = Object.keys(payload).find((k) => !allowed.includes(k)); if (stray) return { ok: false, reason: `${stray} is not a field of this request` };
   const from = checkDate(payload.periodFrom, "periodFrom"); if (!from.ok) return from;
   const to = checkDate(payload.periodTo, "periodTo"); if (!to.ok) return to;
   if (to.value < from.value) return { ok: false, reason: "periodTo is before periodFrom" };
   if (!wholeCents(payload.openingMinor) || !wholeCents(payload.closingMinor)) return { ok: false, reason: "openingMinor and closingMinor must be whole numbers of cents" };
+  if (payload.bankAccountId !== undefined && (typeof payload.bankAccountId !== "number" || !Number.isSafeInteger(payload.bankAccountId) || payload.bankAccountId <= 0)) return { ok: false, reason: "bankAccountId must be a record number" };
   if (payload.sourceName !== undefined && (typeof payload.sourceName !== "string" || payload.sourceName.length > 200)) return { ok: false, reason: "sourceName must be text of at most 200 characters" };
   if ((payload.lines === undefined) === (payload.csv === undefined)) return { ok: false, reason: "give the statement either as lines or as csv text, not both and not neither" };
   let lines: StatementLine[];
@@ -123,7 +125,7 @@ export function checkStatementInput(payload: unknown): Checked<StatementInput> {
   }
   const total = clean.reduce((s, l) => s + l.amountMinor, 0);
   if (payload.openingMinor + total !== payload.closingMinor) return { ok: false, reason: `the opening balance plus the lines (${payload.openingMinor + total}) is not the closing balance (${payload.closingMinor}); in cents` };
-  return { ok: true, value: { periodFrom: from.value, periodTo: to.value, openingMinor: payload.openingMinor, closingMinor: payload.closingMinor, sourceName: (payload.sourceName as string | undefined) ?? null, lines: clean } };
+  return { ok: true, value: { ...(payload.bankAccountId !== undefined ? { bankAccountId: payload.bankAccountId as number } : {}), periodFrom: from.value, periodTo: to.value, openingMinor: payload.openingMinor, closingMinor: payload.closingMinor, sourceName: (payload.sourceName as string | undefined) ?? null, lines: clean } };
 }
 
 // The identity of a line: date, amount, description and which one it is among identical lines IN THE FILE (two real R50.00 fees on one day are two lines, not a duplicate).
@@ -132,16 +134,26 @@ export function fingerprints(lines: StatementLine[]): string[] {
   return lines.map((l) => { const base = `${l.date}|${l.amountMinor}|${l.description.toLowerCase()}`; const n = (seen.get(base) ?? 0) + 1; seen.set(base, n); return `${base}|${n}`; });
 }
 
-export interface StatementPlan { fresh: Array<StatementLine & { fingerprint: string; lineNo: number }>; skipped: number; fileTotalMinor: number }
+// The bank account a statement (or a read) is about: nothing named is the default; naming the default is the same as naming nothing.
+export async function accountOf(env: Env, named: number | null | undefined): Promise<{ id: number; isDefault: boolean }> {
+  const def = await accountForRole(env, "bank");
+  if (named === undefined || named === null) return { id: def ? def.id : 0, isDefault: true };   // before the chart exists there is no account row yet, and a statement can still be brought in
+  await checkedBankAccount(env, named, null);
+  return { id: named, isDefault: def !== null && def.id === named };
+}
+
+export interface StatementPlan { fresh: Array<StatementLine & { fingerprint: string; lineNo: number }>; skipped: number; fileTotalMinor: number; storedAccountId: number | null }
 export async function planStatement(env: Env, input: StatementInput): Promise<StatementPlan> {
-  const prints = fingerprints(input.lines);
+  const acct = await accountOf(env, input.bankAccountId);
+  const prefix = acct.isDefault ? "" : `a${acct.id}|`;   // lines already imported before there were several accounts keep their fingerprints; another account's identical lines are not duplicates of them
+  const prints = fingerprints(input.lines).map((p) => prefix + p);
   const fresh: StatementPlan["fresh"] = []; let skipped = 0;
   for (const [i, l] of input.lines.entries()) {
     const have = await one<{ id: number }>(env, "SELECT id FROM eng_bank_line WHERE fingerprint = ?", prints[i]);
     if (have) skipped += 1; else fresh.push({ ...l, fingerprint: prints[i], lineNo: i + 1 });
   }
   if (fresh.length === 0) throw new EngineError("invalid_state", `Every one of the ${input.lines.length} lines in this statement is already imported, so nothing was added.`);
-  return { fresh, skipped, fileTotalMinor: input.lines.reduce((s, l) => s + l.amountMinor, 0) };
+  return { fresh, skipped, fileTotalMinor: input.lines.reduce((s, l) => s + l.amountMinor, 0), storedAccountId: acct.isDefault ? null : acct.id };
 }
 
 // Integrity: each statement's opening plus what its file said equals its closing; what is stored is what the event says was added; every line is in its period and has its event.
@@ -160,25 +172,28 @@ export async function verifyBank(env: Env, report: (code: string, detail: string
 // The engine only PROPOSES; a person approves (a held proposal), and the approved match is a fact. A bank line is matched as a group of journal lines that add up to it.
 const ACTIVE = "NOT EXISTS (SELECT 1 FROM eng_bank_match r WHERE r.reverses_match_id = m.id)";
 export const MATCH_WINDOW_DAYS = 5;
-export interface OpenBankEntry { journalLineId: number; date: string; amountMinor: number; memo: string | null; party: string | null }
-export interface OpenStatementLine { id: number; date: string; description: string; amountMinor: number }
+export interface OpenBankEntry { journalLineId: number; accountId: number; date: string; amountMinor: number; memo: string | null; party: string | null }
+export interface OpenStatementLine { id: number; accountId: number; date: string; description: string; amountMinor: number }
 
-export async function openStatementLines(env: Env): Promise<OpenStatementLine[]> {
-  return (await many<{ id: number; line_date: string; description: string; amount_minor: number }>(env,
-    `SELECT l.id, l.line_date, l.description, l.amount_minor FROM eng_bank_line l WHERE NOT EXISTS (SELECT 1 FROM eng_bank_match m WHERE m.bank_line_id = l.id AND m.reverses_match_id IS NULL AND ${ACTIVE}) ORDER BY l.line_date, l.id`))
-    .map((r) => ({ id: Number(r.id), date: r.line_date, description: r.description, amountMinor: Number(r.amount_minor) }));
+// The lines not yet matched, for one bank account or (none named) for all of them. A statement without an account belongs to the default.
+export async function openStatementLines(env: Env, accountId?: number): Promise<OpenStatementLine[]> {
+  const def = (await accountForRole(env, "bank"))?.id ?? 0;
+  return (await many<{ id: number; account_id: number; line_date: string; description: string; amount_minor: number }>(env,
+    `SELECT l.id, COALESCE(s.bank_account_id, ?) AS account_id, l.line_date, l.description, l.amount_minor FROM eng_bank_line l JOIN eng_bank_statement s ON s.id = l.statement_id
+      WHERE (? IS NULL OR COALESCE(s.bank_account_id, ?) = ?) AND NOT EXISTS (SELECT 1 FROM eng_bank_match m WHERE m.bank_line_id = l.id AND m.reverses_match_id IS NULL AND ${ACTIVE}) ORDER BY l.line_date, l.id`, def, accountId ?? null, def, accountId ?? null))
+    .map((r) => ({ id: Number(r.id), accountId: Number(r.account_id), date: r.line_date, description: r.description, amountMinor: Number(r.amount_minor) }));
 }
 
-export async function openBankEntries(env: Env): Promise<OpenBankEntry[]> {
-  const acct = await accountForRole(env, "bank");
-  if (!acct) return [];
-  return (await many<{ id: number; entry_date: string; amount: number; memo: string | null; party: string | null }>(env,
-    `SELECT jl.id, e.entry_date, jl.debit_minor - jl.credit_minor AS amount, e.memo,
+export async function openBankEntries(env: Env, accountId?: number): Promise<OpenBankEntry[]> {
+  const ids = (await bankAccounts(env)).map((a) => a.id).filter((id) => accountId === undefined || id === accountId);
+  if (ids.length === 0) return [];
+  return (await many<{ id: number; account_id: number; entry_date: string; amount: number; memo: string | null; party: string | null }>(env,
+    `SELECT jl.id, jl.account_id, e.entry_date, jl.debit_minor - jl.credit_minor AS amount, e.memo,
             (SELECT p.name FROM eng_money_movement mv JOIN eng_party p ON p.id = mv.party_id WHERE e.source_kind = 'movement' AND mv.id = e.source_id) AS party
        FROM eng_journal_line jl JOIN eng_journal_entry e ON e.id = jl.entry_id
-      WHERE jl.account_id = ? AND NOT EXISTS (SELECT 1 FROM eng_bank_match m WHERE m.journal_line_id = jl.id AND m.reverses_match_id IS NULL AND ${ACTIVE})
-      ORDER BY e.entry_date, jl.id`, acct.id))
-    .map((r) => ({ journalLineId: Number(r.id), date: r.entry_date, amountMinor: Number(r.amount), memo: r.memo, party: r.party }));
+      WHERE jl.account_id IN (${ids.map(() => "?").join(", ")}) AND NOT EXISTS (SELECT 1 FROM eng_bank_match m WHERE m.journal_line_id = jl.id AND m.reverses_match_id IS NULL AND ${ACTIVE})
+      ORDER BY e.entry_date, jl.id`, ...ids))
+    .map((r) => ({ journalLineId: Number(r.id), accountId: Number(r.account_id), date: r.entry_date, amountMinor: Number(r.amount), memo: r.memo, party: r.party }));
 }
 
 const dayNumber = (iso: string) => Math.round(new Date(iso + "T00:00:00Z").getTime() / 86_400_000);
@@ -192,8 +207,9 @@ export interface MatchSuggestions {
 }
 // STRONG: one candidate with the same amount within the window whose party name appears in the description. WEAK: one candidate with the same amount and no name to go on (asked, never assumed). AMBIGUOUS:
 // several candidates, or a candidate another line also wants. UNEXPLAINED: nothing in the books fits (a fee, interest, an unknown deposit): the person says what it is.
-export async function suggestMatches(env: Env): Promise<MatchSuggestions> {
-  const lines = await openStatementLines(env), entries = await openBankEntries(env);
+export async function suggestMatches(env: Env, bankAccountId?: number): Promise<MatchSuggestions> {
+  const acct = await accountOf(env, bankAccountId);
+  const lines = await openStatementLines(env, acct.id), entries = await openBankEntries(env, acct.id);
   const cand = new Map<number, OpenBankEntry[]>();
   for (const l of lines) cand.set(l.id, entries.filter((e) => e.amountMinor === l.amountMinor && Math.abs(dayNumber(e.date) - dayNumber(l.date)) <= MATCH_WINDOW_DAYS));
   const claims = new Map<number, number>();
@@ -237,7 +253,8 @@ export async function planMatches(env: Env, input: MatchInput): Promise<MatchInp
     let sum = 0;
     for (const j of m.journalLineIds) {
       const e = entries.get(j);
-      if (!e) throw new EngineError("invalid_state", `Ledger entry ${j} is not an unmatched entry on the bank account.`);
+      if (!e) throw new EngineError("invalid_state", `Ledger entry ${j} is not an unmatched entry on a bank account.`);
+      if (e.accountId !== line.accountId) throw new EngineError("invalid_state", `Ledger entry ${j} is on a different bank account from bank line ${m.bankLineId}.`);
       sum += e.amountMinor;
     }
     if (sum !== line.amountMinor) throw new EngineError("invalid_input", `The ledger entries add up to ${sum} cents but bank line ${m.bankLineId} is ${line.amountMinor} cents.`);
@@ -270,4 +287,6 @@ export async function verifyMatches(env: Env, report: (code: string, detail: str
   for (const r of await many<{ bank_line_id: number }>(env, `SELECT m.journal_line_id AS bank_line_id FROM eng_bank_match m WHERE m.reverses_match_id IS NULL AND ${ACTIVE} GROUP BY m.journal_line_id HAVING COUNT(*) > 1`)) report("bank_match_inconsistent", `ledger entry ${r.bank_line_id} is actively matched more than once`);
   for (const r of await many<{ id: number; amount: number; total: number }>(env, `SELECT l.id, l.amount_minor AS amount, SUM(jl.debit_minor - jl.credit_minor) AS total FROM eng_bank_match m JOIN eng_bank_line l ON l.id = m.bank_line_id JOIN eng_journal_line jl ON jl.id = m.journal_line_id WHERE m.reverses_match_id IS NULL AND ${ACTIVE} GROUP BY l.id HAVING l.amount_minor <> SUM(jl.debit_minor - jl.credit_minor)`))
     report("bank_match_inconsistent", `bank line ${r.id} (${r.amount}) is matched to entries adding up to ${r.total}`);
+  const def = (await accountForRole(env, "bank"))?.id ?? 0;
+  for (const r of await many<{ id: number }>(env, `SELECT m.id FROM eng_bank_match m JOIN eng_bank_line l ON l.id = m.bank_line_id JOIN eng_bank_statement s ON s.id = l.statement_id JOIN eng_journal_line jl ON jl.id = m.journal_line_id WHERE m.reverses_match_id IS NULL AND jl.account_id <> COALESCE(s.bank_account_id, ?)`, def)) report("bank_match_inconsistent", `match ${r.id} joins a statement line to an entry on a different bank account`);
 }
