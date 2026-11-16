@@ -10,6 +10,7 @@ import { isEffective, outstandingForDocument, outstandingForParty } from "./ledg
 import { issueDraft, readDraft } from "./drafts";
 import * as reports from "./ledger-reports";
 import { booksLockDate, checkJournalInput, planJournal, planJournalReversal, type JournalInput } from "./journal";
+import { checkYearEnd, yearEndMonth, yearsView } from "./periods";
 import { checkMatchInput, checkStatementInput, checkUnmatchInput, planMatches, planStatement, planUnmatch, suggestMatches, type MatchInput, type StatementInput, type UnmatchInput } from "./bank";
 import { RECORD_KINDS, recordView, versionOf, type RecordKind, type ViewerContext } from "./records";
 import type { EnginePermission } from "./permissions";
@@ -544,6 +545,13 @@ export const bankMatchUndo: CapabilityContract<UnmatchInput> = {
   validate(payload) { return checkUnmatchInput(payload); },
   async check(env, value) { await planUnmatch(env, value.bankLineId); },
   async execute(env, v, c) { const r = await facts.undoMatch(env, v, ctxOf(c, "bank_match.undo")); return { eventId: r.eventId }; },
+};
+
+export const yearEndSet: CapabilityContract<{ month: number; reason: string | null }> = {
+  id: "year_end.set", heldType: "engine.year_end.set", label: "Setting where the financial year ends", requires: [], permissions: ["business.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkYearEnd(payload); },
+  async check(env, value) { const now = await yearEndMonth(env); if (now.month === value.month && !now.isDefault) throw new EngineError("invalid_state", "The financial year already ends in that month."); },
+  async execute(env, v, c) { const r = await facts.setYearEnd(env, v, ctxOf(c, "year_end.set")); return { eventId: r.eventId }; },
 };
 
 export const journalPost: CapabilityContract<JournalInput> = {
@@ -1315,6 +1323,7 @@ export const ledgerBalanceSheet = bookRead<{ asOf: string }>("ledger.balance_she
 export const ledgerSuspense = bookRead<Record<string, never>>("ledger.suspense", "What is in suspense", [], () => ({ ok: true, value: {} }), (env) => reports.suspenseReport(env));
 export const ledgerReconciliation = bookRead<Record<string, never>>("ledger.reconciliation", "Control accounts against their records", [], () => ({ ok: true, value: {} }), (env) => reports.reconciliation(env));
 
+export const ledgerYears = bookRead<{ asOf: string }>("ledger.years", "Financial years", ["asOf"], (p) => { const d = dateParam(p, "asOf", true); return d.ok ? { ok: true, value: { asOf: d.value as string } } : d; }, (env, v) => yearsView(env, v.asOf));
 export const ledgerBankReconciliation = bookRead<{ asOf: string | null }>("ledger.bank_reconciliation", "The bank against the statement", ["asOf"], (p) => { const d = dateParam(p, "asOf", false); return d.ok ? { ok: true, value: { asOf: d.value } } : d; }, (env, v) => reports.bankReconciliation(env, v.asOf));
 export const ledgerCashFlow = bookRead<{ from: string; to: string }>("ledger.cash_flow", "Cash flow", ["from", "to"], (p) => {
   const f = dateParam(p, "from", true), t = dateParam(p, "to", true); if (!f.ok) return f; if (!t.ok) return t;
@@ -1322,7 +1331,7 @@ export const ledgerCashFlow = bookRead<{ from: string; to: string }>("ledger.cas
   return { ok: true, value: { from: f.value as string, to: t.value as string } };
 }, (env, v) => reports.cashFlow(env, v.from, v.to));
 export const ledgerBankSuggestions = bookRead<Record<string, never>>("ledger.bank_suggestions", "Suggested bank matches", [], () => ({ ok: true, value: {} }), (env) => suggestMatches(env));
-export const READS: readonly ReadCapability<any>[] = [ledgerBankReconciliation, ledgerCashFlow, ledgerBankSuggestions, ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
+export const READS: readonly ReadCapability<any>[] = [ledgerYears, ledgerBankReconciliation, ledgerCashFlow, ledgerBankSuggestions, ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
@@ -1330,5 +1339,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, bankStatementImport, bankMatchConfirm, bankMatchUndo, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, yearEndSet, bankStatementImport, bankMatchConfirm, bankMatchUndo, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

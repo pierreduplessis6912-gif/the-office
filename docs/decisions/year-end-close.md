@@ -1,4 +1,4 @@
-> **Status:** proposed. **Verified:** not yet. **Owns:** none.
+> **Status:** approved 2026-11-16 (Pierre: year-end is a setting defaulting to February; reopening allowed with a reason); P1 built. **Verified:** not yet. **Owns:** none.
 
 # DECISIONS: year-end-close (periods)
 
@@ -47,3 +47,8 @@ No multi-year comparison reports yet. One legal entity, one currency. A year can
 ## Decisions for Pierre
 1. Year-end: a business setting, default end of February (recommended), or named each time?
 2. Reopening a closed year allowed with a reason (recommended), or never?
+
+## P1 as built (2026-11-16): the year-end setting and the years read
+- No migration. `worker/src/engine/periods.ts`: `yearEndMonth` (the latest `year_end.set` event, else February, like the books lock), `financialYearOf`, `previousYear`, `yearsView`. Capability `year_end.set` (held type `engine.year_end.set`, owner, business.manage; the same month again is refused; choosing February explicitly on the default is allowed so it is a recorded fact). Read `ledger.years` (GET /engine/ledger/years, optional asOf; the ENGINE uses today when none is given) returns the month, this year, last year and `closed` (always empty until P2).
+- Tests: tools/engine-years.test.js (16), 6 breakages. Umbrella 11616/11616.
+- Next: P2 (close and reopen).

@@ -599,6 +599,12 @@ const MUTATIONS = [
   { name: 'bank reads: cash flow forgets the cash account', suite: 'engine-bank-reports.test.js', file: 'worker/src/engine/ledger-reports.ts', find: 'const roles = ["bank", "cash"], ids', replace: 'const roles = ["bank"], ids' },
   { name: 'bank reads: cash flow opening counts the first day twice', suite: 'engine-bank-reports.test.js', file: 'worker/src/engine/ledger-reports.ts', find: 'AND e.entry_date < ?`, ...ids, from))', replace: 'AND e.entry_date <= ?`, ...ids, from))' },
   { name: 'bank reads: outflows are shown as negative', suite: 'engine-bank-reports.test.js', file: 'worker/src/engine/ledger-reports.ts', find: 'amountMinor: -x.amountMinor }));', replace: 'amountMinor: x.amountMinor }));' },
+  { name: 'years: the default year-end is not February', suite: 'engine-years.test.js', file: 'worker/src/engine/periods.ts', find: 'export const DEFAULT_YEAR_END_MONTH = 2;', replace: 'export const DEFAULT_YEAR_END_MONTH = 3;' },
+  { name: 'years: the last day of the year-end month starts the next year', suite: 'engine-years.test.js', file: 'worker/src/engine/periods.ts', find: 'const endYear = m <= month ? y : y + 1;', replace: 'const endYear = m < month ? y : y + 1;' },
+  { name: 'years: a year ends on the first of the next month', suite: 'engine-years.test.js', file: 'worker/src/engine/periods.ts', find: 'const end = new Date(Date.UTC(endYear, month, 0));', replace: 'const end = new Date(Date.UTC(endYear, month, 1));' },
+  { name: 'years: the first recorded year-end wins over the latest', suite: 'engine-years.test.js', file: 'worker/src/engine/periods.ts', find: "type = 'year_end.set' ORDER BY id DESC LIMIT 1", replace: "type = 'year_end.set' ORDER BY id ASC LIMIT 1" },
+  { name: 'years: the same year-end can be set again', suite: 'engine-years.test.js', file: 'worker/src/engine/facts.ts', find: 'if (now.month === input.month && !now.isDefault) throw new EngineError("invalid_state", "The financial year already ends in that month.");\n    return { eventId: await appendEvent(tx, "year_end.set"', replace: 'return { eventId: await appendEvent(tx, "year_end.set"' },
+  { name: 'years: anyone may set the year-end', suite: 'engine-years.test.js', file: 'worker/src/engine/capabilities.ts', find: 'label: "Setting where the financial year ends", requires: [], permissions: ["business.manage"]', replace: 'label: "Setting where the financial year ends", requires: [], permissions: []' },
 ];
 
 let opts;

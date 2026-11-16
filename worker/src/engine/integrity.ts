@@ -51,6 +51,7 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "credit_note.issued": { creates: null, note: "an invoice is credited: ties the credit note document, its non-cash movement and the invoice together; the document, movement and allocation are created by their own events beside it" },
   "business.profile_set": { creates: null, note: "the business's own particulars change; the current profile is derived from the events (business.ts)" },
   "books_lock.set": { creates: null, note: "the books lock date moves (forward, or back with a reason: unlocking); the current lock is derived (journal.ts)" },
+  "year_end.set": { creates: null, note: "where the financial year ends (a month, 1 to 12); the latest one is the setting, February until one is set" },
   "bank_match.confirmed": { creates: null, note: "a person approved matches between bank statement lines and entries on the bank account; the match rows are written beside it" },
   "bank_match.undone": { creates: null, note: "a bank line was unmatched: reversal rows pointing at the original matches, with a reason" },
   "bank_statement.imported": { creates: null, note: "a bank statement brought in: one statement fact and its new lines (lines already imported are skipped and counted)" },

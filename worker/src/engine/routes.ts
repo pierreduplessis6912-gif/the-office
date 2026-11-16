@@ -98,7 +98,7 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
   const LEDGER_READS: Record<string, { id: string; params: string[] }> = {
     "/engine/ledger/trial-balance": { id: "ledger.trial_balance", params: ["asOf"] }, "/engine/ledger/account": { id: "ledger.account", params: ["code", "from", "to"] },
     "/engine/ledger/profit-and-loss": { id: "ledger.profit_and_loss", params: ["from", "to"] }, "/engine/ledger/balance-sheet": { id: "ledger.balance_sheet", params: ["asOf"] },
-    "/engine/ledger/suspense": { id: "ledger.suspense", params: [] }, "/engine/ledger/reconciliation": { id: "ledger.reconciliation", params: [] }, "/engine/ledger/bank-suggestions": { id: "ledger.bank_suggestions", params: [] },
+    "/engine/ledger/suspense": { id: "ledger.suspense", params: [] }, "/engine/ledger/reconciliation": { id: "ledger.reconciliation", params: [] }, "/engine/ledger/bank-suggestions": { id: "ledger.bank_suggestions", params: [] }, "/engine/ledger/years": { id: "ledger.years", params: ["asOf"] },
     "/engine/ledger/bank-reconciliation": { id: "ledger.bank_reconciliation", params: ["asOf"] }, "/engine/ledger/cash-flow": { id: "ledger.cash_flow", params: ["from", "to"] },
   };
   if (request.method === "GET" && LEDGER_READS[path]) {
@@ -108,7 +108,7 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
     // The app never works out a date: it may ask for "this_month" or "last_month" (profit and loss) or leave the balance sheet's date out (today), and the ENGINE says which dates those are.
     const period = url.searchParams.get("period");
     if (spec.id === "ledger.profit_and_loss" && period !== null) { const range = monthOf(period, today); if (!range) return Response.json({ error: "invalid_payload", message: "period must be this_month or last_month" }, { status: 422 }); Object.assign(params, range); }
-    if (spec.id === "ledger.balance_sheet" && params.asOf === undefined) params.asOf = today;
+    if ((spec.id === "ledger.balance_sheet" || spec.id === "ledger.years") && params.asOf === undefined) params.asOf = today;
     if (spec.id === "ledger.cash_flow" && period !== null) { const range = monthOf(period, today); if (!range) return Response.json({ error: "invalid_payload", message: "period must be this_month or last_month" }, { status: 422 }); Object.assign(params, range); }
     return answer(await invokeRead(env, member, spec.id, params));
   }
