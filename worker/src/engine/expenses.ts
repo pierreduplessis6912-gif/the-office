@@ -15,7 +15,7 @@ export const DENIED_CATEGORIES: readonly string[] = ["entertainment", "motor_car
 export const EXPENSE_METHODS = ["eft", "cash", "card", "cheque", "other"] as const;
 export const SMALL_PURCHASE_MINOR = 5000;                                                               // R50.00: the receipt is enough proof
 export interface ExpenseLineInput { description: string; amountMinor: number; taxBp: number }
-export interface ExpenseInput { supplierId: number; incurredOn: string; paidOn?: string; method: string; category: string; currency: string; amountsIncludeTax: boolean; lines: ExpenseLineInput[]; amountPaidMinor: number; taxInvoiceHeld: boolean; supplierInvoiceNumber?: string; receiptRef?: string; capital?: boolean }
+export interface ExpenseInput { supplierId: number; incurredOn: string; paidOn?: string; method: string; bankAccountId?: number; category: string; currency: string; amountsIncludeTax: boolean; lines: ExpenseLineInput[]; amountPaidMinor: number; taxInvoiceHeld: boolean; supplierInvoiceNumber?: string; receiptRef?: string; capital?: boolean }
 type Checked<T> = { ok: true; value: T } | { ok: false; reason: string };
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const whole = (v: unknown, min: number, max: number): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= min && v <= max;
@@ -25,7 +25,7 @@ const parse = (s: string): Record<string, unknown> => { try { const v = JSON.par
 // ---- validation (pure) -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 export function checkExpenseInput(v: unknown): Checked<ExpenseInput> {
   if (!isObj(v)) return { ok: false, reason: "the expense must be an object" };
-  const stray = Object.keys(v).find((k) => !["supplierId", "incurredOn", "paidOn", "method", "category", "currency", "amountsIncludeTax", "lines", "amountPaidMinor", "taxInvoiceHeld", "supplierInvoiceNumber", "receiptRef", "capital", "totals"].includes(k));
+  const stray = Object.keys(v).find((k) => !["supplierId", "incurredOn", "paidOn", "method", "bankAccountId", "category", "currency", "amountsIncludeTax", "lines", "amountPaidMinor", "taxInvoiceHeld", "supplierInvoiceNumber", "receiptRef", "capital", "totals"].includes(k));
   if (stray) return { ok: false, reason: `${stray} is not a field of an expense` };
   if (!whole(v.supplierId, 1, Number.MAX_SAFE_INTEGER)) return { ok: false, reason: "supplierId must be a record number" };
   const inc = checkDate(v.incurredOn, "incurredOn"); if (!inc.ok) return inc;
@@ -40,6 +40,7 @@ export function checkExpenseInput(v: unknown): Checked<ExpenseInput> {
   if (!whole(v.amountPaidMinor, 1, 1_000_000_000_000)) return { ok: false, reason: "amountPaidMinor must be a whole number of cents, at least 1" };
   let inv: string | undefined, rc: string | undefined;
   if (v.supplierInvoiceNumber !== undefined) { if (typeof v.supplierInvoiceNumber !== "string" || !v.supplierInvoiceNumber.trim() || v.supplierInvoiceNumber.trim().length > 60) return { ok: false, reason: "supplierInvoiceNumber must be 1 to 60 characters" }; inv = v.supplierInvoiceNumber.trim(); }
+  if (v.bankAccountId !== undefined && (typeof v.bankAccountId !== "number" || !Number.isSafeInteger(v.bankAccountId) || v.bankAccountId <= 0)) return { ok: false, reason: "bankAccountId must be a record number" };
   if (v.receiptRef !== undefined) { if (typeof v.receiptRef !== "string" || !v.receiptRef.trim() || v.receiptRef.trim().length > 200) return { ok: false, reason: "receiptRef must be 1 to 200 characters" }; rc = v.receiptRef.trim(); }
   if (!Array.isArray(v.lines) || v.lines.length === 0) return { ok: false, reason: "an expense needs at least one line" };
   if (v.lines.length > 100) return { ok: false, reason: "an expense may have at most 100 lines" };
@@ -54,7 +55,7 @@ export function checkExpenseInput(v: unknown): Checked<ExpenseInput> {
     if (!whole(l.taxBp, 0, 10000)) return { ok: false, reason: `${at}: taxBp is required: the tax rate in basis points, 0 to 10000 (VAT is never assumed)` };
     lines.push({ description: l.description.trim(), amountMinor: l.amountMinor, taxBp: l.taxBp });
   }
-  return { ok: true, value: { supplierId: v.supplierId, incurredOn: inc.value, ...(paidOn ? { paidOn } : {}), method: v.method, category: v.category, currency: v.currency, amountsIncludeTax: v.amountsIncludeTax, lines, amountPaidMinor: v.amountPaidMinor, taxInvoiceHeld: v.taxInvoiceHeld, ...(inv ? { supplierInvoiceNumber: inv } : {}), ...(rc ? { receiptRef: rc } : {}), ...(v.capital !== undefined ? { capital: v.capital as boolean } : {}) } };
+  return { ok: true, value: { supplierId: v.supplierId, incurredOn: inc.value, ...(paidOn ? { paidOn } : {}), method: v.method, ...(v.bankAccountId !== undefined ? { bankAccountId: v.bankAccountId as number } : {}), category: v.category, currency: v.currency, amountsIncludeTax: v.amountsIncludeTax, lines, amountPaidMinor: v.amountPaidMinor, taxInvoiceHeld: v.taxInvoiceHeld, ...(inv ? { supplierInvoiceNumber: inv } : {}), ...(rc ? { receiptRef: rc } : {}), ...(v.capital !== undefined ? { capital: v.capital as boolean } : {}) } };
 }
 
 // A receipt's line becomes a document line of one unit at the NET price: when the amount includes tax, the tax is the tax fraction of it (rate / (100 + rate)).

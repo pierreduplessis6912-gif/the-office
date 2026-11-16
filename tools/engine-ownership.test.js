@@ -46,12 +46,12 @@ module.exports = kit.guard('engine ownership', async ({ check }) => {
   }
   const engineFiles = Object.keys(facts).filter((k) => k.startsWith('engine/'));
   const nonEngine = Object.keys(facts).filter((k) => !k.startsWith('engine/') && !GENERATED.has(k));
-  const mig = ['0004_engine_foundation.sql', '0005_engine_stock.sql', '0006_engine_ledger.sql', '0007_engine_bank.sql', '0008_engine_bank_match.sql'].map((f) => fs.readFileSync(path.join(kit.workerDir, 'migrations', f), 'utf8')).join('\n');   // 0005 (stock) added 2026-11-11 with Pierre's waiver of the restore-drill gate for additive engine tables
+  const mig = ['0004_engine_foundation.sql', '0005_engine_stock.sql', '0006_engine_ledger.sql', '0007_engine_bank.sql', '0008_engine_bank_match.sql', '0009_engine_bank_accounts.sql'].map((f) => fs.readFileSync(path.join(kit.workerDir, 'migrations', f), 'utf8')).join('\n');   // 0005 (stock) added 2026-11-11 with Pierre's waiver of the restore-drill gate for additive engine tables
   const ENGINE_TABLES = new Set([...mig.matchAll(/CREATE TABLE (?:IF NOT EXISTS )?(eng_[a-z_]+)/g)].map((m) => m[1]));
-  check(engineFiles.length >= 14 && ENGINE_TABLES.size === 23, `FIXTURE: ${engineFiles.length} engine files scanned, ${nonEngine.length} other source files, migrations 0004 to 0008 create ${ENGINE_TABLES.size} tables`);
-  const FACT = new Set(['eng_event', 'eng_party', 'eng_party_role', 'eng_document', 'eng_document_line', 'eng_document_number', 'eng_money_movement', 'eng_allocation', 'eng_reversal', 'eng_interpretation', 'eng_item', 'eng_location', 'eng_stock_move', 'eng_account', 'eng_account_role', 'eng_journal_entry', 'eng_journal_line', 'eng_bank_statement', 'eng_bank_line', 'eng_bank_match']);
+  check(engineFiles.length >= 14 && ENGINE_TABLES.size === 24, `FIXTURE: ${engineFiles.length} engine files scanned, ${nonEngine.length} other source files, migrations 0004 to 0009 create ${ENGINE_TABLES.size} tables`);
+  const FACT = new Set(['eng_event', 'eng_party', 'eng_party_role', 'eng_document', 'eng_document_line', 'eng_document_number', 'eng_money_movement', 'eng_allocation', 'eng_reversal', 'eng_interpretation', 'eng_item', 'eng_location', 'eng_stock_move', 'eng_account', 'eng_account_role', 'eng_journal_entry', 'eng_journal_line', 'eng_bank_statement', 'eng_bank_line', 'eng_bank_match', 'eng_bank_account']);
   const MUTABLE = new Set(['eng_config', 'eng_draft', 'eng_observation']);
-  check([...FACT, ...MUTABLE].length === 23 && [...FACT, ...MUTABLE].every((t) => ENGINE_TABLES.has(t)), 'FIXTURE: the twenty fact tables and three mutable tables named here are exactly the twenty-three the migrations create');
+  check([...FACT, ...MUTABLE].length === 24 && [...FACT, ...MUTABLE].every((t) => ENGINE_TABLES.has(t)), 'FIXTURE: the twenty-one fact tables and three mutable tables named here are exactly the twenty-four the migrations create');
   const canon = (o) => JSON.stringify(o, (_k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, v[k]])) : v));
   const sqlTables = (strings) => { const out = new Set(); for (const s of strings) for (const m of s.matchAll(/\b(?:FROM|JOIN|INTO|UPDATE|REFERENCES)\s+([a-z_][a-z0-9_]*)/g)) out.add(m[1]); return out; };
 
@@ -120,7 +120,7 @@ module.exports = kit.guard('engine ownership', async ({ check }) => {
     eng_party: ['engine/facts.ts INSERT'], eng_party_role: ['engine/facts.ts INSERT'], eng_document: ['engine/facts.ts INSERT'], eng_document_line: ['engine/facts.ts INSERT'], eng_document_number: ['engine/facts.ts INSERT'],
     eng_money_movement: ['engine/facts.ts INSERT'], eng_allocation: ['engine/facts.ts INSERT'], eng_reversal: ['engine/facts.ts INSERT'], eng_interpretation: ['engine/facts.ts INSERT'],
     eng_item: ['engine/facts.ts INSERT'], eng_location: ['engine/facts.ts INSERT'], eng_stock_move: ['engine/facts.ts INSERT'],   // stock (0005): inserted only by the fact layer
-    eng_account: ['engine/facts.ts INSERT'], eng_account_role: ['engine/facts.ts INSERT'], eng_journal_entry: ['engine/facts.ts INSERT'], eng_journal_line: ['engine/facts.ts INSERT'], eng_bank_statement: ['engine/facts.ts INSERT'], eng_bank_line: ['engine/facts.ts INSERT'], eng_bank_match: ['engine/facts.ts INSERT'],   // the general ledger (0006): inserted only by the fact layer
+    eng_account: ['engine/facts.ts INSERT'], eng_account_role: ['engine/facts.ts INSERT'], eng_journal_entry: ['engine/facts.ts INSERT'], eng_journal_line: ['engine/facts.ts INSERT'], eng_bank_statement: ['engine/facts.ts INSERT'], eng_bank_line: ['engine/facts.ts INSERT'], eng_bank_match: ['engine/facts.ts INSERT'], eng_bank_account: ['engine/facts.ts INSERT'],   // the general ledger (0006): inserted only by the fact layer
     eng_config: ['engine/admin.ts INSERT', 'engine/boundary.ts DELETE', 'engine/boundary.ts INSERT'], eng_draft: ['engine/drafts.ts INSERT', 'engine/drafts.ts UPDATE'], eng_observation: ['engine/admin.ts INSERT', 'engine/availability.ts INSERT'],
   };
   const factVerbs = Object.entries(W).filter(([t]) => FACT.has(t)).flatMap(([t, v]) => v.filter((x) => !x.endsWith(' INSERT')).map((x) => `${t}: ${x}`));

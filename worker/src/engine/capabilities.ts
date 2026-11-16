@@ -16,6 +16,7 @@ import { checkMatchInput, checkStatementInput, checkUnmatchInput, planMatches, p
 import { RECORD_KINDS, recordView, versionOf, type RecordKind, type ViewerContext } from "./records";
 import type { EnginePermission } from "./permissions";
 import { unappliedCreditForParty } from "./ledger";
+import { bankAccounts, checkedBankAccount, checkAddInput, planAdd as planBankAccountAdd } from "./bank-accounts";
 import { allQuotations, checkDate, checkLines, checkReference, planQuotationAcceptance, planQuotationRevision, type QuoteLine } from "./quotations";
 import { documentTotals as sumTotals } from "./money";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, vatSummary, type ProfileChange } from "./business";
@@ -143,25 +144,26 @@ const allocationsOf = (raw: unknown): Checked<Allocation[]> => {
   return { ok: true, value: out };
 };
 
-interface PaymentRecord { partyId: number; amountMinor: number; currency: string; occurredOn: string; method?: string | null; allocations?: Allocation[]; allocate?: "oldest_first"; basedOn?: { partyVersion: number } }
+interface PaymentRecord { partyId: number; amountMinor: number; currency: string; occurredOn: string; method?: string | null; bankAccountId?: number; allocations?: Allocation[]; allocate?: "oldest_first"; basedOn?: { partyVersion: number } }
 export const paymentRecord: CapabilityContract<PaymentRecord> = {
   id: "payment.record", heldType: "engine.payment.record", label: "Recording a payment", requires: [], permissions: ["payment.record"], version: 1, recordsExecution: true,
   validate(payload) {
     if (!isObj(payload)) return { ok: false, reason: "the payment must be an object" };
-    const s = stray(payload, ["partyId", "amountMinor", "currency", "occurredOn", "method", "allocations", "allocate", "basedOn"]);
+    const s = stray(payload, ["partyId", "amountMinor", "currency", "occurredOn", "method", "bankAccountId", "allocations", "allocate", "basedOn"]);
     if (s) return { ok: false, reason: `${s} is not a field of a payment` };
     if (!whole(payload.partyId)) return { ok: false, reason: "partyId must be a record number" };
     if (!whole(payload.amountMinor)) return { ok: false, reason: "amountMinor must be a whole number of at least 1" };
     if (typeof payload.currency !== "string" || !/^[A-Z]{3}$/.test(payload.currency)) return { ok: false, reason: "currency must be a 3-letter code" };
     if (!isDate(payload.occurredOn)) return { ok: false, reason: "occurredOn must be a calendar date" };
     if (payload.method !== undefined && payload.method !== null && typeof payload.method !== "string") return { ok: false, reason: "method must be text" };
+    if (payload.bankAccountId !== undefined && !whole(payload.bankAccountId)) return { ok: false, reason: "bankAccountId must be a record number" };
     if (payload.allocate !== undefined && payload.allocate !== "oldest_first") return { ok: false, reason: "allocate can only be oldest_first" };
     if (payload.allocate !== undefined && payload.allocations !== undefined) return { ok: false, reason: "give allocations or allocate, not both" };
     let allocations: Allocation[] | undefined;
     if (payload.allocations !== undefined) { const a = allocationsOf(payload.allocations); if (!a.ok) return a; allocations = a.value; }
     let basedOn: { partyVersion: number } | undefined;
     if (payload.basedOn !== undefined) { if (!isObj(payload.basedOn) || stray(payload.basedOn, ["partyVersion"]) || !whole(payload.basedOn.partyVersion, 0)) return { ok: false, reason: "basedOn must name the version it was proposed against" }; basedOn = { partyVersion: payload.basedOn.partyVersion as number }; }
-    return { ok: true, value: { partyId: payload.partyId, amountMinor: payload.amountMinor, currency: payload.currency, occurredOn: payload.occurredOn, ...(payload.method !== undefined ? { method: payload.method as string | null } : {}), ...(allocations ? { allocations } : {}), ...(payload.allocate ? { allocate: "oldest_first" as const } : {}), ...(basedOn ? { basedOn } : {}) } };
+    return { ok: true, value: { partyId: payload.partyId, amountMinor: payload.amountMinor, currency: payload.currency, occurredOn: payload.occurredOn, ...(payload.method !== undefined ? { method: payload.method as string | null } : {}), ...(payload.bankAccountId !== undefined ? { bankAccountId: payload.bankAccountId as number } : {}), ...(allocations ? { allocations } : {}), ...(payload.allocate ? { allocate: "oldest_first" as const } : {}), ...(basedOn ? { basedOn } : {}) } };
   },
   // At the door: turn an instruction ("oldest first") into the EXACT allocations the approver will be approving, and note the version of the account they are based on.
   async stamp(env, value) {
@@ -184,6 +186,7 @@ export const paymentRecord: CapabilityContract<PaymentRecord> = {
   },
   async check(env, value) {
     if (!(await one(env, "SELECT 1 AS ok FROM eng_party WHERE id = ?", value.partyId))) throw new EngineError("not_found", "There is no such customer.");
+    await checkedBankAccount(env, value.bankAccountId, value.method);
     if (value.basedOn && (await versionOf(env, { kind: "party", id: value.partyId })) !== value.basedOn.partyVersion) throw new EngineError("stale", "The account changed after this was proposed, so it needs to be proposed again.");
     let total = 0;
     for (const a of value.allocations ?? []) {
@@ -198,7 +201,7 @@ export const paymentRecord: CapabilityContract<PaymentRecord> = {
     if (total > value.amountMinor) throw new EngineError("over_allocated", "The allocations add up to more than the payment.");
   },
   async execute(env, v, c) {
-    const r = await facts.recordPayment(env, { direction: "in", partyId: v.partyId, amountMinor: v.amountMinor, currency: v.currency, occurredOn: v.occurredOn, method: v.method ?? null, allocations: v.allocations ?? [] }, ctxOf(c, "payment.record"));
+    const r = await facts.recordPayment(env, { direction: "in", partyId: v.partyId, amountMinor: v.amountMinor, currency: v.currency, occurredOn: v.occurredOn, method: v.method ?? null, bankAccountId: v.bankAccountId ?? null, allocations: v.allocations ?? [] }, ctxOf(c, "payment.record"));
     return { movementId: r.movementId, allocationIds: r.allocationIds };
   },
 };
@@ -581,6 +584,13 @@ export const yearEndSet: CapabilityContract<{ month: number; reason: string | nu
   async execute(env, v, c) { const r = await facts.setYearEnd(env, v, ctxOf(c, "year_end.set")); return { eventId: r.eventId }; },
 };
 
+export const bankAccountAdd: CapabilityContract<{ name: string }> = {
+  id: "bank_account.add", heldType: "engine.bank_account.add", label: "Adding a bank account", requires: [], permissions: ["business.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkAddInput(payload); },
+  async check(env, value) { await planBankAccountAdd(env, value); },
+  async execute(env, v, c) { const r = await facts.addBankAccount(env, v, ctxOf(c, "bank_account.add")); return { eventId: r.eventId, accountId: r.accountId, code: r.code }; },
+};
+
 export const yearClose: CapabilityContract<CloseInput> = {
   id: "year.close", heldType: "engine.year.close", label: "Closing a financial year", requires: [], permissions: ["business.manage"], version: 1, recordsExecution: true,
   validate(payload) { return checkCloseInput(payload); },
@@ -860,6 +870,7 @@ export const expenseRecord: CapabilityContract<ExpenseRecordPayload> = {
   },
   async stamp(env, value) { const plan = await planExpense(env, value); return { ...value, totals: plan.totals }; },
   async check(env, value) {
+    await checkedBankAccount(env, value.bankAccountId, value.method);
     const plan = await planExpense(env, value);
     if (value.totals && JSON.stringify(value.totals) !== JSON.stringify(plan.totals)) throw new EngineError("invalid_state", "The totals shown do not match the lines, so this needs to be proposed again.");
   },
@@ -1042,12 +1053,12 @@ export const supplierInvoiceVoid: CapabilityContract<BillVoidPayload> = {
   async execute(env, v, c) { const r = await facts.voidSupplierInvoice(env, v, ctxOf(c, "supplier_invoice.void")); return { eventId: r.eventId, reversalId: r.reversalId }; },
 };
 
-interface SupplierPaymentPayload { supplierId: number; amountMinor: number; currency: string; paidOn: string; method: string; allocations?: Array<{ billId: number; amountMinor: number }>; allocate?: "oldest_first" }
+interface SupplierPaymentPayload { supplierId: number; amountMinor: number; currency: string; paidOn: string; method: string; bankAccountId?: number; allocations?: Array<{ billId: number; amountMinor: number }>; allocate?: "oldest_first" }
 export const supplierPaymentRecord: CapabilityContract<SupplierPaymentPayload> = {
   id: "supplier_payment.record", heldType: "engine.supplier_payment.record", label: "Paying a supplier", requires: [], permissions: ["supplier_payment.record"], version: 1, recordsExecution: true,
   validate(payload) {
     if (!isObj(payload)) return { ok: false, reason: "the payment must be an object" };
-    const s = stray(payload, ["supplierId", "amountMinor", "currency", "paidOn", "method", "allocations", "allocate"]);
+    const s = stray(payload, ["supplierId", "amountMinor", "currency", "paidOn", "method", "bankAccountId", "allocations", "allocate"]);
     if (s) return { ok: false, reason: `${s} is not a field of a supplier payment` };
     if (!whole(payload.supplierId)) return { ok: false, reason: "supplierId must be a record number" };
     if (!nowMinor(payload.amountMinor)) return { ok: false, reason: "amountMinor must be a whole number of cents, at least 1" };
@@ -1055,6 +1066,7 @@ export const supplierPaymentRecord: CapabilityContract<SupplierPaymentPayload> =
     const d = checkDate(payload.paidOn, "paidOn"); if (!d.ok) return d;
     if (typeof payload.method !== "string" || !["eft", "cash", "card", "cheque", "other"].includes(payload.method)) return { ok: false, reason: "method must be eft, cash, card, cheque or other" };
     const out: SupplierPaymentPayload = { supplierId: payload.supplierId, amountMinor: payload.amountMinor as number, currency: payload.currency, paidOn: d.value, method: payload.method };
+    if (payload.bankAccountId !== undefined) { if (!whole(payload.bankAccountId)) return { ok: false, reason: "bankAccountId must be a record number" }; out.bankAccountId = payload.bankAccountId; }
     const hasAlloc = payload.allocations !== undefined && !(Array.isArray(payload.allocations) && payload.allocations.length === 0), wantsOldest = payload.allocate !== undefined;
     if (hasAlloc && wantsOldest) return { ok: false, reason: "name the bills to pay, or say oldest_first, not both" };
     if (wantsOldest) { if (payload.allocate !== "oldest_first") return { ok: false, reason: "allocate must be oldest_first" }; out.allocate = "oldest_first"; return { ok: true, value: out }; }
@@ -1068,7 +1080,7 @@ export const supplierPaymentRecord: CapabilityContract<SupplierPaymentPayload> =
     out.allocations = allocs;
     return { ok: true, value: out };
   },
-  async check(env, value) { await planSupplierPayment(env, value); },
+  async check(env, value) { await checkedBankAccount(env, value.bankAccountId, value.method); await planSupplierPayment(env, value); },
   async execute(env, v, c) { const r = await facts.recordSupplierPayment(env, v, ctxOf(c, "supplier_payment.record")); return { movementId: r.movementId, allocationIds: r.allocationIds, eventId: r.eventId }; },
 };
 
@@ -1363,6 +1375,11 @@ export const ledgerBalanceSheet = bookRead<{ asOf: string }>("ledger.balance_she
 export const ledgerSuspense = bookRead<Record<string, never>>("ledger.suspense", "What is in suspense", [], () => ({ ok: true, value: {} }), (env) => reports.suspenseReport(env));
 export const ledgerReconciliation = bookRead<Record<string, never>>("ledger.reconciliation", "Control accounts against their records", [], () => ({ ok: true, value: {} }), (env) => reports.reconciliation(env));
 
+export const ledgerBankAccounts = bookRead<Record<string, never>>("ledger.bank_accounts", "The bank accounts", [], () => ({ ok: true, value: {} }), async (env) => {
+  const out = [];
+  for (const a of await bankAccounts(env)) out.push({ id: a.id, code: a.code, name: a.name, isDefault: a.isDefault, balanceMinor: Number((await one<{ b: number | null }>(env, "SELECT COALESCE(SUM(debit_minor - credit_minor), 0) AS b FROM eng_journal_line WHERE account_id = ?", a.id))?.b ?? 0) });
+  return { accounts: out, derivedBy: "ledger.bankAccounts" };
+});
 export const ledgerYears = bookRead<{ asOf: string }>("ledger.years", "Financial years", ["asOf"], (p) => { const d = dateParam(p, "asOf", true); return d.ok ? { ok: true, value: { asOf: d.value as string } } : d; }, (env, v) => yearsView(env, v.asOf));
 export const ledgerCashFlowIndirect = bookRead<{ from: string; to: string }>("ledger.cash_flow_indirect", "Why cash changed", ["from", "to"], (p) => {
   const f = dateParam(p, "from", true), t = dateParam(p, "to", true); if (!f.ok) return f; if (!t.ok) return t;
@@ -1376,7 +1393,7 @@ export const ledgerCashFlow = bookRead<{ from: string; to: string }>("ledger.cas
   return { ok: true, value: { from: f.value as string, to: t.value as string } };
 }, (env, v) => reports.cashFlow(env, v.from, v.to));
 export const ledgerBankSuggestions = bookRead<Record<string, never>>("ledger.bank_suggestions", "Suggested bank matches", [], () => ({ ok: true, value: {} }), (env) => suggestMatches(env));
-export const READS: readonly ReadCapability<any>[] = [invoicesFind, ledgerCashFlowIndirect, ledgerYears, ledgerBankReconciliation, ledgerCashFlow, ledgerBankSuggestions, ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
+export const READS: readonly ReadCapability<any>[] = [ledgerBankAccounts, invoicesFind, ledgerCashFlowIndirect, ledgerYears, ledgerBankReconciliation, ledgerCashFlow, ledgerBankSuggestions, ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
@@ -1384,5 +1401,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, yearEndSet, yearClose, yearReopen, bankStatementImport, bankMatchConfirm, bankMatchUndo, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, bankAccountAdd, yearEndSet, yearClose, yearReopen, bankStatementImport, bankMatchConfirm, bankMatchUndo, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

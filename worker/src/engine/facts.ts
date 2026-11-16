@@ -24,6 +24,7 @@ import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type Pr
 import { checkDate } from "./quotations";
 import { closedYears, yearEndMonth } from "./periods";
 import { planClose, planReopen, type CloseInput, type ReopenInput } from "./year-close";
+import { checkedBankAccount, planAdd } from "./bank-accounts";
 import { planMatches, planStatement, planUnmatch, type MatchInput, type StatementInput } from "./bank";
 import { CHART_TEMPLATE, accountForRole, assertBooksOpen, booksLockDate, planJournal, planJournalReversal, type JournalInput, checkedLines, documentLines, documentPosting, grniAvailable, stockMoveLines, paymentOutLines, paymentOutPosts, planContra, purchaseLines, receiptLines, receiptPosts, refundLines, refundPosts, type PostLine } from "./journal";
 
@@ -99,7 +100,7 @@ async function writeEntry(env: Env, input: { date: string; sourceKind: "document
   const entry = await one<{ id: number }>(env, "INSERT INTO eng_journal_entry (entry_date, source_kind, source_id, memo, event_id) VALUES (?, ?, ?, ?, ?) RETURNING id", input.date, input.sourceKind, input.sourceId, input.memo, input.eventId);
   let no = 0;
   for (const l of lines) {
-    const account = await accountForRole(env, l.role);
+    const account = l.accountId !== undefined ? { id: l.accountId } : await accountForRole(env, l.role);
     if (!account) throw new EngineError("ledger_unmapped", `the ledger has no account for ${l.role}`);
     no += 1;
     await run(env, "INSERT INTO eng_journal_line (entry_id, line_no, account_id, debit_minor, credit_minor) VALUES (?, ?, ?, ?, ?)", Number(entry!.id), no, account.id, l.debitMinor ?? 0, l.creditMinor ?? 0);
@@ -118,6 +119,18 @@ async function writeContra(env: Env, sourceKind: "document" | "movement" | "stoc
     no += 1;
     await run(env, "INSERT INTO eng_journal_line (entry_id, line_no, account_id, debit_minor, credit_minor) VALUES (?, ?, ?, ?, ?)", Number(entry!.id), no, l.accountId, l.debitMinor, l.creditMinor);
   }
+}
+
+// A new bank account: an ordinary asset account in the chart, said to be a bank account. The engine picks its code; the default account stays the one with the bank role.
+export async function addBankAccount(env: Env, input: { name: string }, ctx: Ctx): Promise<{ eventId: number; accountId: number; code: string }> {
+  return inTransaction(env, async (tx) => {
+    await ensureChart(tx, ctx);
+    const plan = await planAdd(tx, input);
+    const eventId = await appendEvent(tx, "bank_account.added", ctx, { name: plan.name, code: plan.code });
+    const acct = await one<{ id: number }>(tx, "INSERT INTO eng_account (code, name, type, event_id) VALUES (?, ?, 'asset', ?) RETURNING id", plan.code, plan.name, eventId);
+    await run(tx, "INSERT INTO eng_bank_account (account_id, event_id) VALUES (?, ?)", Number(acct!.id), eventId);
+    return { eventId, accountId: Number(acct!.id), code: plan.code };
+  });
 }
 
 // The books lock (journal.ts): ONE date, a recorded fact. Moving it BACK is unlocking, which needs a reason; both directions are held and approved like everything else.
@@ -448,7 +461,7 @@ export async function recordExpense(env: Env, input: ExpenseInput, ctx: Ctx): Pr
   return inTransaction(env, async (tx) => {
     const plan = await planExpense(tx, input);
     const doc = await recordDocument(tx, { kind: "expense", direction: "buy", partyId: input.supplierId, currency: input.currency, reference: input.supplierInvoiceNumber ?? null, issuedOn: input.incurredOn, terms: { category: input.category, taxInvoiceHeld: input.taxInvoiceHeld, capital: input.capital === true, amountsIncludeTax: input.amountsIncludeTax, ...(input.receiptRef ? { receiptRef: input.receiptRef } : {}) }, lines: plan.docLines }, ctx);
-    const mv = await insertMovement(tx, { direction: "out", partyId: input.supplierId, amountMinor: input.amountPaidMinor, currency: input.currency, occurredOn: plan.paidOn, method: input.method }, ctx);
+    const mv = await insertMovement(tx, { direction: "out", partyId: input.supplierId, amountMinor: input.amountPaidMinor, currency: input.currency, occurredOn: plan.paidOn, method: input.method, bankAccountId: input.bankAccountId ?? null }, ctx);
     const eventId = await appendEvent(tx, "expense.recorded", ctx, { documentId: doc.id, movementId: mv.id, supplierId: input.supplierId, category: input.category, amountPaidMinor: input.amountPaidMinor, paidOn: plan.paidOn, method: input.method, incurredOn: input.incurredOn, claimDate: plan.claimDate, taxInvoiceHeld: input.taxInvoiceHeld, supplierInvoiceNumber: input.supplierInvoiceNumber ?? null, receiptRef: input.receiptRef ?? null, capital: input.capital === true });
     return { documentId: doc.id, number: doc.number, movementId: mv.id, eventId, totals: doc.totals, claimDate: plan.claimDate };
   });
@@ -517,7 +530,7 @@ export async function recordSupplierPayment(env: Env, input: PaymentInput, ctx: 
   const supplierId = id(input.supplierId, "supplier");
   return inTransaction(env, async (tx) => {
     const plan = await planSupplierPayment(tx, { ...input, supplierId });
-    const pay = await recordPayment(tx, { direction: "out", partyId: supplierId, amountMinor: input.amountMinor, currency: input.currency, occurredOn: plan.paidOn, method: input.method, allocations: plan.allocations.map((a) => ({ documentId: a.billId, amountMinor: a.amountMinor })) }, ctx);
+    const pay = await recordPayment(tx, { direction: "out", partyId: supplierId, amountMinor: input.amountMinor, currency: input.currency, occurredOn: plan.paidOn, method: input.method, bankAccountId: input.bankAccountId ?? null, allocations: plan.allocations.map((a) => ({ documentId: a.billId, amountMinor: a.amountMinor })) }, ctx);
     const eventId = await appendEvent(tx, "supplier_payment.recorded", ctx, { movementId: pay.movementId, supplierId, paidOn: plan.paidOn, method: input.method, allocations: plan.allocations });
     return { movementId: pay.movementId, allocationIds: pay.allocationIds, eventId };
   });
@@ -683,7 +696,7 @@ export async function writeDownStock(env: Env, input: WriteDownInput, ctx: Ctx):
 }
 
 // ---- money -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-export interface MovementInput { direction: string; partyId: number; amountMinor: number; currency: string; occurredOn: string; method?: string | null }
+export interface MovementInput { direction: string; partyId: number; amountMinor: number; currency: string; occurredOn: string; method?: string | null; bankAccountId?: number | null }
 
 // callerPosts: a refund to a customer is money out too, but it posts its own entry (against receivables), so it tells this function not to post the supplier-side one.
 async function insertMovement(tx: Env, input: MovementInput, ctx: Ctx, callerPosts = false): Promise<{ id: number; eventId: number }> {
@@ -693,13 +706,14 @@ async function insertMovement(tx: Env, input: MovementInput, ctx: Ctx, callerPos
   const currency = currencyCode(input.currency);
   const occurredOn = date(input.occurredOn, "date");
   await requireParty(tx, partyId);
+  const bankAccountId = await checkedBankAccount(tx, input.bankAccountId, input.method);
   const receipt = await receiptPosts(tx, direction, input.method, currency);   // a customer's payment posts its entry here (journal.ts)
   const paidOut = !callerPosts && (await paymentOutPosts(tx, direction, currency));   // so does money paid out to a supplier or for an expense; a refund posts its own
   if (receipt || paidOut) await ensureChart(tx, ctx);
-  const eventId = await appendEvent(tx, direction === "in" ? "payment.recorded" : "payment.made", ctx, { direction, partyId, amountMinor, currency, occurredOn, method: input.method ?? null });
-  const row = await one<{ id: number }>(tx, "INSERT INTO eng_money_movement (direction, party_id, amount_minor, currency, occurred_on, method, event_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id", direction, partyId, amountMinor, currency, occurredOn, input.method ?? null, eventId);
-  if (receipt) await writeEntry(tx, { date: occurredOn, sourceKind: "movement", sourceId: Number(row!.id), memo: "Payment received", eventId, lines: receiptLines(input.method ?? null, amountMinor) });
-  if (paidOut) await writeEntry(tx, { date: occurredOn, sourceKind: "movement", sourceId: Number(row!.id), memo: "Payment made", eventId, lines: paymentOutLines(input.method ?? null, amountMinor) });
+  const eventId = await appendEvent(tx, direction === "in" ? "payment.recorded" : "payment.made", ctx, { direction, partyId, amountMinor, currency, occurredOn, method: input.method ?? null, ...(bankAccountId !== null ? { bankAccountId } : {}) });
+  const row = await one<{ id: number }>(tx, "INSERT INTO eng_money_movement (direction, party_id, amount_minor, currency, occurred_on, method, bank_account_id, event_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id", direction, partyId, amountMinor, currency, occurredOn, input.method ?? null, bankAccountId, eventId);
+  if (receipt) await writeEntry(tx, { date: occurredOn, sourceKind: "movement", sourceId: Number(row!.id), memo: "Payment received", eventId, lines: receiptLines(input.method ?? null, amountMinor, bankAccountId) });
+  if (paidOut) await writeEntry(tx, { date: occurredOn, sourceKind: "movement", sourceId: Number(row!.id), memo: "Payment made", eventId, lines: paymentOutLines(input.method ?? null, amountMinor, bankAccountId) });
   return { id: Number(row!.id), eventId };
 }
 
@@ -803,10 +817,10 @@ export async function reverse(env: Env, input: ReverseInput, ctx: Ctx): Promise<
 export async function correctMovement(env: Env, input: { movementId: number; reason: string; replacement: { partyId: number; amountMinor?: number; occurredOn?: string; method?: string | null; allocations?: Array<{ documentId: number; amountMinor: number }> } }, ctx: Ctx): Promise<{ reversalId: number; replacementMovementId: number; allocationIds: number[]; eventIds: number[] }> {
   const reason = text(input.reason, "reason");
   return inTransaction(env, async (tx) => {
-    const orig = await one<{ direction: string; amount_minor: number; currency: string; occurred_on: string; method: string | null }>(tx, "SELECT direction, amount_minor, currency, occurred_on, method FROM eng_money_movement WHERE id = ?", id(input.movementId, "payment"));
+    const orig = await one<{ direction: string; amount_minor: number; currency: string; occurred_on: string; method: string | null; bank_account_id: number | null }>(tx, "SELECT direction, amount_minor, currency, occurred_on, method, bank_account_id FROM eng_money_movement WHERE id = ?", id(input.movementId, "payment"));
     if (!orig) throw new EngineError("not_found", `payment ${input.movementId} does not exist in this business`);
     if (!(await isEffective(tx, "movement", input.movementId))) throw new EngineError("already_reversed", "that payment has already been reversed");
-    const repl = await insertMovement(tx, { direction: orig.direction, partyId: input.replacement.partyId, amountMinor: input.replacement.amountMinor ?? orig.amount_minor, currency: orig.currency, occurredOn: input.replacement.occurredOn ?? orig.occurred_on, method: input.replacement.method === undefined ? orig.method : input.replacement.method }, ctx);
+    const repl = await insertMovement(tx, { direction: orig.direction, partyId: input.replacement.partyId, amountMinor: input.replacement.amountMinor ?? orig.amount_minor, currency: orig.currency, occurredOn: input.replacement.occurredOn ?? orig.occurred_on, method: input.replacement.method === undefined ? orig.method : input.replacement.method, bankAccountId: (input.replacement.method === undefined ? orig.method : input.replacement.method) === "cash" ? null : orig.bank_account_id }, ctx);
     const rev = await reverse(tx, { movementId: input.movementId, reason, replacedByMovementId: repl.id }, ctx);
     const allocationIds: number[] = [];
     const eventIds = [repl.eventId, rev.eventId];

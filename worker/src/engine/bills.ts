@@ -161,7 +161,7 @@ export async function planBillVoid(env: Env, input: { billId: number; reason: un
   return { billId: d.id, reason: input.reason.trim().replace(/\s+/g, " "), voidedOn: v.value, supplierId: info.supplierId };
 }
 
-export interface PaymentInput { supplierId: number; amountMinor: number; currency: string; paidOn: string; method: string; allocations?: Array<{ billId: number; amountMinor: number }>; allocate?: "oldest_first" }
+export interface PaymentInput { supplierId: number; amountMinor: number; currency: string; paidOn: string; method: string; bankAccountId?: number; allocations?: Array<{ billId: number; amountMinor: number }>; allocate?: "oldest_first" }
 export { EXPENSE_METHODS };
 export async function planSupplierPayment(env: Env, input: PaymentInput) {
   const supplier = await partyProfile(env, input.supplierId);

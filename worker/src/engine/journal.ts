@@ -53,7 +53,7 @@ export async function accountForRole(env: Env, role: string): Promise<AccountRef
   return row ? { id: Number(row.id), code: row.code, name: row.name, type: row.type } : null;
 }
 
-export interface PostLine { role: string; debitMinor?: number; creditMinor?: number }
+export interface PostLine { role: string; accountId?: number; debitMinor?: number; creditMinor?: number }
 
 // A line of nothing is never written; an entry with no lines (a fact worth nothing) is not written at all; the rest must be whole cents and must balance.
 export function checkedLines(lines: PostLine[]): PostLine[] {
@@ -129,13 +129,13 @@ export function stockMoveLines(kind: string, reason: string | null, hasSource: b
 
 // Money paid OUT to a supplier (or for an expense): Dr payables control, Cr bank or cash. (A refund to a customer is also money out, but it posts its own entry against receivables.)
 export async function paymentOutPosts(env: Env, direction: string, currency: string): Promise<boolean> { return direction === "out" && currency === (await ledgerCurrency(env)); }
-export const paymentOutLines = (method: string | null, amountMinor: number): PostLine[] => [{ role: "payables_control", debitMinor: amountMinor }, { role: method === "cash" ? "cash" : "bank", creditMinor: amountMinor }];
+export const paymentOutLines = (method: string | null, amountMinor: number, bankAccountId?: number | null): PostLine[] => [{ role: "payables_control", debitMinor: amountMinor }, { role: method === "cash" ? "cash" : "bank", ...(method !== "cash" && bankAccountId ? { accountId: bankAccountId } : {}), creditMinor: amountMinor }];
 
 // A payment RECEIVED from a customer. method "credit" is a credit note's non-cash movement and posts nothing (the credit note already did). Cash goes to the cash account; every other method (and none stated) to the bank.
 export async function receiptPosts(env: Env, direction: string, method: string | null | undefined, currency: string): Promise<boolean> {
   return direction === "in" && method !== "credit" && currency === (await ledgerCurrency(env));
 }
-export const receiptLines = (method: string | null, amountMinor: number): PostLine[] => [{ role: method === "cash" ? "cash" : "bank", debitMinor: amountMinor }, { role: "receivables_control", creditMinor: amountMinor }];
+export const receiptLines = (method: string | null, amountMinor: number, bankAccountId?: number | null): PostLine[] => [{ role: method === "cash" ? "cash" : "bank", ...(method !== "cash" && bankAccountId ? { accountId: bankAccountId } : {}), debitMinor: amountMinor }, { role: "receivables_control", creditMinor: amountMinor }];
 // Money paid BACK to a customer (a refund of leftover credit or of an overpayment).
 export async function refundPosts(env: Env, currency: string): Promise<boolean> { return currency === (await ledgerCurrency(env)); }
 export const refundLines = (method: string | null, amountMinor: number): PostLine[] => [{ role: "receivables_control", debitMinor: amountMinor }, { role: method === "cash" ? "cash" : "bank", creditMinor: amountMinor }];

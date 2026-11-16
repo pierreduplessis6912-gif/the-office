@@ -1,4 +1,4 @@
-> **Status:** proposed 2026-11-16, waiting for Pierre's go. **Verified:** not yet. **Owns:** none.
+> **Status:** approved 2026-11-16 (Pierre: "Yes"); B1 built. **Verified:** not yet. **Owns:** none.
 
 # Several bank accounts (current, savings, card)
 
@@ -18,3 +18,12 @@ One additive migration (a table for bank accounts, the account id on payment and
 
 ## Not in this step
 Foreign-currency accounts, automatic bank feeds, per-account opening balances beyond a normal opening journal.
+
+## B1 as built (2026-11-16): accounts and payments
+- Migration 0009 (additive): `eng_bank_account` (account_id UNIQUE, event_id) and a nullable `bank_account_id` on `eng_money_movement` and `eng_bank_statement` (the statement column is for B2).
+- `worker/src/engine/bank-accounts.ts`: `bankAccounts` (the default first, then added ones; `id` is the ledger account id), `checkedBankAccount`, `checkAddInput`, `planAdd` (next free code from 1020 to 1099; 1010 is cash), `verifyAccounts`.
+- Capability `bank_account.add` (held, `engine.bank_account.add`, owner, business.manage). Read `ledger.bank_accounts` (GET /engine/ledger/bank-accounts): each account with its ledger balance.
+- `payment.record`, `supplier_payment.record` and `expense.record` take an optional `bankAccountId`; the entry's bank leg goes to that account. Cash and credit refuse one. `payment.correct` keeps the original's account. Refunds keep using the default (not in B1).
+- Verifier: `bank_account_inconsistent` (a listed account that is not an asset or is the default; a payment or statement naming a non-bank account; a payment whose entry misses its account).
+- Umbrella 11717/11717.
+- Next: B2 (a statement per account, reconciliation per account), B3 (transfers, cash flow, sentences, app).

@@ -72,6 +72,7 @@ module.exports = kit.guard('engine restore', async ({ check }) => {
   const legacyPre = fingerprint(v.db, legacyTables(v));
   const snapA = await bk.takeSnapshot(v.env, new Date('2026-11-01T03:00:00Z'));
   v.db.exec(migration);   // the migration arrives (additive)
+  v.db.exec('ALTER TABLE eng_money_movement ADD COLUMN bank_account_id INTEGER REFERENCES eng_account(id)');   // and a later step (0009) adds a column to a table this one made
   check(ENG.every((t) => v.tables().includes(t)) && fingerprint(v.db, legacyTables(v)) === legacyPre, 'the migration adds the engine tables and changes no legacy row');
   const idsV = await populate(v);
   const engineWith = fingerprint(v.db, ENG);
