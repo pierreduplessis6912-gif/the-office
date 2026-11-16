@@ -55,6 +55,15 @@ abstract class EngineApi {
   /// The purchase orders still waiting for goods (GET /engine/purchase-orders?status=outstanding). Read only.
   Future<EngineResponse> orders();
 
+  /// Profit and loss for a month the ENGINE dates (GET /engine/ledger/profit-and-loss?period=this_month|last_month). Read only.
+  Future<EngineResponse> profitAndLoss(String period);
+
+  /// What the business owns and owes today (GET /engine/ledger/balance-sheet; the engine says which day today is). Read only.
+  Future<EngineResponse> balanceSheet();
+
+  /// The control accounts against the records (GET /engine/ledger/reconciliation). Read only.
+  Future<EngineResponse> reconciliation();
+
   /// The quotations that are not superseded (GET /engine/quotations). Read only.
   Future<EngineResponse> quotations();
 
@@ -194,6 +203,15 @@ class FixtureEngineApi implements EngineApi {
 
   @override
   Future<EngineResponse> orders() async => fixtures['assistant-orders'] ?? _missing;
+
+  @override
+  Future<EngineResponse> profitAndLoss(String period) async => fixtures['assistant-books-profit'] ?? _missing;
+
+  @override
+  Future<EngineResponse> balanceSheet() async => fixtures['assistant-books-balance'] ?? _missing;
+
+  @override
+  Future<EngineResponse> reconciliation() async => fixtures['assistant-books-reconciliation'] ?? _missing;
 
   @override
   Future<EngineResponse> quotations() async => fixtures['assistant-quotations'] ?? _missing;

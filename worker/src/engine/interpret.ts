@@ -55,12 +55,14 @@ function catalogue(): Entry[] {
     { id: "goods.receive", describes: "Record that a delivery of an item arrived from a supplier (it is only proposed; a person approves it).", arguments: { supplier: "the supplier's name, as the person said it", item: "the product name only (or its code), as the person said it, without the unit or a quantity (screws, not boxes of screws)", quantity: "a plain number of the item's own units, for example 5 or 2.5", deliveryNote: "the delivery note number, only if the person said one" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "goods.receive")?.permissions ?? [] },
     { id: "supplier_payment.record", describes: "Record a payment the business has made to a supplier (it is only proposed; a person approves it).", arguments: { supplier: "the supplier's name, as the person said it", amountCents: "the amount as a whole number of cents; R500 is 50000", method: `how it was paid: one of ${SUPPLIER_PAY_METHODS.join(", ")}; required, so if the sentence does not say how, answer {"capability": null}` }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "supplier_payment.record")?.permissions ?? [] },
     { id: "vat.summary", describes: "The VAT position for a month.", arguments: { period: "this_month or last_month: required" }, permissions: READS.find((r) => r.id === "vat.summary")?.permissions ?? [] },
+    { id: "ledger.profit_and_loss", describes: "Profit and loss for a month: what the business earned, what it cost and what it spent, and the profit.", arguments: { period: "this_month or last_month: required" }, permissions: READS.find((r) => r.id === "ledger.profit_and_loss")?.permissions ?? [] },
+    { id: "ledger.balance_sheet", describes: "What the business owns and owes today (the balance sheet).", arguments: {}, permissions: READS.find((r) => r.id === "ledger.balance_sheet")?.permissions ?? [] },
   ];
 }
 
 // ---- the stack: dates are worked out by the engine from today, never by the model ---------------------------------------------------------------------------------------------------------------------------------------
 const addDays = (iso: string, n: number): string => { const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-function monthOf(period: string, today: string): { from: string; to: string } | null {
+export function monthOf(period: string, today: string): { from: string; to: string } | null {
   if (period !== "this_month" && period !== "last_month") return null;
   const t = new Date(today + "T00:00:00Z");
   const first = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + (period === "last_month" ? -1 : 0), 1));
@@ -282,6 +284,15 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
     const range = typeof args.period === "string" ? monthOf(args.period, today) : null;
     if (!range) return notUnderstood(env, member, text);
     return { kind: "read", understood, outcome: await invokeRead(env, member, "vat.summary", range) };
+  }
+  if (chosen.id === "ledger.profit_and_loss") {
+    const range = typeof args.period === "string" ? monthOf(args.period, today) : null;
+    if (!range) return notUnderstood(env, member, text);
+    return { kind: "read", understood, outcome: await invokeRead(env, member, "ledger.profit_and_loss", range) };
+  }
+  if (chosen.id === "ledger.balance_sheet") {
+    if (Object.keys(args).length > 0) return notUnderstood(env, member, text);   // it takes no arguments: the date is today, worked out here, never said by the model
+    return { kind: "read", understood, outcome: await invokeRead(env, member, "ledger.balance_sheet", { asOf: today }) };
   }
   if (chosen.id === "expenses.find") {
     if (args.category !== undefined && !(typeof args.category === "string" && (EXPENSE_CATEGORIES as readonly string[]).includes(args.category))) return notUnderstood(env, member, text);

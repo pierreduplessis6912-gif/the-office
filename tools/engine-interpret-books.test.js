@@ -1,0 +1,47 @@
+// The assistant's sentences for the books (docs/decisions/general-ledger.md, G4): "what is my profit this month", "what do I own and owe". As with every sentence: the model supplies WORDS, the engine works the dates out from today,
+// nothing is guessed, nothing is written, and only someone who may read the books is offered or answered them.
+const kit = require('./engine-kit.js');
+
+module.exports = kit.guard('engine interpret (the books)', async ({ check }) => {
+  const ENV_A = { BUSINESS_ID: 'eng-a', ENGINE_REHEARSAL: '1' };
+  const SEED = { admin: true, method: 'POST', path: '/admin/engine/provision-sample', body: { confirm: 'eng-a' } };
+  const call = (capability, args) => JSON.stringify(capability === null ? { capability: null } : { capability, arguments: args });
+  const say = (re, reply) => ({ match: re, reply: () => reply });
+  const SCRIPT = [
+    say(/profit this month/, call('ledger.profit_and_loss', { period: 'this_month' })),
+    say(/profit last month/, call('ledger.profit_and_loss', { period: 'last_month' })),
+    say(/What is my profit\?/, call('ledger.profit_and_loss', {})),
+    say(/profit for next century/, call('ledger.profit_and_loss', { period: 'next_century' })),
+    say(/profit with dates/, JSON.stringify({ capability: 'ledger.profit_and_loss', arguments: { period: 'this_month', from: '2020-01-01', to: '2020-12-31' } })),
+    say(/What do I own and owe\?/, call('ledger.balance_sheet', {})),
+    say(/balance sheet for last year/, call('ledger.balance_sheet', { asOf: '2025-12-31' })),
+  ];
+  const interpret = (text, role = 'accountant', ai = SCRIPT) => kit.route({ env: ENV_A, ai, before: [SEED], method: 'POST', path: '/engine/interpret', role, body: { text } });
+  const added = (res, t) => ((res.writes && res.writes[t] && res.writes[t].added) || []).length;
+  const tables = (res) => Object.keys(res.writes || {}).filter((t) => added(res, t) > 0).sort();
+  const body = (res) => (res.result && res.result.body) || {};
+  const status = (res) => res.result && res.result.status;
+  const NOT = (res) => status(res) === 422 && body(res).error === 'not_understood';
+  const monthOk = (from, to) => /^\d{4}-\d{2}-01$/.test(from) && to.slice(0, 7) === from.slice(0, 7) && Number(to.slice(8)) >= 28;
+
+  let r = await interpret('What is my profit this month?');
+  check(status(r) === 200 && body(r).understood.capability === 'ledger.profit_and_loss' && monthOk(body(r).result.from, body(r).result.to) && body(r).result.totals && typeof body(r).result.totals.profitMinor === 'number' && tables(r).every((t) => ['captures', 'eng_interpretation', 'eng_observation'].includes(t)), '"my profit this month" is the engine\'s profit and loss for the calendar month it worked out from today, and nothing but the record of the question is written');
+  const tm = body(r).result;
+  r = await interpret('What was my profit last month?');
+  check(status(r) === 200 && monthOk(body(r).result.from, body(r).result.to) && body(r).result.from < tm.from && body(r).result.to < tm.from, 'last month is the month before');
+  r = await interpret('What is my profit?'); check(NOT(r), 'a profit question with no period is not understood (the person is asked, nothing is guessed)');
+  r = await interpret('profit for next century'); check(NOT(r), 'a period the catalogue does not have is not understood');
+  r = await interpret('profit with dates'); check(NOT(r) || (status(r) === 200 && body(r).result.from === tm.from), 'dates the model adds are never used: either not understood or the engine\'s own month');
+  r = await interpret('What do I own and owe?');
+  check(status(r) === 200 && body(r).understood.capability === 'ledger.balance_sheet' && /^\d{4}-\d{2}-\d{2}$/.test(body(r).result.asOf) && body(r).result.balanced === true, '"what do I own and owe" is the balance sheet as at today (a date the engine worked out), and it balances');
+  r = await interpret('balance sheet for last year'); check(NOT(r), 'a balance sheet the model gave a date for is not understood: the date is the engine\'s, not the model\'s');
+  r = await interpret('What is my profit this month?', 'sales');
+  check(status(r) !== 200 && !(body(r).result && body(r).result.totals), 'a salesperson is not answered with the books (and is not offered them)');
+  const shown = async (role) => { const probe = []; await interpret('Hello there', role, [{ match: /./, reply: (input) => { probe.push(input); return call(null); } }]); return ((probe[0] && probe[0].messages.find((m) => m.role === 'system')) || {}).content || ''; };
+  const [forAccountant, forSales, forAdmin] = [await shown('accountant'), await shown('sales'), await shown('admin')];
+  check(forAccountant.includes('"id":"ledger.profit_and_loss"') && forAccountant.includes('"id":"ledger.balance_sheet"') && !/ledger\.(profit|balance)/.test(forSales) && !/ledger\.(profit|balance)/.test(forAdmin), 'the model is shown the two book sentences only for someone who may read the books: an accountant yes, a salesperson and an admin never');
+  r = await interpret('What is my profit this month?', 'admin');
+  check(status(r) !== 200 && !(body(r).result && body(r).result.totals), 'nor is an admin, who may not know profit');
+});
+
+if (require.main === module) kit.standalone(module.exports);

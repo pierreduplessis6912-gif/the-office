@@ -1010,6 +1010,7 @@ async function expect(role, method, path, want) {
   await require('./engine-gl-stock.test.js')({ check, bundleTo, srcDir });
   await require('./engine-gl-books.test.js')({ check, bundleTo, srcDir });
   await require('./engine-gl-reports.test.js')({ check, bundleTo, srcDir });
+  await require('./engine-interpret-books.test.js')({ check, bundleTo, srcDir });
   await require('./engine-isolation.test.js')({ check, bundleTo, srcDir });
   await require('./engine-ownership.test.js')({ check, bundleTo, srcDir });
   await require('./staging-identity.test.js')({ check, bundleTo, srcDir });

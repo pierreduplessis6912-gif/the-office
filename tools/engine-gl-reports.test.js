@@ -74,6 +74,8 @@ module.exports = kit.guard('engine general ledger (G4: reads)', async ({ check }
   const via = (role, path) => kit.route({ env: {}, seed: kit.seedReceivables(AV), method: 'GET', path, role });
   const a1 = await via('accountant', '/engine/ledger/trial-balance'), a2 = await via('owner', '/engine/ledger/profit-and-loss?from=2026-10-01&to=2026-10-31'), a3 = await via('sales', '/engine/ledger/trial-balance'), a4 = await via('admin', '/engine/ledger/balance-sheet?asOf=2026-10-31'), a5 = await via('accountant', '/engine/ledger/account?code=9999');
   check(a1.result.status === 200 && a1.result.body.result.balanced === true && a2.result.status === 200 && a2.result.body.result.totals && a3.result.status === 403 && a4.result.status === 403, 'through the real route the accountant and owner may read the books; a salesperson and an admin (who may not know profit) may not');
+  const p1 = await via('accountant', '/engine/ledger/profit-and-loss?period=this_month'), p2 = await via('accountant', '/engine/ledger/profit-and-loss?period=next_year'), p3 = await via('accountant', '/engine/ledger/balance-sheet');
+  check(p1.result.status === 200 && /^\d{4}-\d{2}-01$/.test(p1.result.body.result.from) && p2.result.status === 422 && p3.result.status === 200 && /^\d{4}-\d{2}-\d{2}$/.test(p3.result.body.result.asOf), 'the app can ask for "this_month" and leave the balance sheet date out: the engine works those dates out (a period it does not know is refused)');
   check(a5.result.status === 404 || a5.result.status === 400, 'an unknown account through the route is a plain refusal, not a crash');
   check(Object.keys(a1.writes).length === 0 && Object.keys(a2.writes).length === 0, 'reading the books writes nothing at all');
 });

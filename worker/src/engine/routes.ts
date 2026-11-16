@@ -2,7 +2,7 @@
 // Authentication and the role gate have already run (auth.ts), the mode gate has already refused a legacy business (boundary.ts), and the member's permissions are the engine's, not the route's.
 import type { Env } from "../types";
 import { invokeRead, proposeCapabilityAs, type Member } from "./operations";
-import { interpretSentence } from "./interpret";
+import { interpretSentence, monthOf } from "./interpret";
 import { createDraft, readDraft, saveDraft } from "./drafts";
 import { EngineError } from "./errors";
 import { permissionsFor } from "./permissions";
@@ -102,7 +102,13 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
   };
   if (request.method === "GET" && LEDGER_READS[path]) {
     const spec = LEDGER_READS[path];
-    return answer(await invokeRead(env, member, spec.id, Object.fromEntries(spec.params.filter((k) => url.searchParams.get(k) !== null).map((k) => [k, url.searchParams.get(k)]))));
+    const params: Record<string, unknown> = Object.fromEntries(spec.params.filter((k) => url.searchParams.get(k) !== null).map((k) => [k, url.searchParams.get(k)]));
+    const today = new Date().toISOString().slice(0, 10);
+    // The app never works out a date: it may ask for "this_month" or "last_month" (profit and loss) or leave the balance sheet's date out (today), and the ENGINE says which dates those are.
+    const period = url.searchParams.get("period");
+    if (spec.id === "ledger.profit_and_loss" && period !== null) { const range = monthOf(period, today); if (!range) return Response.json({ error: "invalid_payload", message: "period must be this_month or last_month" }, { status: 422 }); Object.assign(params, range); }
+    if (spec.id === "ledger.balance_sheet" && params.asOf === undefined) params.asOf = today;
+    return answer(await invokeRead(env, member, spec.id, params));
   }
   if (request.method === "GET" && path === "/engine/stock/rollforward") {
     const q = (k: string) => url.searchParams.get(k);

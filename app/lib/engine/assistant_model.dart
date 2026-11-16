@@ -457,3 +457,93 @@ List<PartyEntry>? parsePartyList(int status, Object? body) {
   }
   return rows;
 }
+
+/// One account line on a report: a name and an amount in the engine's own minor units.
+class BookLine {
+  final String name;
+  final int amountMinor;
+  const BookLine(this.name, this.amountMinor);
+}
+
+class BookProfit {
+  final String from;
+  final String to;
+  final List<BookLine> income;
+  final List<BookLine> costOfSales;
+  final List<BookLine> expenses;
+  final int incomeMinor;
+  final int grossProfitMinor;
+  final int profitMinor;
+  const BookProfit({required this.from, required this.to, required this.income, required this.costOfSales, required this.expenses, required this.incomeMinor, required this.grossProfitMinor, required this.profitMinor});
+}
+
+class BookBalance {
+  final String asOf;
+  final List<BookLine> assets;
+  final List<BookLine> liabilities;
+  final List<BookLine> equity;
+  final int earningsMinor;
+  final int assetsMinor;
+  final bool balanced;
+  const BookBalance({required this.asOf, required this.assets, required this.liabilities, required this.equity, required this.earningsMinor, required this.assetsMinor, required this.balanced});
+}
+
+class BookCheck {
+  final String label;
+  final int differenceMinor;
+  const BookCheck(this.label, this.differenceMinor);
+}
+
+class BookReconciliation {
+  final List<BookCheck> checks;
+  final bool agrees;
+  const BookReconciliation(this.checks, this.agrees);
+}
+
+List<BookLine> _bookLines(Object? v) {
+  final out = <BookLine>[];
+  for (final item in _list(v)) {
+    final m = _map(item);
+    final amount = m == null ? null : _int(m['amountMinor']);
+    if (m == null || amount == null) continue;
+    out.add(BookLine(_text(m['name']) ?? 'Account', amount));
+  }
+  return out;
+}
+
+Map<String, Object?>? _bookResult(int status, Object? body) {
+  final b = _map(body);
+  if (status != 200 || b == null || b['status'] != 'ok') return null;
+  return _map(b['result']);
+}
+
+BookProfit? parseProfit(int status, Object? body) {
+  final r = _bookResult(status, body);
+  final t = r == null ? null : _map(r['totals']);
+  if (r == null || t == null) return null;
+  final income = _int(t['incomeMinor']), gross = _int(t['grossProfitMinor']), profit = _int(t['profitMinor']);
+  if (income == null || gross == null || profit == null) return null;
+  return BookProfit(from: _text(r['from']) ?? '', to: _text(r['to']) ?? '', income: _bookLines(r['income']), costOfSales: _bookLines(r['costOfSales']), expenses: _bookLines(r['expenses']), incomeMinor: income, grossProfitMinor: gross, profitMinor: profit);
+}
+
+BookBalance? parseBalance(int status, Object? body) {
+  final r = _bookResult(status, body);
+  final t = r == null ? null : _map(r['totals']);
+  if (r == null || t == null) return null;
+  final assets = _int(t['assetsMinor']), earnings = _int(r['earningsMinor']);
+  if (assets == null || earnings == null) return null;
+  return BookBalance(asOf: _text(r['asOf']) ?? '', assets: _bookLines(r['assets']), liabilities: _bookLines(r['liabilities']), equity: _bookLines(r['equity']), earningsMinor: earnings, assetsMinor: assets, balanced: r['balanced'] == true);
+}
+
+BookReconciliation? parseReconciliation(int status, Object? body) {
+  final r = _bookResult(status, body);
+  if (r == null || r['lines'] is! List) return null;
+  final checks = <BookCheck>[];
+  for (final item in _list(r['lines'])) {
+    final m = _map(item);
+    final d = m == null ? null : _int(m['differenceMinor']);
+    if (m == null || d == null) continue;
+    checks.add(BookCheck(_text(m['label']) ?? 'Check', d));
+  }
+  return BookReconciliation(checks, r['agrees'] == true);
+}
