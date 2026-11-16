@@ -57,6 +57,10 @@ class HttpEngineApi implements EngineApi {
       _post('/engine/proposals', <String, Object?>{'capability': 'payment.record', 'payload': payload, 'transcript': transcript, 'source': 'app'});
 
   @override
+  Future<EngineResponse> propose(String capability, Map<String, Object?> payload, String transcript) =>
+      _post('/engine/proposals', <String, Object?>{'capability': capability, 'payload': payload, 'transcript': transcript, 'source': 'app'});
+
+  @override
   Future<EngineResponse> interpret(String text) => _post('/engine/interpret', <String, Object?>{'text': text});
 
   @override

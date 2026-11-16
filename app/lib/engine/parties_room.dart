@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../slice_model.dart';
 import 'assistant_model.dart';
 import 'engine_api.dart';
+import 'party_form.dart';
 
 class PartiesRoom extends StatefulWidget {
   final EngineApi api;
@@ -20,6 +21,7 @@ class _PartiesRoomState extends State<PartiesRoom> {
   bool _failed = false;
 
   PartyEntry? _open;
+  bool _adding = false;
   bool _owedLoading = false;
   SliceRead? _owed;
 
@@ -143,6 +145,7 @@ class _PartiesRoomState extends State<PartiesRoom> {
 
   @override
   Widget build(BuildContext context) {
+    if (_adding) return PartyForm(key: const ValueKey<String>('party-form'), api: widget.api, onClose: () { setState(() => _adding = false); _load(); });
     final open = _open;
     if (open != null) return _detail(open);
     Widget body;
@@ -159,6 +162,7 @@ class _PartiesRoomState extends State<PartiesRoom> {
       child: ListView(padding: const EdgeInsets.all(12), children: [
         Row(children: [
           const Expanded(child: Text('Customers and suppliers', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
+          IconButton(key: const Key('parties-add'), tooltip: 'New customer or supplier', icon: const Icon(Icons.add), onPressed: () => setState(() => _adding = true)),
           IconButton(key: const Key('parties-refresh'), tooltip: 'Check again', icon: const Icon(Icons.refresh), onPressed: _loading ? null : _load),
         ]),
         body,

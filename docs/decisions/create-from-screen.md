@@ -1,4 +1,4 @@
-> **Status:** proposed 2026-11-16, waiting for Pierre's go. **Verified:** not yet. **Owns:** none.
+> **Status:** approved 2026-11-16 (Pierre: "Yes"); F1 built, F2 and F3 not yet. **Verified:** not yet. **Owns:** none.
 
 # Create from the screen: forms that propose, never write
 
@@ -23,3 +23,9 @@ App only: `propose`, one small form widget per form (validated on screen for the
 ## Limits to state plainly
 - A form is available only to someone who may propose that capability; the engine refuses the rest and the form shows why.
 - No offline queue: a form needs the engine to answer.
+
+## F1 as built (2026-11-16): new customer or supplier
+- App: `EngineApi.propose(capability, payload, transcript)` (HTTP posts to `/engine/proposals`; the fixture client records what was proposed). `PartyForm` (name, person or business, customer and/or supplier, optional phone and email) sends the exact `party.create` payload, shows "Sent for approval" or the engine's own reason, and keeps what was typed on a refusal. A "+" in the customers and suppliers room opens it; closing it reads the list again. The app refuses only an empty name or no role.
+- Engine: no change. `tools/engine-form-payloads.test.js` pins that the form's payload is held (nothing recorded), recorded on approval, and refused with the engine's own reason for a used name, a blank name, no role, or a role that may not add parties.
+- Umbrella 11775/11775; the app's compile check and Dart tests are proved by CI.
+- Next: F2 (payment received), F3 (expense).

@@ -40,6 +40,9 @@ abstract class EngineApi {
   /// Proposes recording a payment: POST /engine/proposals. The engine HOLDS it; nothing is recorded until it is confirmed.
   Future<EngineResponse> proposePayment(Map<String, Object?> payload, String transcript);
 
+  /// Proposes any capability from a form: POST /engine/proposals. The engine checks it exactly as it checks a sentence and HOLDS it; nothing is recorded until a person approves it.
+  Future<EngineResponse> propose(String capability, Map<String, Object?> payload, String transcript);
+
   /// What is waiting for approval: GET /actions/pending.
   Future<EngineResponse> pending();
 
@@ -168,6 +171,17 @@ class FixtureEngineApi implements EngineApi {
   @override
   Future<EngineResponse> proposePayment(Map<String, Object?> payload, String transcript) async {
     proposals.add(Map<String, Object?>.from(payload));
+    if (!capabilityAvailable) return fixtures['unavailable-proposal'] ?? _missing;
+    if (!canRecord || role == 'installer' || role == 'sales') return fixtures['proposal-refused'] ?? _missing;
+    return fixtures['proposal-held'] ?? _missing;
+  }
+
+  /// What the forms proposed, in order: the capability and the exact payload sent.
+  final List<Map<String, Object?>> proposed = <Map<String, Object?>>[];
+
+  @override
+  Future<EngineResponse> propose(String capability, Map<String, Object?> payload, String transcript) async {
+    proposed.add(<String, Object?>{'capability': capability, 'payload': Map<String, Object?>.from(payload)});
     if (!capabilityAvailable) return fixtures['unavailable-proposal'] ?? _missing;
     if (!canRecord || role == 'installer' || role == 'sales') return fixtures['proposal-refused'] ?? _missing;
     return fixtures['proposal-held'] ?? _missing;
