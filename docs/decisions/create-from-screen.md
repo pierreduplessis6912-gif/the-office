@@ -49,3 +49,8 @@ App only: `propose`, one small form widget per form (validated on screen for the
 - `SupplierPaymentForm` behind a "+" (key `bills-pay`) in the Bills room: supplier, amount in rand, date, method, bank account (only with more than one and not cash), "pay the oldest bills first". Proposes `supplier_payment.record`, never writes; ZAR; the engine's reason is shown (for example when nothing is payable to that supplier).
 - Proof: Dart `supplier_payment_form_test`; engine `engine-form-payloads` (23). The held-then-paid path is proven by the existing supplier payment suites (the form test has no bill to settle).
 - **F5 (refund an overpayment) is not built:** the engine has no read that lists payments, so a form cannot offer "which payment". It needs a new read (`payments.find`) first. Not started.
+
+## Quotation form as built (2026-11-17)
+- `QuotationForm` behind a "+" (key `quotes-add`) in the Quotes room, using a reusable `LineEditor` (rows of description, quantity, unit, price in rand, "add VAT 15%"; add and remove lines; a bad line is refused on screen naming which one). Quantities become exact thousandths (`quantityToMilli`), prices exact cents. Proposes `quotation.create`, never writes; the engine works out and shows the totals on approval and its reason is shown on a refusal. ZAR only.
+- Proof: Dart `quotation_form_test` (5), `money_input_test` (quantities); engine `engine-form-payloads` (28) covers held, approved with two lines, unknown customer, no VAT rate, wrong role. Umbrella 11794/11794.
+- **Next (as approved): the invoice draft capability** (`invoice.draft`: customer, date, lines, held; then the existing `invoice.issue`), engine and tests first, then a form reusing `LineEditor`. Not started.

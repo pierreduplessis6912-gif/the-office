@@ -19,3 +19,15 @@ int? randToMinor(String text) {
   final minor = whole * 100 + int.parse(frac.isEmpty ? '0' : frac);
   return minor > 0 ? minor : null;
 }
+
+/// A typed quantity as thousandths ("2" is 2000, "2.5" is 2500, "0,125" is 125). Whole numbers or up to three decimals; zero, negatives and anything unclear are null.
+int? quantityToMilli(String text) {
+  final t = text.replaceAll(RegExp(r'\s+'), '').replaceFirst(',', '.');
+  final m = RegExp(r'^(\d+)(?:\.(\d{1,3}))?$').firstMatch(t);
+  if (m == null) return null;
+  final whole = int.tryParse(m.group(1)!);
+  if (whole == null || whole > 1000000) return null;
+  final frac = (m.group(2) ?? '').padRight(3, '0');
+  final milli = whole * 1000 + int.parse(frac);
+  return milli == 0 ? null : milli;
+}

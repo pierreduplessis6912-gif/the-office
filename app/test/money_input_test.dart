@@ -22,4 +22,15 @@ void main() {
       expect(randToMinor(bad), isNull, reason: bad);
     }
   });
+
+  test('quantities become exact thousandths; anything unclear, zero or finer than a thousandth is null', () {
+    expect(quantityToMilli('2'), 2000);
+    expect(quantityToMilli('2.5'), 2500);
+    expect(quantityToMilli('0.125'), 125);
+    expect(quantityToMilli('0,5'), 500);
+    expect(quantityToMilli(' 12 '), 12000);
+    for (final bad in ['', '0', '0.000', '-1', '1.2345', 'abc', '1.', '.5', '2 m', '9999999']) {
+      expect(quantityToMilli(bad), isNull, reason: bad);
+    }
+  });
 }

@@ -2,8 +2,8 @@
 // exactly what the form sends is HELD (nothing recorded), becomes a customer/supplier only on approval, and a refusal carries the engine's own reason for the form to show.
 const kit = require('./engine-kit.js');
 
-module.exports = kit.guard('engine form payloads (F1 to F4)', async ({ check }) => {
-  const AV = [...kit.ALL_CAPABILITIES, 'party.create', 'parties.find', 'expense.record', 'supplier_payment.record'];
+module.exports = kit.guard('engine form payloads (F1 to F4, quotation)', async ({ check }) => {
+  const AV = [...kit.ALL_CAPABILITIES, 'party.create', 'parties.find', 'expense.record', 'supplier_payment.record', 'quotation.create'];
   const run = (spec) => kit.route({ env: { BUSINESS_ID: 'eng-a' }, seed: kit.seedReceivables(AV), ...spec });
   const body = (r) => (r.result && r.result.body) || {};
   const status = (r) => r.result && r.result.status;
@@ -74,5 +74,19 @@ module.exports = kit.guard('engine form payloads (F1 to F4)', async ({ check }) 
   check(status(r) >= 400, 'cash naming a bank account is refused');
   r = await run({ before: mkSupplier, ...sp('installer', spForm) });
   check(status(r) >= 400 && added(r, 'eng_money_movement') === 0, 'someone who may not pay suppliers is refused');
+
+  // ---- the quotation form ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  const qForm = { partyId: 1, issuedOn: '2026-11-17', currency: 'ZAR', validUntil: '2026-12-17', reference: 'Lounge floor', lines: [{ description: 'Vinyl plank', quantityMilli: 2500, unit: 'm²', unitPriceMinor: 45000, taxBp: 1500 }, { description: 'Fitting', quantityMilli: 1000, unit: null, unitPriceMinor: 80000, taxBp: 0 }] };
+  const quo = (role, payload) => ({ method: 'POST', path: '/engine/proposals', role, body: { capability: 'quotation.create', payload, transcript: 'Added from the Make a quotation form', source: 'app' } });
+  r = await run(quo('sales', qForm));
+  check(status(r) === 200 && body(r).status === 'held' && added(r, 'eng_document') === 0, `the quotation form's payload is held and makes nothing (${JSON.stringify(body(r)).slice(0, 140)})`);
+  r = await run({ before: [quo('sales', qForm)], method: 'POST', path: '/actions/1/confirm', role: 'owner', body: {} });
+  check(status(r) === 200 && added(r, 'eng_document') === 1 && added(r, 'eng_document_line') === 2, `approving it makes the quotation with its two lines (${status(r)} ${JSON.stringify(body(r)).slice(0, 140)})`);
+  r = await run(quo('sales', { ...qForm, partyId: 99 }));
+  check(status(r) >= 400 && /no such customer/.test(String(body(r).message)), `an unknown customer is refused with the engine's reason (${body(r).message})`);
+  r = await run(quo('sales', { ...qForm, lines: [{ ...qForm.lines[0], taxBp: undefined }] }));
+  check(status(r) >= 400, 'a line with no VAT rate is refused (VAT is never assumed)');
+  r = await run(quo('installer', qForm));
+  check(status(r) >= 400 && added(r, 'eng_document') === 0, 'someone who may not make quotations is refused');
 });
 if (require.main === module) kit.standalone(module.exports);
