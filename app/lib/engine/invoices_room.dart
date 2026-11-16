@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../slice_model.dart' show randFromMinor;
 import 'assistant_model.dart';
 import 'engine_api.dart';
+import 'payment_form.dart';
 
 class InvoicesRoom extends StatefulWidget {
   final EngineApi api;
@@ -18,6 +19,7 @@ class _InvoicesRoomState extends State<InvoicesRoom> {
   InvoiceList? _list;
   bool _loading = true;
   bool _failed = false;
+  bool _paying = false;
 
   @override
   void initState() {
@@ -71,6 +73,7 @@ class _InvoicesRoomState extends State<InvoicesRoom> {
 
   @override
   Widget build(BuildContext context) {
+    if (_paying) return PaymentForm(key: const ValueKey<String>('payment-form'), api: widget.api, onClose: () { setState(() => _paying = false); _load(); });
     final list = _list;
     Widget body;
     if (_loading) {
@@ -90,6 +93,7 @@ class _InvoicesRoomState extends State<InvoicesRoom> {
       child: ListView(padding: const EdgeInsets.all(12), children: [
         Row(children: [
           const Expanded(child: Text('Invoices', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
+          IconButton(key: const Key('invoices-pay'), tooltip: 'Record a payment received', icon: const Icon(Icons.add), onPressed: () => setState(() => _paying = true)),
           IconButton(key: const Key('invoices-refresh'), tooltip: 'Check again', icon: const Icon(Icons.refresh), onPressed: _loading ? null : _load),
         ]),
         body,
