@@ -41,6 +41,8 @@ class HttpEngineApi implements EngineApi {
 
   Future<EngineResponse> _get(String path) async => _wrap(await client.get(Uri.parse('$baseUrl$path'), headers: _headers()).timeout(timeout));
 
+  Future<EngineResponse> _put(String path, Object body) async => _wrap(await client.put(Uri.parse('$baseUrl$path'), headers: _headers(json: true), body: jsonEncode(body)).timeout(timeout));
+
   Future<EngineResponse> _post(String path, Object body) async => _wrap(await client.post(Uri.parse('$baseUrl$path'), headers: _headers(json: true), body: jsonEncode(body)).timeout(timeout));
 
   @override
@@ -59,6 +61,15 @@ class HttpEngineApi implements EngineApi {
   @override
   Future<EngineResponse> propose(String capability, Map<String, Object?> payload, String transcript) =>
       _post('/engine/proposals', <String, Object?>{'capability': capability, 'payload': payload, 'transcript': transcript, 'source': 'app'});
+
+  @override
+  Future<EngineResponse> createDraft(int partyId) => _post('/engine/drafts', <String, Object?>{'kind': 'invoice', 'direction': 'sell', 'partyId': partyId});
+
+  @override
+  Future<EngineResponse> saveDraft(int draftId, int expectedVersion, int partyId, Map<String, Object?> payload) {
+    if (draftId < 1) return Future<EngineResponse>.value(_notFound);
+    return _put('/engine/drafts/$draftId', <String, Object?>{'expectedVersion': expectedVersion, 'partyId': partyId, 'payload': payload});
+  }
 
   @override
   Future<EngineResponse> interpret(String text) => _post('/engine/interpret', <String, Object?>{'text': text});

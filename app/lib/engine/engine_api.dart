@@ -43,6 +43,12 @@ abstract class EngineApi {
   /// Proposes any capability from a form: POST /engine/proposals. The engine checks it exactly as it checks a sentence and HOLDS it; nothing is recorded until a person approves it.
   Future<EngineResponse> propose(String capability, Map<String, Object?> payload, String transcript);
 
+  /// Opens a draft invoice for a customer: POST /engine/drafts. A draft is a working copy, not a business fact: it needs no approval, and issuing it is still a held proposal.
+  Future<EngineResponse> createDraft(int partyId);
+
+  /// Saves a draft's contents: PUT /engine/drafts/:id. The engine checks it field by field and answers with the new version and what is still wrong.
+  Future<EngineResponse> saveDraft(int draftId, int expectedVersion, int partyId, Map<String, Object?> payload);
+
   /// What is waiting for approval: GET /actions/pending.
   Future<EngineResponse> pending();
 
@@ -174,6 +180,21 @@ class FixtureEngineApi implements EngineApi {
     if (!capabilityAvailable) return fixtures['unavailable-proposal'] ?? _missing;
     if (!canRecord || role == 'installer' || role == 'sales') return fixtures['proposal-refused'] ?? _missing;
     return fixtures['proposal-held'] ?? _missing;
+  }
+
+  /// What the forms did with drafts, in order: 'create' with the customer, 'save' with the exact contents.
+  final List<Map<String, Object?>> drafted = <Map<String, Object?>>[];
+
+  @override
+  Future<EngineResponse> createDraft(int partyId) async {
+    drafted.add(<String, Object?>{'create': partyId});
+    return const EngineResponse(200, <String, Object?>{'id': 1, 'version': 1});
+  }
+
+  @override
+  Future<EngineResponse> saveDraft(int draftId, int expectedVersion, int partyId, Map<String, Object?> payload) async {
+    drafted.add(<String, Object?>{'save': draftId, 'expectedVersion': expectedVersion, 'partyId': partyId, 'payload': Map<String, Object?>.from(payload)});
+    return const EngineResponse(200, <String, Object?>{'version': 2, 'validation': <String, Object?>{'ok': true, 'errors': <Object?>[], 'totals': null}});
   }
 
   /// What the forms proposed, in order: the capability and the exact payload sent.

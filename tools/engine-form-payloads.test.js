@@ -2,8 +2,8 @@
 // exactly what the form sends is HELD (nothing recorded), becomes a customer/supplier only on approval, and a refusal carries the engine's own reason for the form to show.
 const kit = require('./engine-kit.js');
 
-module.exports = kit.guard('engine form payloads (F1 to F4, quotation)', async ({ check }) => {
-  const AV = [...kit.ALL_CAPABILITIES, 'party.create', 'parties.find', 'expense.record', 'supplier_payment.record', 'quotation.create'];
+module.exports = kit.guard('engine form payloads (F1 to F4, quotation, invoice)', async ({ check }) => {
+  const AV = [...kit.ALL_CAPABILITIES, 'party.create', 'parties.find', 'expense.record', 'supplier_payment.record', 'quotation.create', 'invoice.issue'];
   const run = (spec) => kit.route({ env: { BUSINESS_ID: 'eng-a' }, seed: kit.seedReceivables(AV), ...spec });
   const body = (r) => (r.result && r.result.body) || {};
   const status = (r) => r.result && r.result.status;
@@ -88,5 +88,25 @@ module.exports = kit.guard('engine form payloads (F1 to F4, quotation)', async (
   check(status(r) >= 400, 'a line with no VAT rate is refused (VAT is never assumed)');
   r = await run(quo('installer', qForm));
   check(status(r) >= 400 && added(r, 'eng_document') === 0, 'someone who may not make quotations is refused');
+
+  // ---- the invoice form: open a draft, save the lines into it (neither is held), then propose invoice.issue ------------------------------------------------------------------------
+  const iContents = { currency: 'ZAR', issuedOn: '2026-11-17', reference: 'Lounge floor', lines: [{ description: 'Vinyl plank', quantityMilli: 2500, unit: 'm²', unitPriceMinor: 45000, taxBp: 1500 }, { description: 'Fitting', quantityMilli: 1000, unit: null, unitPriceMinor: 80000, taxBp: 0 }] };
+  const open = (role) => ({ method: 'POST', path: '/engine/drafts', role, body: { kind: 'invoice', direction: 'sell', partyId: 1 } });
+  const save = (role, payload = iContents, v = 1) => ({ method: 'PUT', path: '/engine/drafts/1', role, body: { expectedVersion: v, partyId: 1, payload } });
+  const issue = (role, version = 2) => ({ method: 'POST', path: '/engine/proposals', role, body: { capability: 'invoice.issue', payload: { draftId: 1, expectedVersion: version }, transcript: 'Added from the Make an invoice form', source: 'app' } });
+  r = await run(open('accountant'));
+  check(status(r) === 200 && body(r).id === 1 && body(r).version === 1 && added(r, 'eng_document') === 0, `opening a draft returns its number and version and makes no document (${JSON.stringify(body(r)).slice(0, 120)})`);
+  r = await run({ before: [open('accountant')], ...save('accountant') });
+  check(status(r) === 200 && body(r).version === 2 && body(r).validation && body(r).validation.ok === true && body(r).validation.totals && body(r).validation.totals.grossMinor === 45000 * 2.5 * 1.15 + 80000, `saving the form's lines gives version 2 and the engine's own totals (${JSON.stringify(body(r)).slice(0, 200)})`);
+  r = await run({ before: [open('accountant')], ...save('accountant', { ...iContents, issuedOn: undefined }) });
+  check(status(r) === 200 && body(r).validation.ok === false && body(r).validation.errors.some((e) => e.field === 'issuedOn'), 'a draft with no date is not ready, and the engine names the field');
+  r = await run({ before: [open('accountant'), save('accountant')], ...issue('accountant') });
+  check(status(r) === 200 && body(r).status === 'held' && added(r, 'eng_document') === 0, `the issue proposal for the saved draft is held and makes no invoice (${JSON.stringify(body(r)).slice(0, 140)})`);
+  r = await run({ before: [open('accountant'), save('accountant'), issue('accountant')], method: 'POST', path: '/actions/1/confirm', role: 'accountant', body: {} });
+  check(status(r) === 200 && added(r, 'eng_document') === 1 && added(r, 'eng_document_line') === 2, `approving it issues the invoice with its two lines (${status(r)} ${JSON.stringify(body(r)).slice(0, 140)})`);
+  r = await run({ before: [open('accountant'), save('accountant')], ...issue('accountant', 1) });
+  check(status(r) >= 400 && added(r, 'eng_document') === 0, 'proposing against an older version of the draft is refused');
+  r = await run(open('installer'));
+  check(status(r) === 403, 'someone who may not work on drafts cannot open one');
 });
 if (require.main === module) kit.standalone(module.exports);
