@@ -10,6 +10,7 @@ import { isEffective, outstandingForDocument, outstandingForParty } from "./ledg
 import { issueDraft, readDraft } from "./drafts";
 import * as reports from "./ledger-reports";
 import { booksLockDate, checkJournalInput, planJournal, planJournalReversal, type JournalInput } from "./journal";
+import { checkStatementInput, planStatement, type StatementInput } from "./bank";
 import { RECORD_KINDS, recordView, versionOf, type RecordKind, type ViewerContext } from "./records";
 import type { EnginePermission } from "./permissions";
 import { unappliedCreditForParty } from "./ledger";
@@ -523,6 +524,13 @@ export const booksLockSet: CapabilityContract<BooksLockSet> = {
     if (now !== null && value.lockDate < now && (value.reason ?? "").trim().length < 5) throw new EngineError("invalid_input", `Unlocking (moving the lock back from ${now}) needs a reason of at least 5 characters.`);
   },
   async execute(env, v, c) { const r = await facts.setBooksLock(env, v, ctxOf(c, "books_lock.set")); return { eventId: r.eventId }; },
+};
+
+export const bankStatementImport: CapabilityContract<StatementInput> = {
+  id: "bank_statement.import", heldType: "engine.bank_statement.import", label: "Importing a bank statement", requires: [], permissions: ["business.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkStatementInput(payload); },
+  async check(env, value) { await planStatement(env, value); },
+  async execute(env, v, c) { const r = await facts.importStatement(env, v, ctxOf(c, "bank_statement.import")); return { eventId: r.eventId, statementId: r.statementId, added: r.added, skipped: r.skipped }; },
 };
 
 export const journalPost: CapabilityContract<JournalInput> = {
@@ -1302,5 +1310,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, bankStatementImport, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

@@ -1,4 +1,4 @@
-> **Status:** proposed. **Verified:** not yet. **Owns:** none.
+> **Status:** approved 2026-11-16 (Pierre: one bank account plus cash); G5a built. **Verified:** not yet. **Owns:** none.
 
 # DECISIONS: bank-reconciliation (G5)
 
@@ -39,3 +39,10 @@ Today there is one `bank` role and one `cash` role. Recommended for G5: keep one
 
 ## Limits to state plainly
 Foreign-currency accounts are not reconciled (as with the ledger). No live bank feed: statements come in by file. Statement dates and balances are taken as the bank states them; the engine only checks they are consistent with themselves (opening + lines = closing).
+
+## G5a as built (2026-11-16): statement import
+- Migration 0007 (additive): `eng_bank_statement`, `eng_bank_line` (insert-only facts; unique fingerprint). `worker/src/engine/bank.ts`: parsing (CSV with several layouts, amounts and dates read by the ENGINE), checks, duplicate plan, integrity check `bank_statement_inconsistent`; the insert is `facts.importStatement` (event `bank_statement.imported`).
+- Capability `bank_statement.import` (held type `engine.bank_statement.import`, permission business.manage, so the owner). Payload: period, opening and closing in cents, and either `lines` or `csv`. Refused whole when opening + lines is not closing, a line is outside the period, an amount is nothing or a fraction, or nothing in the file is new.
+- A line is a duplicate when its date, amount, description and place among identical lines in the file match one already stored; overlapping statements add only the new lines and count the skipped.
+- Writes nothing to the ledger. Tests: tools/engine-bank.test.js (23) plus 8 breakages. Umbrella 11557/11557.
+- Not yet: any read of statements, any HTTP route beyond the generic proposal route, matching (G5b), the reconciliation and cash-flow reads, sentences and the app room (G5c).

@@ -30,4 +30,5 @@ import * as bills from "./bills";
 import * as stock from "./stock";
 import * as journal from "./journal";
 import * as ledgerReports from "./ledger-reports";
-export { boundary, permissions, drafts, records, operations, capabilities, parties, quotations, credits, business, config, expenses, purchasing, bills, stock, journal, ledgerReports };
+import * as bank from "./bank";
+export { boundary, permissions, drafts, records, operations, capabilities, parties, quotations, credits, business, config, expenses, purchasing, bills, stock, journal, ledgerReports, bank };

@@ -22,6 +22,7 @@ import { planBill, planBillVoid, planSupplierPayment, type BillInput, type Payme
 import { planCreditApplication, planCreditNote, planDebitNote, planPaymentAllocation, planPaymentRefund, planRefund, planVoid, refundMovementOrThrow, checkReason, type CreditLineInput } from "./credits";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
 import { checkDate } from "./quotations";
+import { planStatement, type StatementInput } from "./bank";
 import { CHART_TEMPLATE, accountForRole, assertBooksOpen, booksLockDate, planJournal, planJournalReversal, type JournalInput, checkedLines, documentLines, documentPosting, grniAvailable, stockMoveLines, paymentOutLines, paymentOutPosts, planContra, purchaseLines, receiptLines, receiptPosts, refundLines, refundPosts, type PostLine } from "./journal";
 
 export interface Ctx {
@@ -139,6 +140,16 @@ export async function postJournal(env: Env, input: JournalInput, ctx: Ctx): Prom
     let no = 0;
     for (const l of planned) { no += 1; await run(tx, "INSERT INTO eng_journal_line (entry_id, line_no, account_id, debit_minor, credit_minor) VALUES (?, ?, ?, ?, ?)", Number(entry!.id), no, l.accountId, l.debitMinor, l.creditMinor); }
     return { eventId, entryId: Number(entry!.id) };
+  });
+}
+// A BANK STATEMENT brought in: one event, one statement fact, and a line fact for each line not already imported (a line already there is skipped and counted). It writes nothing to the ledger.
+export async function importStatement(env: Env, input: StatementInput, ctx: Ctx): Promise<{ eventId: number; statementId: number; added: number; skipped: number }> {
+  return inTransaction(env, async (tx) => {
+    const plan = await planStatement(tx, input);
+    const eventId = await appendEvent(tx, "bank_statement.imported", ctx, { periodFrom: input.periodFrom, periodTo: input.periodTo, openingMinor: input.openingMinor, closingMinor: input.closingMinor, added: plan.fresh.length, skipped: plan.skipped, source: input.sourceName });
+    const st = await one<{ id: number }>(tx, "INSERT INTO eng_bank_statement (period_from, period_to, opening_minor, closing_minor, file_total_minor, file_line_count, skipped_count, source_name, event_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id", input.periodFrom, input.periodTo, input.openingMinor, input.closingMinor, plan.fileTotalMinor, input.lines.length, plan.skipped, input.sourceName, eventId);
+    for (const l of plan.fresh) await run(tx, "INSERT INTO eng_bank_line (statement_id, line_no, line_date, description, amount_minor, balance_minor, fingerprint, event_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", Number(st!.id), l.lineNo, l.date, l.description, l.amountMinor, l.balanceMinor, l.fingerprint, eventId);
+    return { eventId, statementId: Number(st!.id), added: plan.fresh.length, skipped: plan.skipped };
   });
 }
 export async function reverseJournal(env: Env, input: { journalEventId: number; date: string; reason: string }, ctx: Ctx): Promise<{ eventId: number }> {

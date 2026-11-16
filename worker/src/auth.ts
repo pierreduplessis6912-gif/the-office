@@ -537,6 +537,7 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   "engine.business.profile.set": ["can_manage_settings"],
   "engine.tax_lock.set": ["can_manage_settings"],
   "engine.books_lock.set": ["can_manage_settings"],
+  "engine.bank_statement.import": ["can_manage_settings"],
   "engine.journal.post": ["can_manage_settings"],
   "engine.journal.reverse": ["can_manage_settings"],
   "engine.quotation.create": ["can_manage_invoices", "can_make_quotes"],
