@@ -98,6 +98,8 @@ const HINTS: Record<string, string> = {
   "ledger.profit_and_loss": "params {from, to: dates}: income, cost of sales, gross profit, expenses and profit for a period, by account.",
   "ledger.balance_sheet": "params {asOf: date}: assets, liabilities, equity and the profit earned to the date, and whether they balance.",
   "ledger.bank_suggestions": "params none: for bank statement lines not yet matched, which entries on the bank account they probably are: strong (one fit, the name appears), weak (one fit, no name: ask), ambiguous (several), unexplained (nothing fits: a fee, interest, an unknown deposit).",
+  "ledger.bank_reconciliation": "params asOf?: the bank account against the latest bank statement: what the books say, what the statement says, the entries not yet on the statement, the statement lines not yet in the books, and anything unexplained.",
+  "ledger.cash_flow": "params from, to: cash flow for a period from the bank and cash accounts: what came in and went out by cause, opening and closing balance.",
   "ledger.suspense": "params none: what the engine could not place, which sits in suspense until it is journalled where it belongs.",
   "ledger.reconciliation": "params none: the receivables, payables and inventory accounts against what the customer, supplier and stock records say, and any difference.",
   "journal.reverse": "payload {journalEventId, date, reason}: turn a manual journal round with a reversing entry.",

@@ -64,6 +64,12 @@ abstract class EngineApi {
   /// The control accounts against the records (GET /engine/ledger/reconciliation). Read only.
   Future<EngineResponse> reconciliation();
 
+  /// The bank account against the latest bank statement (GET /engine/ledger/bank-reconciliation). Read only.
+  Future<EngineResponse> bankReconciliation();
+
+  /// Cash flow for a month the ENGINE dates (GET /engine/ledger/cash-flow?period=this_month|last_month). Read only.
+  Future<EngineResponse> cashFlow(String period);
+
   /// The quotations that are not superseded (GET /engine/quotations). Read only.
   Future<EngineResponse> quotations();
 
@@ -212,6 +218,12 @@ class FixtureEngineApi implements EngineApi {
 
   @override
   Future<EngineResponse> reconciliation() async => fixtures['assistant-books-reconciliation'] ?? _missing;
+
+  @override
+  Future<EngineResponse> bankReconciliation() async => fixtures['assistant-bank-reconciliation'] ?? _missing;
+
+  @override
+  Future<EngineResponse> cashFlow(String period) async => fixtures['assistant-bank-cash-flow'] ?? _missing;
 
   @override
   Future<EngineResponse> quotations() async => fixtures['assistant-quotations'] ?? _missing;

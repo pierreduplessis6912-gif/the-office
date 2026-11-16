@@ -1,4 +1,4 @@
-> **Status:** approved 2026-11-16 (Pierre: one bank account plus cash); G5a and G5b built. **Verified:** not yet. **Owns:** none.
+> **Status:** approved 2026-11-16 (Pierre: one bank account plus cash); G5a, G5b and G5c built. **Verified:** not yet. **Owns:** none.
 
 # DECISIONS: bank-reconciliation (G5)
 
@@ -56,3 +56,12 @@ Foreign-currency accounts are not reconciled (as with the ledger). No live bank 
 - Limits: the party name used is the one first recorded (later renames are not followed); a voided payment's contra entry stays open on the bank account until explained; weak and ambiguous cases are for a person to decide, there is no automatic matching.
 - Tests: tools/engine-bank-match.test.js (25) plus 8 breakages. Umbrella 11582/11582.
 - Not yet: the bank reconciliation and cash-flow reads, interpreter sentences and the app Bank room (G5c).
+
+## G5c as built (2026-11-16): reads, sentences, the Bank room
+- Reads (permission ledger.read, same as the other books): `ledger.bank_reconciliation` (GET /engine/ledger/bank-reconciliation, optional asOf; the latest statement at or before it) and `ledger.cash_flow` (GET /engine/ledger/cash-flow?from&to, or ?period=this_month|last_month dated by the ENGINE).
+- Reconciliation: the books' bank balance at the statement's end date, the statement's closing balance, the entries not yet on the statement, the statement lines not yet in the books, and UNEXPLAINED = books less (statement + entries not on it - lines not in the books). `agrees` means nothing is unexplained; `reconciled` also needs both open lists empty. A statement that opened with money the books never saw leaves an unexplained difference, which is reported.
+- Cash flow: direct method on the bank and cash accounts, grouped by cause (received from customers, paid to suppliers and for expenses, refunds, journals, corrections); opening + net = closing is checked.
+- Sentences: "cash flow this month / last month" (the engine dates it) and "is the bank reconciled" (no arguments).
+- App: read-only "The bank" room under More (reconciliation with open items on each side, and this month's cash flow). Matching is approved through the assistant, not in the room. CI "App compile check" is the proof for the Dart; no recorded fixtures for these answers yet.
+- Limits: the indirect cash-flow method needs closed years and is not built; one bank account plus cash; entries dated before the first statement's period show as open until matched or explained.
+- Tests: tools/engine-bank-reports.test.js (14), sentences in engine-interpret-books.test.js, 5 breakages. Umbrella 11600/11600.

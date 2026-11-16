@@ -5,6 +5,7 @@ import { allBills } from "./bills";
 import { accountForRole, type AccountType } from "./journal";
 import { outstandingForParty, unappliedCreditForParty } from "./ledger";
 import { valuationAsAt } from "./stock";
+import { openBankEntries, openStatementLines } from "./bank";
 
 const one = <T>(env: Env, sql: string, ...binds: unknown[]) => env.OFFICE_DB.prepare(sql).bind(...binds).first<T>();
 const many = async <T>(env: Env, sql: string, ...binds: unknown[]): Promise<T[]> => ((await env.OFFICE_DB.prepare(sql).bind(...binds).all<T>()).results ?? []);
@@ -81,4 +82,43 @@ export async function reconciliation(env: Env) {
     { account: "inventory", label: "Inventory against the value of stock on hand", ledgerMinor: await bal("inventory"), recordsMinor: stockValue },
   ].map((l) => ({ ...l, differenceMinor: l.ledgerMinor - l.recordsMinor }));
   return { lines, agrees: lines.every((l) => l.differenceMinor === 0) };
+}
+
+// ---- G5c: the bank against the statement, and cash flow --------------------------------------------------------------------------------------------------------------------------------------------------
+// BANK RECONCILIATION as at a statement: what the books say the bank holds, what the statement says, and what explains the gap. The books hold more than the statement by the entries not yet on it
+// (a payment made today that has not cleared) and less by the statement lines not yet in the books (a fee, interest, an unknown deposit). Whatever is left over is UNEXPLAINED, and is a finding.
+export async function bankReconciliation(env: Env, asOf: string | null) {
+  const st = await one<{ id: number; period_from: string; period_to: string; opening_minor: number; closing_minor: number }>(env,
+    "SELECT id, period_from, period_to, opening_minor, closing_minor FROM eng_bank_statement WHERE (? IS NULL OR period_to <= ?) ORDER BY period_to DESC, id DESC LIMIT 1", asOf, asOf);
+  if (!st) return { statement: null, ledgerMinor: null, statementMinor: null, outstandingEntries: [], unmatchedLines: [], outstandingMinor: 0, unmatchedMinor: 0, unexplainedMinor: 0, agrees: true, reconciled: false };
+  const acct = await accountForRole(env, "bank");
+  const ledger = acct ? Number((await one<{ b: number | null }>(env, "SELECT COALESCE(SUM(l.debit_minor - l.credit_minor), 0) AS b FROM eng_journal_line l JOIN eng_journal_entry e ON e.id = l.entry_id WHERE l.account_id = ? AND e.entry_date <= ?", acct.id, st.period_to))?.b ?? 0) : 0;
+  const entries = (await openBankEntries(env)).filter((e) => e.date <= st.period_to), lines = (await openStatementLines(env)).filter((l) => l.date <= st.period_to);
+  const outstandingMinor = entries.reduce((s, e) => s + e.amountMinor, 0), unmatchedMinor = lines.reduce((s, l) => s + l.amountMinor, 0);
+  const unexplainedMinor = ledger - (Number(st.closing_minor) + outstandingMinor - unmatchedMinor);
+  return {
+    statement: { id: Number(st.id), periodFrom: st.period_from, periodTo: st.period_to, openingMinor: Number(st.opening_minor), closingMinor: Number(st.closing_minor) },
+    ledgerMinor: ledger, statementMinor: Number(st.closing_minor),
+    outstandingEntries: entries.map((e) => ({ journalLineId: e.journalLineId, date: e.date, amountMinor: e.amountMinor, memo: e.memo, party: e.party })),
+    unmatchedLines: lines.map((l) => ({ bankLineId: l.id, date: l.date, description: l.description, amountMinor: l.amountMinor })),
+    outstandingMinor, unmatchedMinor, unexplainedMinor, agrees: unexplainedMinor === 0, reconciled: unexplainedMinor === 0 && entries.length === 0 && lines.length === 0,
+  };
+}
+
+// CASH FLOW for a period, the direct way: what came into the bank and cash accounts and what went out, by what caused it. Opening plus in less out is the closing balance (checked).
+export async function cashFlow(env: Env, from: string, to: string) {
+  const roles = ["bank", "cash"], ids: number[] = [];
+  for (const r of roles) { const a = await accountForRole(env, r); if (a) ids.push(a.id); }
+  const marks = ids.map(() => "?").join(",") || "NULL";
+  const opening = ids.length ? Number((await one<{ b: number | null }>(env, `SELECT COALESCE(SUM(l.debit_minor - l.credit_minor), 0) AS b FROM eng_journal_line l JOIN eng_journal_entry e ON e.id = l.entry_id WHERE l.account_id IN (${marks}) AND e.entry_date < ?`, ...ids, from))?.b ?? 0) : 0;
+  const rows = ids.length ? await many<{ kind: string; memo: string | null; reversal: number; net: number }>(env,
+    `SELECT e.source_kind AS kind, e.memo AS memo, CASE WHEN e.reverses_entry_id IS NULL THEN 0 ELSE 1 END AS reversal, SUM(l.debit_minor - l.credit_minor) AS net FROM eng_journal_line l JOIN eng_journal_entry e ON e.id = l.entry_id WHERE l.account_id IN (${marks}) AND e.entry_date >= ? AND e.entry_date <= ? GROUP BY e.source_kind, e.memo, reversal`, ...ids, from, to) : [];
+  const label = (r: { kind: string; memo: string | null; reversal: number }) => r.reversal ? "Corrections (payments or refunds turned round)" : r.kind === "manual" ? "Journals" : r.memo === "Payment received" ? "Received from customers" : r.memo === "Payment made" ? "Paid to suppliers and for expenses" : r.memo === "Refund to customer" ? "Refunds to customers" : "Other";
+  const grouped = new Map<string, number>();
+  for (const r of rows) grouped.set(label(r), (grouped.get(label(r)) ?? 0) + Number(r.net));
+  const all = [...grouped.entries()].map(([name, amountMinor]) => ({ name, amountMinor })).filter((x) => x.amountMinor !== 0);
+  const inflows = all.filter((x) => x.amountMinor > 0), outflows = all.filter((x) => x.amountMinor < 0).map((x) => ({ name: x.name, amountMinor: -x.amountMinor }));
+  const netMinor = all.reduce((s, x) => s + x.amountMinor, 0);
+  const closing = ids.length ? Number((await one<{ b: number | null }>(env, `SELECT COALESCE(SUM(l.debit_minor - l.credit_minor), 0) AS b FROM eng_journal_line l JOIN eng_journal_entry e ON e.id = l.entry_id WHERE l.account_id IN (${marks}) AND e.entry_date <= ?`, ...ids, to))?.b ?? 0) : 0;
+  return { from, to, openingMinor: opening, inflows, outflows, netMinor, closingMinor: closing, balanced: opening + netMinor === closing };
 }

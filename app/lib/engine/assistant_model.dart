@@ -547,3 +547,66 @@ BookReconciliation? parseReconciliation(int status, Object? body) {
   }
   return BookReconciliation(checks, r['agrees'] == true);
 }
+
+/// An open item on the bank reconciliation: a date, what it is and the amount in minor units.
+class BankItem {
+  final String date;
+  final String what;
+  final int amountMinor;
+  const BankItem(this.date, this.what, this.amountMinor);
+}
+
+class BankRec {
+  final String periodTo;
+  final int ledgerMinor;
+  final int statementMinor;
+  final int unexplainedMinor;
+  final bool reconciled;
+  final List<BankItem> notOnStatement;
+  final List<BankItem> notInBooks;
+  const BankRec({required this.periodTo, required this.ledgerMinor, required this.statementMinor, required this.unexplainedMinor, required this.reconciled, required this.notOnStatement, required this.notInBooks});
+}
+
+/// True when the engine answered and says there is no bank statement yet (statement: null).
+bool bankRecHasNoStatement(int status, Object? body) {
+  final r = _bookResult(status, body);
+  return r != null && r.containsKey('statement') && r['statement'] == null;
+}
+
+BankRec? parseBankRec(int status, Object? body) {
+  final r = _bookResult(status, body);
+  final st = r == null ? null : _map(r['statement']);
+  if (r == null || st == null) return null;
+  final ledger = _int(r['ledgerMinor']), statement = _int(r['statementMinor']), unexplained = _int(r['unexplainedMinor']);
+  if (ledger == null || statement == null || unexplained == null) return null;
+  List<BankItem> items(Object? v, String textKey) {
+    final out = <BankItem>[];
+    for (final item in _list(v)) {
+      final m = _map(item);
+      final a = m == null ? null : _int(m['amountMinor']);
+      if (m == null || a == null) continue;
+      out.add(BankItem(_text(m['date']) ?? '', _text(m[textKey]) ?? _text(m['memo']) ?? 'Entry', a));
+    }
+    return out;
+  }
+  return BankRec(periodTo: _text(st['periodTo']) ?? '', ledgerMinor: ledger, statementMinor: statement, unexplainedMinor: unexplained, reconciled: r['reconciled'] == true, notOnStatement: items(r['outstandingEntries'], 'party'), notInBooks: items(r['unmatchedLines'], 'description'));
+}
+
+class CashFlow {
+  final String from;
+  final String to;
+  final int openingMinor;
+  final List<BookLine> inflows;
+  final List<BookLine> outflows;
+  final int netMinor;
+  final int closingMinor;
+  const CashFlow({required this.from, required this.to, required this.openingMinor, required this.inflows, required this.outflows, required this.netMinor, required this.closingMinor});
+}
+
+CashFlow? parseCashFlow(int status, Object? body) {
+  final r = _bookResult(status, body);
+  if (r == null) return null;
+  final opening = _int(r['openingMinor']), net = _int(r['netMinor']), closing = _int(r['closingMinor']);
+  if (opening == null || net == null || closing == null) return null;
+  return CashFlow(from: _text(r['from']) ?? '', to: _text(r['to']) ?? '', openingMinor: opening, inflows: _bookLines(r['inflows']), outflows: _bookLines(r['outflows']), netMinor: net, closingMinor: closing);
+}

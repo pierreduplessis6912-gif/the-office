@@ -15,6 +15,10 @@ module.exports = kit.guard('engine interpret (the books)', async ({ check }) => 
     say(/profit with dates/, JSON.stringify({ capability: 'ledger.profit_and_loss', arguments: { period: 'this_month', from: '2020-01-01', to: '2020-12-31' } })),
     say(/What do I own and owe\?/, call('ledger.balance_sheet', {})),
     say(/balance sheet for last year/, call('ledger.balance_sheet', { asOf: '2025-12-31' })),
+    say(/cash flow this month/, call('ledger.cash_flow', { period: 'this_month' })),
+    say(/How is cash flow\?/, call('ledger.cash_flow', {})),
+    say(/Is the bank reconciled\?/, call('ledger.bank_reconciliation', {})),
+    say(/bank as at March/, call('ledger.bank_reconciliation', { asOf: '2026-03-31' })),
   ];
   const interpret = (text, role = 'accountant', ai = SCRIPT) => kit.route({ env: ENV_A, ai, before: [SEED], method: 'POST', path: '/engine/interpret', role, body: { text } });
   const added = (res, t) => ((res.writes && res.writes[t] && res.writes[t].added) || []).length;
@@ -34,6 +38,12 @@ module.exports = kit.guard('engine interpret (the books)', async ({ check }) => 
   r = await interpret('profit with dates'); check(NOT(r) || (status(r) === 200 && body(r).result.from === tm.from), 'dates the model adds are never used: either not understood or the engine\'s own month');
   r = await interpret('What do I own and owe?');
   check(status(r) === 200 && body(r).understood.capability === 'ledger.balance_sheet' && /^\d{4}-\d{2}-\d{2}$/.test(body(r).result.asOf) && body(r).result.balanced === true, '"what do I own and owe" is the balance sheet as at today (a date the engine worked out), and it balances');
+  r = await interpret('cash flow this month');
+  check(status(r) === 200 && body(r).understood.capability === 'ledger.cash_flow' && monthOk(body(r).result.from, body(r).result.to) && body(r).result.balanced === true && tables(r).length === 0, '"cash flow this month" is the engine\'s own month, balanced, and writes nothing');
+  r = await interpret('How is cash flow?'); check(NOT(r), 'a cash flow question with no period is not understood');
+  r = await interpret('Is the bank reconciled?');
+  check(status(r) === 200 && body(r).understood.capability === 'ledger.bank_reconciliation' && body(r).result.statement === null && tables(r).length === 0, '"is the bank reconciled" reads the reconciliation (no statement yet in the sample) and writes nothing');
+  r = await interpret('bank as at March'); check(NOT(r), 'a reconciliation date the model supplies is not understood: the engine picks the latest statement');
   r = await interpret('balance sheet for last year'); check(NOT(r), 'a balance sheet the model gave a date for is not understood: the date is the engine\'s, not the model\'s');
   r = await interpret('What is my profit this month?', 'sales');
   check(status(r) !== 200 && !(body(r).result && body(r).result.totals), 'a salesperson is not answered with the books (and is not offered them)');

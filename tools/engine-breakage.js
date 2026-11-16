@@ -594,6 +594,11 @@ const MUTATIONS = [
   { name: 'bank match: the verifier ignores an entry matched twice', suite: 'engine-bank-match.test.js', file: 'worker/src/engine/bank.ts', find: 'HAVING COUNT(*) > 1`)) report', replace: 'HAVING COUNT(*) > 99`)) report' },
   { name: 'bank match: unmatching needs no reason', suite: 'engine-bank-match.test.js', file: 'worker/src/engine/bank.ts', find: 'payload.reason.trim().length < 5 ||', replace: 'false ||' },
   { name: 'bank match: anyone may match', suite: 'engine-bank-match.test.js', file: 'worker/src/engine/capabilities.ts', find: 'label: "Matching bank lines to the books", requires: [], permissions: ["business.manage"]', replace: 'label: "Matching bank lines to the books", requires: [], permissions: []' },
+  { name: 'bank reads: the unexplained difference has its sign wrong', suite: 'engine-bank-reports.test.js', file: 'worker/src/engine/ledger-reports.ts', find: 'const unexplainedMinor = ledger - (Number(st.closing_minor) + outstandingMinor - unmatchedMinor);', replace: 'const unexplainedMinor = ledger - (Number(st.closing_minor) + outstandingMinor + unmatchedMinor);' },
+  { name: 'bank reads: reconciled while items are still open', suite: 'engine-bank-reports.test.js', file: 'worker/src/engine/ledger-reports.ts', find: 'reconciled: unexplainedMinor === 0 && entries.length === 0 && lines.length === 0', replace: 'reconciled: unexplainedMinor === 0' },
+  { name: 'bank reads: cash flow forgets the cash account', suite: 'engine-bank-reports.test.js', file: 'worker/src/engine/ledger-reports.ts', find: 'const roles = ["bank", "cash"], ids', replace: 'const roles = ["bank"], ids' },
+  { name: 'bank reads: cash flow opening counts the first day twice', suite: 'engine-bank-reports.test.js', file: 'worker/src/engine/ledger-reports.ts', find: 'AND e.entry_date < ?`, ...ids, from))', replace: 'AND e.entry_date <= ?`, ...ids, from))' },
+  { name: 'bank reads: outflows are shown as negative', suite: 'engine-bank-reports.test.js', file: 'worker/src/engine/ledger-reports.ts', find: 'amountMinor: -x.amountMinor }));', replace: 'amountMinor: x.amountMinor }));' },
 ];
 
 let opts;
