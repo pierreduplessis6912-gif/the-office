@@ -6,15 +6,16 @@ import { accountForRole, type AccountType } from "./journal";
 import { outstandingForParty, unappliedCreditForParty } from "./ledger";
 import { valuationAsAt } from "./stock";
 import { openBankEntries, openStatementLines } from "./bank";
+import { CLOSING_ENTRY } from "./periods";
 
 const one = <T>(env: Env, sql: string, ...binds: unknown[]) => env.OFFICE_DB.prepare(sql).bind(...binds).first<T>();
 const many = async <T>(env: Env, sql: string, ...binds: unknown[]): Promise<T[]> => ((await env.OFFICE_DB.prepare(sql).bind(...binds).all<T>()).results ?? []);
 
 export interface Balance { code: string; name: string; type: AccountType; debitMinor: number; creditMinor: number }
 // Debits and credits per account for entries dated within [from, to] (either may be omitted).
-async function sums(env: Env, from: string | null, to: string | null): Promise<Balance[]> {
+async function sums(env: Env, from: string | null, to: string | null, leaveOutClosing = false): Promise<Balance[]> {
   const rows = await many<{ code: string; name: string; type: AccountType; d: number; c: number }>(env,
-    "SELECT a.code, a.name, a.type, COALESCE(SUM(l.debit_minor), 0) AS d, COALESCE(SUM(l.credit_minor), 0) AS c FROM eng_account a LEFT JOIN (SELECT jl.account_id, jl.debit_minor, jl.credit_minor FROM eng_journal_line jl JOIN eng_journal_entry je ON je.id = jl.entry_id WHERE (? IS NULL OR je.entry_date >= ?) AND (? IS NULL OR je.entry_date <= ?)) l ON l.account_id = a.id GROUP BY a.id ORDER BY a.code",
+    "SELECT a.code, a.name, a.type, COALESCE(SUM(l.debit_minor), 0) AS d, COALESCE(SUM(l.credit_minor), 0) AS c FROM eng_account a LEFT JOIN (SELECT jl.account_id, jl.debit_minor, jl.credit_minor FROM eng_journal_line jl JOIN eng_journal_entry je ON je.id = jl.entry_id WHERE (? IS NULL OR je.entry_date >= ?) AND (? IS NULL OR je.entry_date <= ?)" + (leaveOutClosing ? " AND NOT " + CLOSING_ENTRY : "") + ") l ON l.account_id = a.id GROUP BY a.id ORDER BY a.code",
     from, from, to, to);
   return rows.map((r) => ({ code: r.code, name: r.name, type: r.type, debitMinor: Number(r.d), creditMinor: Number(r.c) }));
 }
@@ -41,7 +42,7 @@ export async function accountLedger(env: Env, code: string, from: string | null,
 
 // Profit and loss for a period: income less cost of sales is the gross profit; less expenses is the profit. Income is shown as a positive amount (credits less debits), costs likewise (debits less credits).
 export async function profitAndLoss(env: Env, from: string, to: string) {
-  const rows = await sums(env, from, to);
+  const rows = await sums(env, from, to, true);   // a closed year's closing entry is left out: the year still shows what it earned
   const pick = (type: AccountType, sign: 1 | -1) => rows.filter((r) => r.type === type && (r.debitMinor !== 0 || r.creditMinor !== 0)).map((r) => ({ code: r.code, name: r.name, amountMinor: sign * (r.debitMinor - r.creditMinor) }));
   const income = pick("income", -1), costOfSales = pick("cost_of_sales", 1), expenses = pick("expense", 1);
   const sum = (l: Array<{ amountMinor: number }>) => l.reduce((s, r) => s + r.amountMinor, 0);

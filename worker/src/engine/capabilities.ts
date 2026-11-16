@@ -10,7 +10,8 @@ import { isEffective, outstandingForDocument, outstandingForParty } from "./ledg
 import { issueDraft, readDraft } from "./drafts";
 import * as reports from "./ledger-reports";
 import { booksLockDate, checkJournalInput, planJournal, planJournalReversal, type JournalInput } from "./journal";
-import { checkYearEnd, yearEndMonth, yearsView } from "./periods";
+import { checkYearEnd, closedYears, yearEndMonth, yearsView } from "./periods";
+import { checkCloseInput, checkReopenInput, planClose, planReopen, type CloseInput, type ReopenInput } from "./year-close";
 import { checkMatchInput, checkStatementInput, checkUnmatchInput, planMatches, planStatement, planUnmatch, suggestMatches, type MatchInput, type StatementInput, type UnmatchInput } from "./bank";
 import { RECORD_KINDS, recordView, versionOf, type RecordKind, type ViewerContext } from "./records";
 import type { EnginePermission } from "./permissions";
@@ -550,8 +551,21 @@ export const bankMatchUndo: CapabilityContract<UnmatchInput> = {
 export const yearEndSet: CapabilityContract<{ month: number; reason: string | null }> = {
   id: "year_end.set", heldType: "engine.year_end.set", label: "Setting where the financial year ends", requires: [], permissions: ["business.manage"], version: 1, recordsExecution: true,
   validate(payload) { return checkYearEnd(payload); },
-  async check(env, value) { const now = await yearEndMonth(env); if (now.month === value.month && !now.isDefault) throw new EngineError("invalid_state", "The financial year already ends in that month."); },
+  async check(env, value) { if ((await closedYears(env)).length > 0) throw new EngineError("invalid_state", "A financial year is closed, so the year-end cannot move: reopen the closed years first."); const now = await yearEndMonth(env); if (now.month === value.month && !now.isDefault) throw new EngineError("invalid_state", "The financial year already ends in that month."); },
   async execute(env, v, c) { const r = await facts.setYearEnd(env, v, ctxOf(c, "year_end.set")); return { eventId: r.eventId }; },
+};
+
+export const yearClose: CapabilityContract<CloseInput> = {
+  id: "year.close", heldType: "engine.year.close", label: "Closing a financial year", requires: [], permissions: ["business.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkCloseInput(payload); },
+  async check(env, value) { await planClose(env, value); },
+  async execute(env, v, c) { const r = await facts.closeYear(env, v, ctxOf(c, "year.close")); return { eventId: r.eventId, profitMinor: r.profitMinor }; },
+};
+export const yearReopen: CapabilityContract<ReopenInput> = {
+  id: "year.reopen", heldType: "engine.year.reopen", label: "Reopening a closed year", requires: [], permissions: ["business.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkReopenInput(payload); },
+  async check(env, value) { await planReopen(env, value); },
+  async execute(env, v, c) { const r = await facts.reopenYear(env, v, ctxOf(c, "year.reopen")); return { eventId: r.eventId }; },
 };
 
 export const journalPost: CapabilityContract<JournalInput> = {
@@ -1339,5 +1353,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, yearEndSet, bankStatementImport, bankMatchConfirm, bankMatchUndo, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, yearEndSet, yearClose, yearReopen, bankStatementImport, bankMatchConfirm, bankMatchUndo, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

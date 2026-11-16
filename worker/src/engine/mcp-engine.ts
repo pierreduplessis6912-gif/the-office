@@ -88,6 +88,8 @@ const HINTS: Record<string, string> = {
   "stock.write_down": "payload {itemId, amountMinor, reason: damaged | obsolete | slow_moving | market_decline | other, evidence (10 to 200 characters), writtenDownOn}: carry ALL the stock of an item (at every place that holds it) at less, by amountMinor, without moving a unit. A write-down is of the whole item: stock value is kept per item.",
   "business.profile.set": "payload {legalName?, tradingName?, address?, vatRegistered?, vatNumber?, companyRegistrationNumber?}: the business's own details.",
   "tax_lock.set": "payload {lockDate}: lock the tax period up to a date (it only moves forward).",
+  "year.close": "payload {yearEnd (the last day of a finished financial year), reason?}: close a financial year: its profit or loss moves into retained earnings and the books are locked to that day. Years close in order and only when the books have no problems.",
+  "year.reopen": "payload {yearEnd, reason}: reopen the latest closed year (the closing journal is reversed and the lock moves back).",
   "year_end.set": "payload {month (1 to 12), reason?}: set the month the financial year ends in (February until set).",
   "bank_match.confirm": "payload {matches: [{bankLineId, journalLineIds: [..]}]}: match statement lines to the entries on the bank account they are (a lump sum may be several entries); they must add up to the line. Matches only what a person approves.",
   "bank_match.undo": "payload {bankLineId, reason}: undo the match of a statement line (the history stays).",

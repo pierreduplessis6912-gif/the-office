@@ -1,4 +1,4 @@
-> **Status:** approved 2026-11-16 (Pierre: year-end is a setting defaulting to February; reopening allowed with a reason); P1 built. **Verified:** not yet. **Owns:** none.
+> **Status:** approved 2026-11-16 (Pierre: year-end is a setting defaulting to February; reopening allowed with a reason); P1 and P2 built. **Verified:** not yet. **Owns:** none.
 
 # DECISIONS: year-end-close (periods)
 
@@ -52,3 +52,14 @@ No multi-year comparison reports yet. One legal entity, one currency. A year can
 - No migration. `worker/src/engine/periods.ts`: `yearEndMonth` (the latest `year_end.set` event, else February, like the books lock), `financialYearOf`, `previousYear`, `yearsView`. Capability `year_end.set` (held type `engine.year_end.set`, owner, business.manage; the same month again is refused; choosing February explicitly on the default is allowed so it is a recorded fact). Read `ledger.years` (GET /engine/ledger/years, optional asOf; the ENGINE uses today when none is given) returns the month, this year, last year and `closed` (always empty until P2).
 - Tests: tools/engine-years.test.js (16), 6 breakages. Umbrella 11616/11616.
 - Next: P2 (close and reopen).
+
+## P2 as built (2026-11-16): close and reopen
+- No migration. `worker/src/engine/year-close.ts` (rules and plans), `periods.ts` (`closedYears` replayed from events, `verifyYears`, `CLOSING_ENTRY`), inserts in facts.ts (`closeYear`, `reopenYear`). Capabilities `year.close {yearEnd, reason?}` and `year.reopen {yearEnd, reason}` (held types `engine.year.close` / `engine.year.reopen`, owner, business.manage).
+- Closing: one `year.closed` event; one closing journal dated the last day of the year (source "manual", carried by the closing event; none when the year has nothing in it); and a `books_lock.set` event moving the lock to that day when it was earlier. All in one transaction. Refused unless: the date is a real year-end; the year has ended; it is the year right after the last closed one (the first close must be the year of the earliest entry); the verifier has no problems; nothing in another currency is unposted. Unmatched bank lines do not block.
+- Reopening: only the latest closed year, with a reason (5 to 300 characters): a `year.reopened` event, a contra entry dated the year-end (the closing entry stays), and the lock moved back to the end of the year before (or off when none is closed). The closing and the contra deliberately skip the lock check (closing is the act that writes into the period being locked).
+- Reports: profit and loss (a period report) leaves the closing entries out, so a closed year shows what it earned; trial balance and balance sheet (position reports) keep them, so the profit sits in retained earnings and "earned so far" is only the open year. Cash flow is unaffected (the closing entry never touches cash).
+- The year-end month cannot be changed while a year is closed.
+- `ledger.years` now lists the closed years and `nextToClose`. Verifier code `year_close_inconsistent` (closing entry missing or changed, a profit and loss account not netting to nothing over a closed year, the recorded profit differing from the books, years not contiguous, the lock before a closed year's end). The journal verifier accepts a year reopening as the reversal of a closing entry.
+- Limits: reopening moves the lock back to the previous closed year's end even if the owner had locked later for other reasons; closing writes no annual statements.
+- Tests: tools/engine-year-close.test.js (34), 13 breakages. Umbrella 11650/11650.
+- Next: P3 (the indirect cash flow, sentences, a read-only years view in the app).

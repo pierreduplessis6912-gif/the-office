@@ -22,7 +22,8 @@ import { planBill, planBillVoid, planSupplierPayment, type BillInput, type Payme
 import { planCreditApplication, planCreditNote, planDebitNote, planPaymentAllocation, planPaymentRefund, planRefund, planVoid, refundMovementOrThrow, checkReason, type CreditLineInput } from "./credits";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
 import { checkDate } from "./quotations";
-import { yearEndMonth } from "./periods";
+import { closedYears, yearEndMonth } from "./periods";
+import { planClose, planReopen, type CloseInput, type ReopenInput } from "./year-close";
 import { planMatches, planStatement, planUnmatch, type MatchInput, type StatementInput } from "./bank";
 import { CHART_TEMPLATE, accountForRole, assertBooksOpen, booksLockDate, planJournal, planJournalReversal, type JournalInput, checkedLines, documentLines, documentPosting, grniAvailable, stockMoveLines, paymentOutLines, paymentOutPosts, planContra, purchaseLines, receiptLines, receiptPosts, refundLines, refundPosts, type PostLine } from "./journal";
 
@@ -176,8 +177,38 @@ export async function setYearEnd(env: Env, input: { month: number; reason: strin
   if (!Number.isInteger(input.month) || input.month < 1 || input.month > 12) throw new EngineError("invalid_input", "month must be a whole number from 1 (January) to 12 (December)");
   return inTransaction(env, async (tx) => {
     const now = await yearEndMonth(tx);
+    if ((await closedYears(tx)).length > 0) throw new EngineError("invalid_state", "A financial year is closed, so the year-end cannot move: reopen the closed years first.");
     if (now.month === input.month && !now.isDefault) throw new EngineError("invalid_state", "The financial year already ends in that month.");
     return { eventId: await appendEvent(tx, "year_end.set", ctx, { month: input.month, previous: now.month }, input.reason) };
+  });
+}
+// CLOSING A YEAR: one event; the closing journal (if the year earned or cost anything); the books lock moved to the last day of the year. All or nothing.
+export async function closeYear(env: Env, input: CloseInput, ctx: Ctx): Promise<{ eventId: number; profitMinor: number }> {
+  return inTransaction(env, async (tx) => {
+    const plan = await planClose(tx, input);
+    const eventId = await appendEvent(tx, "year.closed", ctx, { start: plan.start, end: plan.end, profitMinor: plan.profitMinor, entryWritten: plan.lines.length > 0, lockBefore: plan.lockBefore }, input.reason);
+    if (plan.lines.length > 0) {
+      const entry = await one<{ id: number }>(tx, "INSERT INTO eng_journal_entry (entry_date, source_kind, source_id, memo, event_id) VALUES (?, 'manual', ?, ?, ?) RETURNING id", plan.end, eventId, `Year-end close ${plan.end}`, eventId);
+      let no = 0;
+      for (const l of plan.lines) { no += 1; await run(tx, "INSERT INTO eng_journal_line (entry_id, line_no, account_id, debit_minor, credit_minor) VALUES (?, ?, ?, ?, ?)", Number(entry!.id), no, l.accountId, l.debitMinor, l.creditMinor); }
+    }
+    if (plan.lockBefore === null || plan.lockBefore < plan.end) await appendEvent(tx, "books_lock.set", ctx, { lockDate: plan.end, ...(plan.lockBefore !== null ? { previous: plan.lockBefore } : {}) }, "year closed");
+    return { eventId, profitMinor: plan.profitMinor };
+  });
+}
+// REOPENING the latest closed year: the closing journal is turned round by a contra entry (nothing is deleted) and the lock moves back to the end of the year before it (or off, when none is closed).
+export async function reopenYear(env: Env, input: ReopenInput, ctx: Ctx): Promise<{ eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    const plan = await planReopen(tx, input);
+    const eventId = await appendEvent(tx, "year.reopened", ctx, { yearEnd: plan.end, closedEventId: plan.closedEventId }, input.reason);
+    if (plan.originalEntryId !== null) {
+      const entry = await one<{ id: number }>(tx, "INSERT INTO eng_journal_entry (entry_date, source_kind, source_id, memo, reverses_entry_id, event_id) VALUES (?, 'manual', ?, ?, ?, ?) RETURNING id", plan.end, plan.closedEventId, `Year-end close ${plan.end} reopened`, plan.originalEntryId, eventId);
+      let no = 0;
+      for (const l of plan.lines) { no += 1; await run(tx, "INSERT INTO eng_journal_line (entry_id, line_no, account_id, debit_minor, credit_minor) VALUES (?, ?, ?, ?, ?)", Number(entry!.id), no, l.accountId, l.debitMinor, l.creditMinor); }
+    }
+    const lock = await booksLockDate(tx);
+    if (lock !== null && (plan.previousEnd === null || lock > plan.previousEnd)) await appendEvent(tx, "books_lock.set", ctx, { lockDate: plan.previousEnd, previous: lock }, `year ending ${plan.end} reopened: ${input.reason}`);
+    return { eventId };
   });
 }
 export async function reverseJournal(env: Env, input: { journalEventId: number; date: string; reason: string }, ctx: Ctx): Promise<{ eventId: number }> {

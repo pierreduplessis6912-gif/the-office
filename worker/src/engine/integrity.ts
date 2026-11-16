@@ -26,9 +26,10 @@ import { documentTotals as sumTotals } from "./money";
 import { documentTotals as docTotals } from "./ledger";
 import { verifyJournal } from "./journal";
 import { verifyBank, verifyMatches } from "./bank";
+import { verifyYears } from "./periods";
 
 export interface IntegrityProblem {
-  code: "bank_statement_inconsistent" | "bank_match_inconsistent" | "journal_unbalanced" | "journal_missing" | "journal_contra_mismatch" | "orphan" | "fact_changed" | "over_allocated" | "allocation_on_reversed" | "number_gap" | "event_without_fact" | "event_multiple_facts" | "fact_wrong_event" | "reversal_mismatch" | "stock_invariant" | "event_payload_malformed";
+  code: "year_close_inconsistent" | "bank_statement_inconsistent" | "bank_match_inconsistent" | "journal_unbalanced" | "journal_missing" | "journal_contra_mismatch" | "orphan" | "fact_changed" | "over_allocated" | "allocation_on_reversed" | "number_gap" | "event_without_fact" | "event_multiple_facts" | "fact_wrong_event" | "reversal_mismatch" | "stock_invariant" | "event_payload_malformed";
   detail: string;
 }
 export interface IntegrityWarning { code: "event_type_not_modelled" | "unposted_foreign_currency"; detail: string }
@@ -51,6 +52,8 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "credit_note.issued": { creates: null, note: "an invoice is credited: ties the credit note document, its non-cash movement and the invoice together; the document, movement and allocation are created by their own events beside it" },
   "business.profile_set": { creates: null, note: "the business's own particulars change; the current profile is derived from the events (business.ts)" },
   "books_lock.set": { creates: null, note: "the books lock date moves (forward, or back with a reason: unlocking); the current lock is derived (journal.ts)" },
+  "year.closed": { creates: null, note: "a financial year closed: the closing journal (if any) is written beside it and the books lock moves to the last day of the year" },
+  "year.reopened": { creates: null, note: "the latest closed year reopened with a reason: the closing journal is reversed by a contra entry and the lock moves back" },
   "year_end.set": { creates: null, note: "where the financial year ends (a month, 1 to 12); the latest one is the setting, February until one is set" },
   "bank_match.confirmed": { creates: null, note: "a person approved matches between bank statement lines and entries on the bank account; the match rows are written beside it" },
   "bank_match.undone": { creates: null, note: "a bank line was unmatched: reversal rows pointing at the original matches, with a reason" },
@@ -482,5 +485,6 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
   await verifyJournal(env, (code, detail) => problems.push({ code: code as IntegrityProblem["code"], detail }), (code, detail) => warnings.push({ code: code as IntegrityWarning["code"], detail }));
   await verifyBank(env, (code, detail) => problems.push({ code: code as IntegrityProblem["code"], detail }));
   await verifyMatches(env, (code, detail) => problems.push({ code: code as IntegrityProblem["code"], detail }));
+  await verifyYears(env, (code, detail) => problems.push({ code: code as IntegrityProblem["code"], detail }));
   return { ok: problems.length === 0, problems, warnings };
 }

@@ -539,6 +539,8 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   "engine.books_lock.set": ["can_manage_settings"],
   "engine.bank_statement.import": ["can_manage_settings"],
   "engine.year_end.set": ["can_manage_settings"],
+  "engine.year.close": ["can_manage_settings"],
+  "engine.year.reopen": ["can_manage_settings"],
   "engine.bank_match.confirm": ["can_manage_settings"],
   "engine.bank_match.undo": ["can_manage_settings"],
   "engine.journal.post": ["can_manage_settings"],
