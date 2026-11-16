@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../slice_model.dart' show randFromMinor;
 import 'assistant_model.dart';
 import 'engine_api.dart';
+import 'supplier_payment_form.dart';
 
 class BillsRoom extends StatefulWidget {
   final EngineApi api;
@@ -18,6 +19,7 @@ class _BillsRoomState extends State<BillsRoom> {
   List<AssistantBill> _rows = <AssistantBill>[];
   bool _loading = true;
   bool _failed = false;
+  bool _paying = false;
 
   @override
   void initState() {
@@ -70,6 +72,7 @@ class _BillsRoomState extends State<BillsRoom> {
 
   @override
   Widget build(BuildContext context) {
+    if (_paying) return SupplierPaymentForm(key: const ValueKey<String>('supplier-payment-form'), api: widget.api, onClose: () { setState(() => _paying = false); _load(); });
     Widget body;
     if (_loading) {
       body = const Padding(padding: EdgeInsets.all(12), child: Text('Reading…', style: TextStyle(color: Color(0xFF8A8A90))));
@@ -84,6 +87,7 @@ class _BillsRoomState extends State<BillsRoom> {
       child: ListView(padding: const EdgeInsets.all(12), children: [
         Row(children: [
           const Expanded(child: Text('Bills to pay', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
+          IconButton(key: const Key('bills-pay'), tooltip: 'Pay a supplier', icon: const Icon(Icons.add), onPressed: () => setState(() => _paying = true)),
           IconButton(key: const Key('bills-refresh'), tooltip: 'Check again', icon: const Icon(Icons.refresh), onPressed: _loading ? null : _load),
         ]),
         body,

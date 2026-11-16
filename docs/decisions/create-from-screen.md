@@ -38,3 +38,14 @@ App only: `propose`, one small form widget per form (validated on screen for the
 ## F3 as built (2026-11-16): record an expense
 - `ExpenseForm` behind a "+" (key `expenses-add`) in the Expenses room. Supplier from the suppliers list; amount in rand to exact cents; optional "what it was for" (falls back to the category); date paid (used for incurred and paid); category (the engine's own list, which it re-checks); method; bank account only with more than one account and not for cash; "has VAT (15%)" and "amount already includes VAT" switches; "I have the tax invoice". One line per expense, currency ZAR; several lines are still said to the assistant. It proposes `expense.record` and never writes; the engine's reason is shown.
 - Proof: Dart `expense_form_test` (6); engine `engine-form-payloads` (20) covers held, approved, unknown category, cash with an account, wrong role. Umbrella 11786/11786.
+
+## Next forms: what the code says (2026-11-16, for Pierre's approval before building)
+- **Quotation (`quotation.create`)** can be a form now: customer, issue date, valid until, reference, and a line editor (description, quantity, unit, unit price, VAT 15% or 0%). The engine already works out the totals and shows them on approval. The editor is the new part: add and remove lines, each line checked on screen only for "not empty".
+- **Invoice** cannot be a form yet. The engine only issues an invoice from an existing draft (`invoice.issue` takes a draft number), and nothing in the engine creates a draft; today drafts come only from the older app. So an invoice form needs a new engine capability first (`invoice.draft`: customer, date, lines, held, then issue), with its own tests. Proposed order: build the quotation form and its line editor, then reuse the editor for the draft form.
+- **Smaller forms, no approval needed (same pattern as F1 to F3):** F4 pay a supplier (`supplier_payment.record`, from the Bills room) and F5 refund an overpayment (`payment.refund`, which may name a bank account).
+- Approval: say "Yes" to build the quotation form and then the invoice draft capability and form in that order.
+
+## F4 as built (2026-11-16): pay a supplier
+- `SupplierPaymentForm` behind a "+" (key `bills-pay`) in the Bills room: supplier, amount in rand, date, method, bank account (only with more than one and not cash), "pay the oldest bills first". Proposes `supplier_payment.record`, never writes; ZAR; the engine's reason is shown (for example when nothing is payable to that supplier).
+- Proof: Dart `supplier_payment_form_test`; engine `engine-form-payloads` (23). The held-then-paid path is proven by the existing supplier payment suites (the form test has no bill to settle).
+- **F5 (refund an overpayment) is not built:** the engine has no read that lists payments, so a form cannot offer "which payment". It needs a new read (`payments.find`) first. Not started.

@@ -2,8 +2,8 @@
 // exactly what the form sends is HELD (nothing recorded), becomes a customer/supplier only on approval, and a refusal carries the engine's own reason for the form to show.
 const kit = require('./engine-kit.js');
 
-module.exports = kit.guard('engine form payloads (F1, F2, F3)', async ({ check }) => {
-  const AV = [...kit.ALL_CAPABILITIES, 'party.create', 'parties.find', 'expense.record'];
+module.exports = kit.guard('engine form payloads (F1 to F4)', async ({ check }) => {
+  const AV = [...kit.ALL_CAPABILITIES, 'party.create', 'parties.find', 'expense.record', 'supplier_payment.record'];
   const run = (spec) => kit.route({ env: { BUSINESS_ID: 'eng-a' }, seed: kit.seedReceivables(AV), ...spec });
   const body = (r) => (r.result && r.result.body) || {};
   const status = (r) => r.result && r.result.status;
@@ -64,5 +64,15 @@ module.exports = kit.guard('engine form payloads (F1, F2, F3)', async ({ check }
   check(status(r) >= 400, 'cash naming a bank account is refused');
   r = await run({ before: mkSupplier, ...exp('installer', expForm) });
   check(status(r) >= 400 && added(r, 'eng_money_movement') === 0, 'someone who may not record expenses is refused');
+
+  // ---- F4: pay a supplier -------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  const spForm = { supplierId: 2, amountMinor: 115000, currency: 'ZAR', paidOn: '2026-11-16', method: 'eft', allocate: 'oldest_first' };
+  const sp = (role, payload) => ({ method: 'POST', path: '/engine/proposals', role, body: { capability: 'supplier_payment.record', payload, transcript: 'Added from the Pay a supplier form', source: 'app' } });
+  r = await run({ before: mkSupplier, ...sp('accountant', spForm) });
+  check(status(r) === 409 && /payable to this supplier/.test(String(body(r).message)) && added(r, 'eng_money_movement') === 0, `with no bills owing, the form's payload is refused with the engine's own reason and records nothing (${body(r).message}); the held path is proven by the supplier payment suites`);
+  r = await run({ before: mkSupplier, ...sp('accountant', { ...spForm, method: 'cash', bankAccountId: 1 }) });
+  check(status(r) >= 400, 'cash naming a bank account is refused');
+  r = await run({ before: mkSupplier, ...sp('installer', spForm) });
+  check(status(r) >= 400 && added(r, 'eng_money_movement') === 0, 'someone who may not pay suppliers is refused');
 });
 if (require.main === module) kit.standalone(module.exports);
