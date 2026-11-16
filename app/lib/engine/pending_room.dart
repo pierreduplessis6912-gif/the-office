@@ -48,7 +48,7 @@ class _PendingRoomState extends State<PendingRoom> {
       } else {
         for (final held in parseHeldList(response.status, response.body)) {
           final names = <int, String>{};
-          final supplier = held.payload['supplierId'];
+          final supplier = held.payload['supplierId'] ?? held.payload['partyId'];
           if (supplier is int) {
             try {
               final record = await widget.api.record('party', supplier);
@@ -103,7 +103,7 @@ class _PendingRoomState extends State<PendingRoom> {
         padding: const EdgeInsets.all(12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(heldTitle(held.type), style: const TextStyle(fontWeight: FontWeight.w600)),
-          if (held.transcript.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text('You said: “${held.transcript}”', style: const TextStyle(fontSize: 12, color: Color(0xFF8A8A90)))),
+          if (held.transcript.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(held.transcript.startsWith('Added from the ') ? 'Entered on the screen' : 'You said: “${held.transcript}”', style: const TextStyle(fontSize: 12, color: Color(0xFF8A8A90)))),
           const SizedBox(height: 6),
           for (final l in heldLines(held, names: row.names))
             Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l.label), Flexible(child: Text(l.value, textAlign: TextAlign.end))])),

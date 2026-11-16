@@ -156,5 +156,22 @@ void main() {
       expect(stale.message.isNotEmpty, isTrue);
       expect(parseDecision(200, null, confirmed: true).ok, isFalse);
     });
+
+    test('a payment from the form and a supplier payment read as plain lines with names, not numbers', () {
+      const pay = HeldAction(id: 5, type: 'engine.payment.record', transcript: 'Added from the Record a payment form', payload: <String, Object?>{'partyId': 3, 'amountMinor': 45050, 'currency': 'ZAR', 'occurredOn': '2026-11-16', 'method': 'eft', 'bankAccountId': 9, 'allocate': 'oldest_first'});
+      final lines = heldLines(pay, names: const <int, String>{3: 'Mokoena'});
+      expect(_value(lines, 'Customer'), 'Mokoena');
+      expect(_value(lines, 'Amount'), 'R450.50');
+      expect(_value(lines, 'Date'), '2026-11-16');
+      expect(_value(lines, 'Paid by'), 'eft');
+      expect(_value(lines, 'Bank account'), 'Account #9');
+      expect(_value(lines, 'Settles'), 'Oldest invoices first');
+      const sp = HeldAction(id: 6, type: 'engine.supplier_payment.record', transcript: '', payload: <String, Object?>{'supplierId': 4, 'amountMinor': 100000, 'currency': 'ZAR', 'paidOn': '2026-11-16', 'method': 'eft', 'allocate': 'oldest_first'});
+      final l2 = heldLines(sp);
+      expect(_value(l2, 'Supplier'), 'Supplier #4');
+      expect(_value(l2, 'Settles'), 'Oldest bills first');
+      expect(heldTitle(sp.type), 'Pay a supplier');
+      expect(heldTitle('engine.payment.refund'), 'Refund an overpayment');
+    });
   });
 }

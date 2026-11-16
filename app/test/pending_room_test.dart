@@ -79,6 +79,15 @@ void main() {
     expect(find.text('Add a customer or supplier'), findsNWidgets(2));
   });
 
+  testWidgets('something entered on a form says so instead of "You said"', (tester) async {
+    final item = <String, Object?>{'id': 11, 'type': 'engine.payment.record', 'payload': '{"partyId":3,"amountMinor":45050,"currency":"ZAR","occurredOn":"2026-11-16","method":"eft"}', 'source_transcript': 'Added from the Record a payment form'};
+    await _open(tester, _PendingApi(fixtures, <Map<String, Object?>>[item]));
+    expect(find.text('Entered on the screen'), findsOneWidget);
+    expect(find.textContaining('You said'), findsNothing);
+    expect(find.text('Record a payment'), findsOneWidget);
+    expect(find.text('R450.50'), findsOneWidget);
+  });
+
   testWidgets('an empty list says nothing is waiting', (tester) async {
     await _open(tester, _PendingApi(fixtures, <Map<String, Object?>>[]));
     expect(find.byKey(const Key('pending-empty')), findsOneWidget);

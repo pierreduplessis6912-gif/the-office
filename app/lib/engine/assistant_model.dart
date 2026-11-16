@@ -202,6 +202,14 @@ String heldTitle(String type) {
       return 'Record a supplier bill';
     case 'engine.payment.record':
       return 'Record a payment';
+    case 'engine.supplier_payment.record':
+      return 'Pay a supplier';
+    case 'engine.payment.refund':
+      return 'Refund an overpayment';
+    case 'engine.quotation.create':
+      return 'Make a quotation';
+    case 'engine.invoice.issue':
+      return 'Issue an invoice';
     default:
       final bare = type.startsWith('engine.') ? type.substring(7) : type;
       return bare.replaceAll('_', ' ').replaceAll('.', ' ');
@@ -266,6 +274,21 @@ List<HeldLine> heldLines(HeldAction a, {Map<int, String> names = const <int, Str
       if (gross.isNotEmpty) out.add(HeldLine('Total', gross));
     }
     out.add(HeldLine('Tax invoice held', _yesNo(p['taxInvoiceHeld'])));
+    return out;
+  }
+  if (a.type == 'engine.payment.record' || a.type == 'engine.supplier_payment.record') {
+    final supplierSide = a.type == 'engine.supplier_payment.record';
+    final id = _int(p[supplierSide ? 'supplierId' : 'partyId']);
+    if (id != null) out.add(HeldLine(supplierSide ? 'Supplier' : 'Customer', names[id] ?? '${supplierSide ? 'Supplier' : 'Customer'} #$id'));
+    final amount = money(p['amountMinor']);
+    if (amount.isNotEmpty) out.add(HeldLine('Amount', amount));
+    final date = _text(p[supplierSide ? 'paidOn' : 'occurredOn']);
+    if (date != null) out.add(HeldLine('Date', date));
+    final method = _text(p['method']);
+    if (method != null) out.add(HeldLine('Paid by', method));
+    final account = _int(p['bankAccountId']);
+    if (account != null) out.add(HeldLine('Bank account', 'Account #$account'));
+    if (p['allocate'] == 'oldest_first') out.add(HeldLine('Settles', supplierSide ? 'Oldest bills first' : 'Oldest invoices first'));
     return out;
   }
   // any other held write: its plain fields, money formatted; nothing is invented
