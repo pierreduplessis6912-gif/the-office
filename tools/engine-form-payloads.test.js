@@ -2,8 +2,8 @@
 // exactly what the form sends is HELD (nothing recorded), becomes a customer/supplier only on approval, and a refusal carries the engine's own reason for the form to show.
 const kit = require('./engine-kit.js');
 
-module.exports = kit.guard('engine form payloads (F1, F2)', async ({ check }) => {
-  const AV = [...kit.ALL_CAPABILITIES, 'party.create', 'parties.find'];
+module.exports = kit.guard('engine form payloads (F1, F2, F3)', async ({ check }) => {
+  const AV = [...kit.ALL_CAPABILITIES, 'party.create', 'parties.find', 'expense.record'];
   const run = (spec) => kit.route({ env: { BUSINESS_ID: 'eng-a' }, seed: kit.seedReceivables(AV), ...spec });
   const body = (r) => (r.result && r.result.body) || {};
   const status = (r) => r.result && r.result.status;
@@ -49,5 +49,20 @@ module.exports = kit.guard('engine form payloads (F1, F2)', async ({ check }) =>
   check(status(r) >= 400, 'an amount of nothing is refused');
   r = await run(pay('installer', payForm));
   check(status(r) >= 400 && added(r, 'eng_money_movement') === 0, 'someone who may not record payments is refused');
+
+  // ---- F3: record an expense ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+  const expForm = { supplierId: 2, incurredOn: '2026-11-16', paidOn: '2026-11-16', method: 'eft', category: 'materials', currency: 'ZAR', amountsIncludeTax: true, taxInvoiceHeld: true, amountPaidMinor: 115000, lines: [{ description: 'Skirting boards', amountMinor: 115000, taxBp: 1500 }] };
+  const exp = (role, payload) => ({ method: 'POST', path: '/engine/proposals', role, body: { capability: 'expense.record', payload, transcript: 'Added from the Record an expense form', source: 'app' } });
+  const mkSupplier = [send('owner', { kind: 'organisation', name: 'Timber Supplies', roles: ['supplier'] }), { method: 'POST', path: '/actions/1/confirm', role: 'owner', body: {} }];   // party 2, after Mokoena
+  r = await run({ before: mkSupplier, ...exp('accountant', expForm) });
+  check(status(r) === 200 && body(r).status === 'held' && added(r, 'eng_money_movement') === 0, `the expense form's payload is held and records nothing (${JSON.stringify(body(r)).slice(0, 160)})`);
+  r = await run({ before: [...mkSupplier, exp('accountant', expForm)], method: 'POST', path: '/actions/2/confirm', role: 'accountant', body: {} });
+  check(status(r) === 200 && added(r, 'eng_money_movement') === 1, `approving it records the expense and its payment (${status(r)} ${JSON.stringify(body(r)).slice(0, 160)})`);
+  r = await run({ before: mkSupplier, ...exp('accountant', { ...expForm, category: 'nonsense' }) });
+  check(status(r) >= 400 && /category must be one of/.test(String(body(r).message)), `an unknown category is refused with the engine's reason (${body(r).message})`);
+  r = await run({ before: mkSupplier, ...exp('accountant', { ...expForm, method: 'cash', bankAccountId: 1 }) });
+  check(status(r) >= 400, 'cash naming a bank account is refused');
+  r = await run({ before: mkSupplier, ...exp('installer', expForm) });
+  check(status(r) >= 400 && added(r, 'eng_money_movement') === 0, 'someone who may not record expenses is refused');
 });
 if (require.main === module) kit.standalone(module.exports);

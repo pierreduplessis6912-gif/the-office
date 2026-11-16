@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../slice_model.dart' show randFromMinor;
 import 'assistant_model.dart';
 import 'engine_api.dart';
+import 'expense_form.dart';
 
 class ExpensesRoom extends StatefulWidget {
   final EngineApi api;
@@ -18,6 +19,7 @@ class _ExpensesRoomState extends State<ExpensesRoom> {
   List<AssistantExpense> _rows = <AssistantExpense>[];
   bool _loading = true;
   bool _failed = false;
+  bool _adding = false;
 
   @override
   void initState() {
@@ -71,6 +73,7 @@ class _ExpensesRoomState extends State<ExpensesRoom> {
 
   @override
   Widget build(BuildContext context) {
+    if (_adding) return ExpenseForm(key: const ValueKey<String>('expense-form'), api: widget.api, onClose: () { setState(() => _adding = false); _load(); });
     Widget body;
     if (_loading) {
       body = const Padding(padding: EdgeInsets.all(12), child: Text('Reading…', style: TextStyle(color: Color(0xFF8A8A90))));
@@ -85,6 +88,7 @@ class _ExpensesRoomState extends State<ExpensesRoom> {
       child: ListView(padding: const EdgeInsets.all(12), children: [
         Row(children: [
           const Expanded(child: Text('Expenses', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
+          IconButton(key: const Key('expenses-add'), tooltip: 'Record an expense', icon: const Icon(Icons.add), onPressed: () => setState(() => _adding = true)),
           IconButton(key: const Key('expenses-refresh'), tooltip: 'Check again', icon: const Icon(Icons.refresh), onPressed: _loading ? null : _load),
         ]),
         body,
