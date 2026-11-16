@@ -58,3 +58,4 @@ Detail lives in `HANDOFF.md` (the newest notes sit just above its "How to run th
 - 2026-11-15: ledger G2a done (purchases and money out). Next: G2b (stock and goods received), then G3, G4.
 - 2026-11-15: ledger G2 (purchases and stock) done. Next: G3 (period lock, manual journals, opening balances), then G4 (trial balance, statements, assistant sentences, app rooms).
 - 2026-11-15: ledger G3 done. Next: G4 (the reads, assistant sentences, app rooms), then G5 design (bank reconciliation, cash flow).
+- 2026-11-16: ledger G4b built: interpreter sentences (profit this/last month, balance sheet), engine dates this_month/today for the app, read-only Books room in the app (CI compile check to confirm). Umbrella 11534/11534. Next: G5 design (bank reconciliation, cash flow).

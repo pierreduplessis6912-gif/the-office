@@ -122,5 +122,11 @@ After G2, a real-model run to check the sentences for the new reads is a separat
 ## G4a as built (2026-11-16): the reads
 - worker/src/engine/ledger-reports.ts (reads only): trial balance (to a date), an account's ledger with a running balance and the fact behind each line, profit and loss for a period, balance sheet (assets = liabilities + equity + profit earned to date; the books are not yet closed off year by year), the suspense report, and the reconciliation of receivables, payables and inventory to the customer, supplier and stock records (a difference is reported by account and amount, not hidden and not an integrity failure, because facts that pre-date the ledger can legitimately differ).
 - Six read capabilities `ledger.*`, permission `ledger.read` for the owner and whoever may know profit (`can_know_profit` is now mapped; it was in the unmapped list), HTTP `GET /engine/ledger/...`. Tests: tools/engine-gl-reports.test.js (23 checks, figures worked out by hand) and 8 more breakages.
-- Still to do in G4: assistant sentences (interpreter) and an app room.
+- Done in G4b: see below.
 
+
+## G4b as built (2026-11-16): sentences and the app room
+- Interpreter: `ledger.profit_and_loss` (period this_month|last_month) and `ledger.balance_sheet` (no arguments; any argument is "not understood"). The model supplies words; the engine works out the dates.
+- HTTP: `/engine/ledger/profit-and-loss?period=this_month|last_month` and `/engine/ledger/balance-sheet` with no date are dated by the ENGINE (monthOf, today), so the app computes no date. An unknown period is refused (422).
+- App: read-only "The books" room under More (profit and loss this month, balance sheet today, reconciliation), figures formatted only. Not yet compiled locally (no Flutter here); CI "App compile check" is the proof. No recorded app fixtures for the books answers yet.
+- Next: G5 (bank reconciliation, cash flow) needs its own design.
