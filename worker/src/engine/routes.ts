@@ -98,7 +98,7 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
   const LEDGER_READS: Record<string, { id: string; params: string[] }> = {
     "/engine/ledger/trial-balance": { id: "ledger.trial_balance", params: ["asOf"] }, "/engine/ledger/account": { id: "ledger.account", params: ["code", "from", "to"] },
     "/engine/ledger/profit-and-loss": { id: "ledger.profit_and_loss", params: ["from", "to"] }, "/engine/ledger/balance-sheet": { id: "ledger.balance_sheet", params: ["asOf"] },
-    "/engine/ledger/suspense": { id: "ledger.suspense", params: [] }, "/engine/ledger/reconciliation": { id: "ledger.reconciliation", params: [] },
+    "/engine/ledger/suspense": { id: "ledger.suspense", params: [] }, "/engine/ledger/reconciliation": { id: "ledger.reconciliation", params: [] }, "/engine/ledger/bank-suggestions": { id: "ledger.bank_suggestions", params: [] },
   };
   if (request.method === "GET" && LEDGER_READS[path]) {
     const spec = LEDGER_READS[path];

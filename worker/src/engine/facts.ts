@@ -22,7 +22,7 @@ import { planBill, planBillVoid, planSupplierPayment, type BillInput, type Payme
 import { planCreditApplication, planCreditNote, planDebitNote, planPaymentAllocation, planPaymentRefund, planRefund, planVoid, refundMovementOrThrow, checkReason, type CreditLineInput } from "./credits";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
 import { checkDate } from "./quotations";
-import { planStatement, type StatementInput } from "./bank";
+import { planMatches, planStatement, planUnmatch, type MatchInput, type StatementInput } from "./bank";
 import { CHART_TEMPLATE, accountForRole, assertBooksOpen, booksLockDate, planJournal, planJournalReversal, type JournalInput, checkedLines, documentLines, documentPosting, grniAvailable, stockMoveLines, paymentOutLines, paymentOutPosts, planContra, purchaseLines, receiptLines, receiptPosts, refundLines, refundPosts, type PostLine } from "./journal";
 
 export interface Ctx {
@@ -150,6 +150,24 @@ export async function importStatement(env: Env, input: StatementInput, ctx: Ctx)
     const st = await one<{ id: number }>(tx, "INSERT INTO eng_bank_statement (period_from, period_to, opening_minor, closing_minor, file_total_minor, file_line_count, skipped_count, source_name, event_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id", input.periodFrom, input.periodTo, input.openingMinor, input.closingMinor, plan.fileTotalMinor, input.lines.length, plan.skipped, input.sourceName, eventId);
     for (const l of plan.fresh) await run(tx, "INSERT INTO eng_bank_line (statement_id, line_no, line_date, description, amount_minor, balance_minor, fingerprint, event_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", Number(st!.id), l.lineNo, l.date, l.description, l.amountMinor, l.balanceMinor, l.fingerprint, eventId);
     return { eventId, statementId: Number(st!.id), added: plan.fresh.length, skipped: plan.skipped };
+  });
+}
+// MATCHES a person approved between statement lines and entries on the bank account: one event, and a row for each entry matched. It writes nothing to the ledger.
+export async function confirmMatches(env: Env, input: MatchInput, ctx: Ctx): Promise<{ eventId: number; matched: number }> {
+  return inTransaction(env, async (tx) => {
+    const planned = await planMatches(tx, input);
+    const eventId = await appendEvent(tx, "bank_match.confirmed", ctx, { matches: planned });
+    for (const m of planned) for (const j of m.journalLineIds) await run(tx, "INSERT INTO eng_bank_match (bank_line_id, journal_line_id, reverses_match_id, event_id) VALUES (?, ?, NULL, ?)", m.bankLineId, j, eventId);
+    return { eventId, matched: planned.length };
+  });
+}
+// Unmatching is a second fact for each row, pointing at the first; the history of the match stays.
+export async function undoMatch(env: Env, input: { bankLineId: number; reason: string }, ctx: Ctx): Promise<{ eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    const rows = await planUnmatch(tx, input.bankLineId);
+    const eventId = await appendEvent(tx, "bank_match.undone", ctx, { bankLineId: input.bankLineId }, input.reason);
+    for (const r of rows) await run(tx, "INSERT INTO eng_bank_match (bank_line_id, journal_line_id, reverses_match_id, event_id) VALUES (?, ?, ?, ?)", r.bankLineId, r.journalLineId, r.id, eventId);
+    return { eventId };
   });
 }
 export async function reverseJournal(env: Env, input: { journalEventId: number; date: string; reason: string }, ctx: Ctx): Promise<{ eventId: number }> {

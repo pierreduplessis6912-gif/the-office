@@ -10,7 +10,7 @@ import { isEffective, outstandingForDocument, outstandingForParty } from "./ledg
 import { issueDraft, readDraft } from "./drafts";
 import * as reports from "./ledger-reports";
 import { booksLockDate, checkJournalInput, planJournal, planJournalReversal, type JournalInput } from "./journal";
-import { checkStatementInput, planStatement, type StatementInput } from "./bank";
+import { checkMatchInput, checkStatementInput, checkUnmatchInput, planMatches, planStatement, planUnmatch, suggestMatches, type MatchInput, type StatementInput, type UnmatchInput } from "./bank";
 import { RECORD_KINDS, recordView, versionOf, type RecordKind, type ViewerContext } from "./records";
 import type { EnginePermission } from "./permissions";
 import { unappliedCreditForParty } from "./ledger";
@@ -531,6 +531,19 @@ export const bankStatementImport: CapabilityContract<StatementInput> = {
   validate(payload) { return checkStatementInput(payload); },
   async check(env, value) { await planStatement(env, value); },
   async execute(env, v, c) { const r = await facts.importStatement(env, v, ctxOf(c, "bank_statement.import")); return { eventId: r.eventId, statementId: r.statementId, added: r.added, skipped: r.skipped }; },
+};
+
+export const bankMatchConfirm: CapabilityContract<MatchInput> = {
+  id: "bank_match.confirm", heldType: "engine.bank_match.confirm", label: "Matching bank lines to the books", requires: [], permissions: ["business.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkMatchInput(payload); },
+  async check(env, value) { await planMatches(env, value); },
+  async execute(env, v, c) { const r = await facts.confirmMatches(env, v, ctxOf(c, "bank_match.confirm")); return { eventId: r.eventId, matched: r.matched }; },
+};
+export const bankMatchUndo: CapabilityContract<UnmatchInput> = {
+  id: "bank_match.undo", heldType: "engine.bank_match.undo", label: "Undoing a bank match", requires: [], permissions: ["business.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkUnmatchInput(payload); },
+  async check(env, value) { await planUnmatch(env, value.bankLineId); },
+  async execute(env, v, c) { const r = await facts.undoMatch(env, v, ctxOf(c, "bank_match.undo")); return { eventId: r.eventId }; },
 };
 
 export const journalPost: CapabilityContract<JournalInput> = {
@@ -1302,7 +1315,8 @@ export const ledgerBalanceSheet = bookRead<{ asOf: string }>("ledger.balance_she
 export const ledgerSuspense = bookRead<Record<string, never>>("ledger.suspense", "What is in suspense", [], () => ({ ok: true, value: {} }), (env) => reports.suspenseReport(env));
 export const ledgerReconciliation = bookRead<Record<string, never>>("ledger.reconciliation", "Control accounts against their records", [], () => ({ ok: true, value: {} }), (env) => reports.reconciliation(env));
 
-export const READS: readonly ReadCapability<any>[] = [ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
+export const ledgerBankSuggestions = bookRead<Record<string, never>>("ledger.bank_suggestions", "Suggested bank matches", [], () => ({ ok: true, value: {} }), (env) => suggestMatches(env));
+export const READS: readonly ReadCapability<any>[] = [ledgerBankSuggestions, ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
@@ -1310,5 +1324,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, bankStatementImport, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, bankStatementImport, bankMatchConfirm, bankMatchUndo, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

@@ -538,6 +538,8 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   "engine.tax_lock.set": ["can_manage_settings"],
   "engine.books_lock.set": ["can_manage_settings"],
   "engine.bank_statement.import": ["can_manage_settings"],
+  "engine.bank_match.confirm": ["can_manage_settings"],
+  "engine.bank_match.undo": ["can_manage_settings"],
   "engine.journal.post": ["can_manage_settings"],
   "engine.journal.reverse": ["can_manage_settings"],
   "engine.quotation.create": ["can_manage_invoices", "can_make_quotes"],
@@ -842,7 +844,7 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "GET", path: /^\/engine\/stock\/valuation$/, anyOf: ["can_manage_invoices", "can_know_material_prices"] },
   { method: "GET", path: /^\/engine\/stock\/rollforward$/, anyOf: ["can_manage_invoices", "can_know_material_prices"] },
   // The books (G4, read-only): the owner (settings) and whoever may know profit; the same pair the engine's own ledger.read permission is mapped from (permissions.ts).
-  { method: "GET", path: /^\/engine\/ledger\/(trial-balance|account|profit-and-loss|balance-sheet|suspense|reconciliation)$/, anyOf: ["can_know_profit", "can_manage_settings"] },
+  { method: "GET", path: /^\/engine\/ledger\/(trial-balance|account|profit-and-loss|balance-sheet|suspense|reconciliation|bank-suggestions)$/, anyOf: ["can_know_profit", "can_manage_settings"] },
   { method: "GET", path: /^\/engine\/prices$/, anyOf: ["can_manage_invoices", "can_make_quotes"] },
   { method: "GET", path: /^\/engine\/stock\/fulfilment$/, anyOf: ["can_manage_invoices", "can_know_materials"] },
   { method: "GET", path: /^\/engine\/margin$/, anyOf: ["can_manage_invoices", "can_know_material_prices"] },

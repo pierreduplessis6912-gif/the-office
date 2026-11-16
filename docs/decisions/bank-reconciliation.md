@@ -1,4 +1,4 @@
-> **Status:** approved 2026-11-16 (Pierre: one bank account plus cash); G5a built. **Verified:** not yet. **Owns:** none.
+> **Status:** approved 2026-11-16 (Pierre: one bank account plus cash); G5a and G5b built. **Verified:** not yet. **Owns:** none.
 
 # DECISIONS: bank-reconciliation (G5)
 
@@ -46,3 +46,13 @@ Foreign-currency accounts are not reconciled (as with the ledger). No live bank 
 - A line is a duplicate when its date, amount, description and place among identical lines in the file match one already stored; overlapping statements add only the new lines and count the skipped.
 - Writes nothing to the ledger. Tests: tools/engine-bank.test.js (23) plus 8 breakages. Umbrella 11557/11557.
 - Not yet: any read of statements, any HTTP route beyond the generic proposal route, matching (G5b), the reconciliation and cash-flow reads, sentences and the app room (G5c).
+
+## G5b as built (2026-11-16): matching
+- Migration 0008 (additive): `eng_bank_match` (bank line, ledger entry on the bank account, optional `reverses_match_id`, event). A match is a fact; unmatching inserts reversal rows. The table cannot point at itself under the restore, so `reverses_match_id` is a plain number the verifier checks.
+- The books' side is the BANK ACCOUNT's journal lines (payments in and out, refunds, a manual journal for a fee), signed like the statement. So a fee posted by a manual journal matches the same way as a payment.
+- Read `ledger.bank_suggestions` (GET /engine/ledger/bank-suggestions, permission ledger.read): STRONG = one entry with the same amount within 5 days whose party name is in the description; WEAK = one fit, no name; AMBIGUOUS = several, or two lines wanting one entry; UNEXPLAINED = nothing fits. Nothing is matched by the read.
+- Capabilities `bank_match.confirm` (a batch; each match checked against the facts as they are: entries on the bank account, unmatched, adding up to the line; a lump sum is several entries) and `bank_match.undo` (needs a reason, releases the whole group). Both owner-only (business.manage). Matching writes nothing to the ledger.
+- Integrity `bank_match_inconsistent`: dangling rows, reversals that do not mirror, an entry actively matched twice, a line whose entries do not add up.
+- Limits: the party name used is the one first recorded (later renames are not followed); a voided payment's contra entry stays open on the bank account until explained; weak and ambiguous cases are for a person to decide, there is no automatic matching.
+- Tests: tools/engine-bank-match.test.js (25) plus 8 breakages. Umbrella 11582/11582.
+- Not yet: the bank reconciliation and cash-flow reads, interpreter sentences and the app Bank room (G5c).

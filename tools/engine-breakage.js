@@ -586,6 +586,14 @@ const MUTATIONS = [
   { name: 'bank: points and commas swapped when reading amounts', suite: 'engine-bank.test.js', file: 'worker/src/engine/bank.ts', find: 'const dec = lastDot > lastComma ? "." : ",";', replace: 'const dec = lastDot > lastComma ? "," : ".";' },
   { name: 'bank: day and month swapped when reading a date', suite: 'engine-bank.test.js', file: 'worker/src/engine/bank.ts', find: '[, d, mo, y] = m;', replace: '[, mo, d, y] = m;' },
   { name: 'bank: anyone may import a statement', suite: 'engine-bank.test.js', file: 'worker/src/engine/capabilities.ts', find: 'label: "Importing a bank statement", requires: [], permissions: ["business.manage"]', replace: 'label: "Importing a bank statement", requires: [], permissions: []' },
+  { name: 'bank match: entries that do not add up to the line are accepted', suite: 'engine-bank-match.test.js', file: 'worker/src/engine/bank.ts', find: 'if (sum !== line.amountMinor) throw', replace: 'if (false) throw' },
+  { name: 'bank match: an entry already matched can be matched again', suite: 'engine-bank-match.test.js', file: 'worker/src/engine/bank.ts', find: 'const e = entries.get(j);\n      if (!e) throw', replace: 'const e = entries.get(j) ?? { amountMinor: line.amountMinor } as OpenBankEntry;\n      if (!e) throw' },
+  { name: 'bank match: a line with several fits is treated as strong', suite: 'engine-bank-match.test.js', file: 'worker/src/engine/bank.ts', find: 'if (c.length > 1 || (claims.get(c[0].journalLineId) ?? 0) > 1) {', replace: 'if (false) {' },
+  { name: 'bank match: a fit with no name in the description is called strong', suite: 'engine-bank-match.test.js', file: 'worker/src/engine/bank.ts', find: '(named ? out.strong : out.weak).push', replace: 'out.strong.push' },
+  { name: 'bank match: a fit weeks away is accepted', suite: 'engine-bank-match.test.js', file: 'worker/src/engine/bank.ts', find: 'Math.abs(dayNumber(e.date) - dayNumber(l.date)) <= MATCH_WINDOW_DAYS', replace: 'true' },
+  { name: 'bank match: the verifier ignores an entry matched twice', suite: 'engine-bank-match.test.js', file: 'worker/src/engine/bank.ts', find: 'HAVING COUNT(*) > 1`)) report', replace: 'HAVING COUNT(*) > 99`)) report' },
+  { name: 'bank match: unmatching needs no reason', suite: 'engine-bank-match.test.js', file: 'worker/src/engine/bank.ts', find: 'payload.reason.trim().length < 5 ||', replace: 'false ||' },
+  { name: 'bank match: anyone may match', suite: 'engine-bank-match.test.js', file: 'worker/src/engine/capabilities.ts', find: 'label: "Matching bank lines to the books", requires: [], permissions: ["business.manage"]', replace: 'label: "Matching bank lines to the books", requires: [], permissions: []' },
 ];
 
 let opts;

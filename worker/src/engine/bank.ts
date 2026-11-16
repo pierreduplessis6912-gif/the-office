@@ -4,6 +4,7 @@
 import type { Env } from "../types";
 import { EngineError } from "./errors";
 import { checkDate } from "./quotations";
+import { accountForRole } from "./journal";
 
 type Checked<T> = { ok: true; value: T } | { ok: false; reason: string };
 const one = <T>(env: Env, sql: string, ...binds: unknown[]) => env.OFFICE_DB.prepare(sql).bind(...binds).first<T>();
@@ -152,4 +153,121 @@ export async function verifyBank(env: Env, report: (code: string, detail: string
     if (Number(s.n) > 0 && Number(s.skipped_count) === 0 && Number(s.t) !== Number(s.file_total_minor)) report("bank_statement_inconsistent", `statement ${s.id}: the stored lines add up to ${s.t}, not the ${s.file_total_minor} the file had`);
     if (Number(s.bad) > 0) report("bank_statement_inconsistent", `statement ${s.id}: ${s.bad} line(s) are outside the period or belong to another event`);
   }
+}
+
+// ---- G5b: matching a statement line to what the books say went through the bank -----------------------------------------------------------------------------------------------------------------------
+// The books' side is the BANK ACCOUNT's journal lines (a payment in, a payment out, a refund, a manual journal for a fee): signed, debit less credit, so money in is positive like on the statement.
+// The engine only PROPOSES; a person approves (a held proposal), and the approved match is a fact. A bank line is matched as a group of journal lines that add up to it.
+const ACTIVE = "NOT EXISTS (SELECT 1 FROM eng_bank_match r WHERE r.reverses_match_id = m.id)";
+export const MATCH_WINDOW_DAYS = 5;
+export interface OpenBankEntry { journalLineId: number; date: string; amountMinor: number; memo: string | null; party: string | null }
+export interface OpenStatementLine { id: number; date: string; description: string; amountMinor: number }
+
+export async function openStatementLines(env: Env): Promise<OpenStatementLine[]> {
+  return (await many<{ id: number; line_date: string; description: string; amount_minor: number }>(env,
+    `SELECT l.id, l.line_date, l.description, l.amount_minor FROM eng_bank_line l WHERE NOT EXISTS (SELECT 1 FROM eng_bank_match m WHERE m.bank_line_id = l.id AND m.reverses_match_id IS NULL AND ${ACTIVE}) ORDER BY l.line_date, l.id`))
+    .map((r) => ({ id: Number(r.id), date: r.line_date, description: r.description, amountMinor: Number(r.amount_minor) }));
+}
+
+export async function openBankEntries(env: Env): Promise<OpenBankEntry[]> {
+  const acct = await accountForRole(env, "bank");
+  if (!acct) return [];
+  return (await many<{ id: number; entry_date: string; amount: number; memo: string | null; party: string | null }>(env,
+    `SELECT jl.id, e.entry_date, jl.debit_minor - jl.credit_minor AS amount, e.memo,
+            (SELECT p.name FROM eng_money_movement mv JOIN eng_party p ON p.id = mv.party_id WHERE e.source_kind = 'movement' AND mv.id = e.source_id) AS party
+       FROM eng_journal_line jl JOIN eng_journal_entry e ON e.id = jl.entry_id
+      WHERE jl.account_id = ? AND NOT EXISTS (SELECT 1 FROM eng_bank_match m WHERE m.journal_line_id = jl.id AND m.reverses_match_id IS NULL AND ${ACTIVE})
+      ORDER BY e.entry_date, jl.id`, acct.id))
+    .map((r) => ({ journalLineId: Number(r.id), date: r.entry_date, amountMinor: Number(r.amount), memo: r.memo, party: r.party }));
+}
+
+const dayNumber = (iso: string) => Math.round(new Date(iso + "T00:00:00Z").getTime() / 86_400_000);
+const tokens = (s: string | null) => (s ?? "").toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 4);
+
+export interface MatchSuggestions {
+  strong: Array<{ bankLineId: number; journalLineIds: number[] }>;
+  weak: Array<{ bankLineId: number; journalLineIds: number[] }>;
+  ambiguous: Array<{ bankLineId: number; journalLineIds: number[] }>;
+  unexplained: number[];
+}
+// STRONG: one candidate with the same amount within the window whose party name appears in the description. WEAK: one candidate with the same amount and no name to go on (asked, never assumed). AMBIGUOUS:
+// several candidates, or a candidate another line also wants. UNEXPLAINED: nothing in the books fits (a fee, interest, an unknown deposit): the person says what it is.
+export async function suggestMatches(env: Env): Promise<MatchSuggestions> {
+  const lines = await openStatementLines(env), entries = await openBankEntries(env);
+  const cand = new Map<number, OpenBankEntry[]>();
+  for (const l of lines) cand.set(l.id, entries.filter((e) => e.amountMinor === l.amountMinor && Math.abs(dayNumber(e.date) - dayNumber(l.date)) <= MATCH_WINDOW_DAYS));
+  const claims = new Map<number, number>();
+  for (const c of cand.values()) for (const e of c) claims.set(e.journalLineId, (claims.get(e.journalLineId) ?? 0) + 1);
+  const out: MatchSuggestions = { strong: [], weak: [], ambiguous: [], unexplained: [] };
+  for (const l of lines) {
+    const c = cand.get(l.id) ?? [];
+    if (c.length === 0) { out.unexplained.push(l.id); continue; }
+    const ids = c.map((e) => e.journalLineId);
+    if (c.length > 1 || (claims.get(c[0].journalLineId) ?? 0) > 1) { out.ambiguous.push({ bankLineId: l.id, journalLineIds: ids }); continue; }
+    const named = tokens(c[0].party).some((t) => l.description.toLowerCase().includes(t));
+    (named ? out.strong : out.weak).push({ bankLineId: l.id, journalLineIds: ids });
+  }
+  return out;
+}
+
+export interface MatchInput { matches: Array<{ bankLineId: number; journalLineIds: number[] }> }
+export function checkMatchInput(payload: unknown): Checked<MatchInput> {
+  if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+  const stray = Object.keys(payload).find((k) => k !== "matches"); if (stray) return { ok: false, reason: `${stray} is not a field of this request` };
+  if (!Array.isArray(payload.matches) || payload.matches.length === 0 || payload.matches.length > 100) return { ok: false, reason: "matches must be a list of 1 to 100 matches" };
+  const matches: MatchInput["matches"] = []; const seenLines = new Set<number>(), seenJournal = new Set<number>();
+  for (const [i, m] of payload.matches.entries()) {
+    if (!isObj(m) || Object.keys(m).some((k) => k !== "bankLineId" && k !== "journalLineIds")) return { ok: false, reason: `match ${i + 1} must be {bankLineId, journalLineIds}` };
+    if (!Number.isInteger(m.bankLineId) || (m.bankLineId as number) <= 0) return { ok: false, reason: `match ${i + 1}: bankLineId must be a whole number` };
+    if (!Array.isArray(m.journalLineIds) || m.journalLineIds.length === 0 || m.journalLineIds.length > 20 || !m.journalLineIds.every((x) => Number.isInteger(x) && (x as number) > 0)) return { ok: false, reason: `match ${i + 1}: journalLineIds must be 1 to 20 whole numbers` };
+    const bl = m.bankLineId as number, js = m.journalLineIds as number[];
+    if (seenLines.has(bl)) return { ok: false, reason: `bank line ${bl} appears twice` }; seenLines.add(bl);
+    for (const j of js) { if (seenJournal.has(j)) return { ok: false, reason: `ledger entry ${j} is used twice` }; seenJournal.add(j); }
+    matches.push({ bankLineId: bl, journalLineIds: js });
+  }
+  return { ok: true, value: { matches } };
+}
+
+// Every match is checked against the facts as they are NOW: the line and the entries exist, are not matched already, the entries are on the bank account, and they add up to the line.
+export async function planMatches(env: Env, input: MatchInput): Promise<MatchInput["matches"]> {
+  const lines = new Map((await openStatementLines(env)).map((l) => [l.id, l])), entries = new Map((await openBankEntries(env)).map((e) => [e.journalLineId, e]));
+  for (const m of input.matches) {
+    const line = lines.get(m.bankLineId);
+    if (!line) throw new EngineError("invalid_state", `Bank line ${m.bankLineId} does not exist or is already matched.`);
+    let sum = 0;
+    for (const j of m.journalLineIds) {
+      const e = entries.get(j);
+      if (!e) throw new EngineError("invalid_state", `Ledger entry ${j} is not an unmatched entry on the bank account.`);
+      sum += e.amountMinor;
+    }
+    if (sum !== line.amountMinor) throw new EngineError("invalid_input", `The ledger entries add up to ${sum} cents but bank line ${m.bankLineId} is ${line.amountMinor} cents.`);
+  }
+  return input.matches;
+}
+
+export interface UnmatchInput { bankLineId: number; reason: string }
+export function checkUnmatchInput(payload: unknown): Checked<UnmatchInput> {
+  if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+  const stray = Object.keys(payload).find((k) => k !== "bankLineId" && k !== "reason"); if (stray) return { ok: false, reason: `${stray} is not a field of this request` };
+  if (!Number.isInteger(payload.bankLineId) || (payload.bankLineId as number) <= 0) return { ok: false, reason: "bankLineId must be a whole number" };
+  if (typeof payload.reason !== "string" || payload.reason.trim().length < 5 || payload.reason.length > 300) return { ok: false, reason: "reason must be text of 5 to 300 characters" };
+  return { ok: true, value: { bankLineId: payload.bankLineId as number, reason: payload.reason.trim() } };
+}
+// The rows that would be reversed: the line's active matches. None means it is not matched.
+export async function planUnmatch(env: Env, bankLineId: number): Promise<Array<{ id: number; bankLineId: number; journalLineId: number }>> {
+  const rows = (await many<{ id: number; bank_line_id: number; journal_line_id: number }>(env,
+    `SELECT m.id, m.bank_line_id, m.journal_line_id FROM eng_bank_match m WHERE m.bank_line_id = ? AND m.reverses_match_id IS NULL AND ${ACTIVE} ORDER BY m.id`, bankLineId)).map((r) => ({ id: Number(r.id), bankLineId: Number(r.bank_line_id), journalLineId: Number(r.journal_line_id) }));
+  if (rows.length === 0) throw new EngineError("invalid_state", `Bank line ${bankLineId} is not matched, so there is nothing to undo.`);
+  return rows;
+}
+
+// Integrity: every match points at a real bank line and journal line; a reversal mirrors its original; at any time a bank line and a journal line are each actively matched at most once; and what a bank line
+// is actively matched to adds up to the line.
+export async function verifyMatches(env: Env, report: (code: string, detail: string) => void): Promise<void> {
+  for (const r of await many<{ id: number }>(env, "SELECT m.id FROM eng_bank_match m WHERE NOT EXISTS (SELECT 1 FROM eng_bank_line l WHERE l.id = m.bank_line_id) OR NOT EXISTS (SELECT 1 FROM eng_journal_line j WHERE j.id = m.journal_line_id)")) report("bank_match_inconsistent", `match ${r.id} points at a bank line or ledger entry that does not exist`);
+  for (const r of await many<{ id: number }>(env, "SELECT m.id FROM eng_bank_match m WHERE m.reverses_match_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM eng_bank_match o WHERE o.id = m.reverses_match_id)")) report("bank_match_inconsistent", `reversal ${r.id} points at a match that does not exist`);
+  for (const r of await many<{ id: number }>(env, "SELECT m.id FROM eng_bank_match m JOIN eng_bank_match o ON o.id = m.reverses_match_id WHERE o.bank_line_id <> m.bank_line_id OR o.journal_line_id <> m.journal_line_id OR o.reverses_match_id IS NOT NULL")) report("bank_match_inconsistent", `reversal ${r.id} does not mirror the match it reverses`);
+  for (const r of await many<{ bank_line_id: number }>(env, `SELECT m.journal_line_id AS bank_line_id FROM eng_bank_match m WHERE m.reverses_match_id IS NULL AND ${ACTIVE} GROUP BY m.journal_line_id HAVING COUNT(*) > 1`)) report("bank_match_inconsistent", `ledger entry ${r.bank_line_id} is actively matched more than once`);
+  for (const r of await many<{ id: number; amount: number; total: number }>(env, `SELECT l.id, l.amount_minor AS amount, SUM(jl.debit_minor - jl.credit_minor) AS total FROM eng_bank_match m JOIN eng_bank_line l ON l.id = m.bank_line_id JOIN eng_journal_line jl ON jl.id = m.journal_line_id WHERE m.reverses_match_id IS NULL AND ${ACTIVE} GROUP BY l.id HAVING l.amount_minor <> SUM(jl.debit_minor - jl.credit_minor)`))
+    report("bank_match_inconsistent", `bank line ${r.id} (${r.amount}) is matched to entries adding up to ${r.total}`);
 }

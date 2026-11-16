@@ -25,10 +25,10 @@ import type { Env } from "../types";
 import { documentTotals as sumTotals } from "./money";
 import { documentTotals as docTotals } from "./ledger";
 import { verifyJournal } from "./journal";
-import { verifyBank } from "./bank";
+import { verifyBank, verifyMatches } from "./bank";
 
 export interface IntegrityProblem {
-  code: "bank_statement_inconsistent" | "journal_unbalanced" | "journal_missing" | "journal_contra_mismatch" | "orphan" | "fact_changed" | "over_allocated" | "allocation_on_reversed" | "number_gap" | "event_without_fact" | "event_multiple_facts" | "fact_wrong_event" | "reversal_mismatch" | "stock_invariant" | "event_payload_malformed";
+  code: "bank_statement_inconsistent" | "bank_match_inconsistent" | "journal_unbalanced" | "journal_missing" | "journal_contra_mismatch" | "orphan" | "fact_changed" | "over_allocated" | "allocation_on_reversed" | "number_gap" | "event_without_fact" | "event_multiple_facts" | "fact_wrong_event" | "reversal_mismatch" | "stock_invariant" | "event_payload_malformed";
   detail: string;
 }
 export interface IntegrityWarning { code: "event_type_not_modelled" | "unposted_foreign_currency"; detail: string }
@@ -51,6 +51,8 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "credit_note.issued": { creates: null, note: "an invoice is credited: ties the credit note document, its non-cash movement and the invoice together; the document, movement and allocation are created by their own events beside it" },
   "business.profile_set": { creates: null, note: "the business's own particulars change; the current profile is derived from the events (business.ts)" },
   "books_lock.set": { creates: null, note: "the books lock date moves (forward, or back with a reason: unlocking); the current lock is derived (journal.ts)" },
+  "bank_match.confirmed": { creates: null, note: "a person approved matches between bank statement lines and entries on the bank account; the match rows are written beside it" },
+  "bank_match.undone": { creates: null, note: "a bank line was unmatched: reversal rows pointing at the original matches, with a reason" },
   "bank_statement.imported": { creates: null, note: "a bank statement brought in: one statement fact and its new lines (lines already imported are skipped and counted)" },
   "journal.posted": { creates: null, note: "a manual journal (or the opening balances): the event carries the lines and the one balanced entry written beside it" },
   "journal.reversed": { creates: null, note: "a manual journal is turned round by a contra entry written beside this event" },
@@ -478,5 +480,6 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
   // ---- the general ledger (journal.ts): every entry balances, every contra matches a reversal, every fact recorded after the ledger started has its entry; a fact in another currency is a warning --------------------------------------
   await verifyJournal(env, (code, detail) => problems.push({ code: code as IntegrityProblem["code"], detail }), (code, detail) => warnings.push({ code: code as IntegrityWarning["code"], detail }));
   await verifyBank(env, (code, detail) => problems.push({ code: code as IntegrityProblem["code"], detail }));
+  await verifyMatches(env, (code, detail) => problems.push({ code: code as IntegrityProblem["code"], detail }));
   return { ok: problems.length === 0, problems, warnings };
 }
