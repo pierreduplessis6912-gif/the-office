@@ -853,6 +853,7 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "GET", path: /^\/engine\/margin$/, anyOf: ["can_manage_invoices", "can_know_material_prices"] },
   { method: "GET", path: /^\/engine\/goods-unbilled$/, anyOf: ["can_manage_invoices", "can_know_supplier_balances"] },
   { method: "GET", path: /^\/engine\/supplier-invoices$/, anyOf: ["can_manage_invoices", "can_know_supplier_balances"] },
+  { method: "GET", path: /^\/engine\/invoices$/, anyOf: ["can_know_debtors"] },
   { method: "GET", path: /^\/engine\/quotations$/, anyOf: ["can_manage_invoices", "can_make_quotes"] },
   // Money — accountant and owner.
   { method: "GET", path: /^\/customers\/\d+\/profitability$/, anyOf: ["can_know_profit"] },

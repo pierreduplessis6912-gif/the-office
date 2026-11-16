@@ -27,6 +27,7 @@ const HINTS: Record<string, string> = {
   "receivables.query": "params {partyName: the customer's name} or {partyId: number}: how much a customer owes.",
   "records.get": "params {kind: party | document | movement, id: number}: opens a record with its figures and its history.",
   "parties.find": "params {name?: part of a name, role?: customer | supplier}: customers and suppliers.",
+  "invoices.find": "params {partyId?: number, status?: owing | paid | any}: every customer invoice, newest first, with what is still owed on each (up to 50).",
   "quotations.find": "params {partyId?: number, status?: open | accepted | superseded | any}: quotations (current ones by default).",
   "expenses.find": "params {from?, to?: dates, category?, supplierId?: number, status?: recorded | voided | any}: expenses.",
   "vat.summary": "params {from, to: dates YYYY-MM-DD}: the VAT position for a period (output tax, input tax from recorded expenses, net).",

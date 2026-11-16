@@ -13,6 +13,7 @@ import 'bills_room.dart';
 import 'books_room.dart';
 import 'bank_room.dart';
 import 'orders_room.dart';
+import 'invoices_room.dart';
 import 'quotes_room.dart';
 import 'parties_room.dart';
 import 'http_engine_api.dart';
@@ -58,6 +59,7 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
         'orders' => OrdersRoom(key: const ValueKey<String>('orders-live'), api: _api),
         'books' => BooksRoom(key: const ValueKey<String>('books-live'), api: _api),
         'bank' => BankRoom(key: const ValueKey<String>('bank-live'), api: _api),
+        'invoices' => InvoicesRoom(key: const ValueKey<String>('invoices-live'), api: _api),
         'quotes' => QuotesRoom(key: const ValueKey<String>('quotes-live'), api: _api),
         'parties' => PartiesRoom(key: const ValueKey<String>('parties-live'), api: _api),
         _ => BillsRoom(key: const ValueKey<String>('bills-live'), api: _api),
@@ -78,6 +80,7 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
         tile('orders', Icons.local_shipping_outlined, 'Orders waiting for goods'),
         tile('books', Icons.account_balance_outlined, 'The books'),
         tile('bank', Icons.savings_outlined, 'The bank'),
+        tile('invoices', Icons.request_quote_outlined, 'Invoices'),
         tile('quotes', Icons.description_outlined, 'Quotations'),
         tile('parties', Icons.people_outline, 'Customers and suppliers'),
       ]),

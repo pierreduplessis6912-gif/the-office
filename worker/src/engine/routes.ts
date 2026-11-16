@@ -46,6 +46,10 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
     const pid = url.searchParams.get("partyId"), st = url.searchParams.get("status");
     return answer(await invokeRead(env, member, "quotations.find", { ...(pid !== null ? { partyId: /^\d+$/.test(pid) ? Number(pid) : pid } : {}), ...(st !== null ? { status: st } : {}) }));
   }
+  if (request.method === "GET" && path === "/engine/invoices") {
+    const pid = url.searchParams.get("partyId"), st = url.searchParams.get("status");
+    return answer(await invokeRead(env, member, "invoices.find", { ...(pid !== null ? { partyId: /^\d+$/.test(pid) ? Number(pid) : pid } : {}), ...(st !== null ? { status: st } : {}) }));
+  }
   if (request.method === "GET" && path === "/engine/business") return answer(await invokeRead(env, member, "business.get", {}));
   if (request.method === "GET" && path === "/engine/credits") {
     const pid = url.searchParams.get("partyId");

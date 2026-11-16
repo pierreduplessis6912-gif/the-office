@@ -428,6 +428,43 @@ List<AssistantQuote>? parseQuoteList(int status, Object? body) {
   return rows;
 }
 
+class InvoiceEntry {
+  final int id;
+  final int? number;
+  final String customer;
+  final String issuedOn;
+  final int grossMinor;
+  final int outstandingMinor;
+  const InvoiceEntry({required this.id, required this.number, required this.customer, required this.issuedOn, required this.grossMinor, required this.outstandingMinor});
+}
+
+class InvoiceList {
+  final List<InvoiceEntry> rows;
+  final int owingMinor;
+  final bool truncated;
+  const InvoiceList(this.rows, this.owingMinor, this.truncated);
+}
+
+/// The invoices the engine listed, or null when the answer cannot be read. A row without its figures is left out; the total owing is the engine's.
+InvoiceList? parseInvoiceList(int status, Object? body) {
+  final b = _map(body);
+  if (status != 200 || b == null || b['status'] != 'ok') return null;
+  final r = _map(b['result']);
+  if (r == null || r['invoices'] is! List) return null;
+  final rows = <InvoiceEntry>[];
+  for (final item in _list(r['invoices'])) {
+    final m = _map(item);
+    final id = m == null ? null : _int(m['id']);
+    final gross = m == null ? null : _int(m['grossMinor']);
+    final out = m == null ? null : _int(m['outstandingMinor']);
+    if (m == null || id == null || gross == null || out == null) continue;
+    rows.add(InvoiceEntry(id: id, number: _int(m['number']), customer: _text(m['partyName']) ?? 'Customer', issuedOn: _text(m['issuedOn']) ?? '', grossMinor: gross, outstandingMinor: out));
+  }
+  final owing = _int(r['owingMinor']);
+  if (owing == null) return null;
+  return InvoiceList(rows, owing, r['truncated'] == true);
+}
+
 /// One customer or supplier as the engine reports it.
 class PartyEntry {
   final int id;

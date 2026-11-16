@@ -25,6 +25,7 @@ Legend for the columns: **E** engine, **C** CI-tested, **R** real platform, **V*
 | Decline a held action | Governance | ✓ | ✓ | ✓ | - | - | p | - | |
 | Correct a payment | Finance | ✓ | ✓ | p | - | ✓ | - | - | Used in the sample seed on staging |
 | Issue an invoice | Sales | ✓ | ✓ | p | - | ✓ | - | - | Numbering continuity and tax output not done |
+| Invoice list (all customers, what is owed on each) | Sales | ✓ | ✓ | ✓ | - | ✓ | - | ✓ | Built 2026-11-16: invoices.find (read only, no schema change), Invoices room in the app; derived from the same figure as receivables.query |
 | Per-business availability and role permissions | Platform | ✓ | ✓ | ✓ | ✓ | - | p | - | |
 | Tenant isolation | Platform | ✓ | ✓ | p | - | - | - | - | |
 | Provenance trail (capture, interpretation, proposal, approval) | Governance | ✓ | ✓ | - | ✓ | ✓ | p | - | Not yet seen on a real approval |

@@ -446,6 +446,32 @@ export const quotationsFind: ReadCapability<{ partyId?: number; status?: string 
   },
 };
 
+// The business-wide invoice list: every customer invoice not reversed, newest first, with what is still owed on each (the same figure receivables.query gives per customer). Derived, never stored.
+export const invoicesFind: ReadCapability<{ partyId?: number; status?: string }> = {
+  id: "invoices.find", label: "Finding invoices", permissions: ["receivables.read"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["partyId", "status"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const out: { partyId?: number; status?: string } = {};
+    if (params.partyId !== undefined) { if (!whole(params.partyId)) return { ok: false, reason: "partyId must be a record number" }; out.partyId = params.partyId; }
+    if (params.status !== undefined) { if (typeof params.status !== "string" || !["owing", "paid", "any"].includes(params.status)) return { ok: false, reason: "status must be owing, paid or any" }; out.status = params.status; }
+    return { ok: true, value: out };
+  },
+  async run(env, _viewer, value) {
+    const profiles = (await allProfiles(env)).filter((p) => value.partyId === undefined || p.id === value.partyId);
+    const rows: Array<{ ref: { kind: string; id: number }; id: number; number: number | null; kind: string; partyId: number; partyName: string; issuedOn: string; grossMinor: number; allocatedMinor: number; outstandingMinor: number; status: string }> = [];
+    for (const p of profiles) {
+      for (const d of (await outstandingForParty(env, p.id)).documents) {
+        rows.push({ ref: { kind: "document", id: d.id }, id: d.id, number: d.number, kind: d.kind, partyId: p.id, partyName: p.name, issuedOn: d.issuedOn, grossMinor: d.grossMinor, allocatedMinor: d.allocatedMinor, outstandingMinor: d.outstandingMinor, status: d.outstandingMinor > 0 ? "owing" : "paid" });
+      }
+    }
+    const want = value.status ?? "any";
+    const hits = rows.filter((r) => want === "any" || r.status === want).sort((a, b) => b.id - a.id);
+    return { invoices: hits.slice(0, 50), count: hits.length, truncated: hits.length > 50, owingMinor: hits.reduce((t, r) => t + Math.max(0, r.outstandingMinor), 0), derivedBy: "ledger.outstandingForParty" };
+  },
+};
+
 // ---- credit notes -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Crediting an invoice, line by line, for a stated reason (credits.ts has the rules and docs/decisions/credit-notes.md the decisions). The approval is shown the exact credit the engine worked out, and how much of it will be
 // applied to the invoice now. Tax is never chosen here: every credited line inherits its invoice line's rate.
@@ -1350,7 +1376,7 @@ export const ledgerCashFlow = bookRead<{ from: string; to: string }>("ledger.cas
   return { ok: true, value: { from: f.value as string, to: t.value as string } };
 }, (env, v) => reports.cashFlow(env, v.from, v.to));
 export const ledgerBankSuggestions = bookRead<Record<string, never>>("ledger.bank_suggestions", "Suggested bank matches", [], () => ({ ok: true, value: {} }), (env) => suggestMatches(env));
-export const READS: readonly ReadCapability<any>[] = [ledgerCashFlowIndirect, ledgerYears, ledgerBankReconciliation, ledgerCashFlow, ledgerBankSuggestions, ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
+export const READS: readonly ReadCapability<any>[] = [invoicesFind, ledgerCashFlowIndirect, ledgerYears, ledgerBankReconciliation, ledgerCashFlow, ledgerBankSuggestions, ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({

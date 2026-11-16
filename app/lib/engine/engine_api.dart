@@ -73,6 +73,9 @@ abstract class EngineApi {
   /// Cash flow for a month the ENGINE dates (GET /engine/ledger/cash-flow?period=this_month|last_month). Read only.
   Future<EngineResponse> cashFlow(String period);
 
+  /// Every customer invoice, newest first, with what is still owed on each (GET /engine/invoices). Read only.
+  Future<EngineResponse> invoices();
+
   /// The quotations that are not superseded (GET /engine/quotations). Read only.
   Future<EngineResponse> quotations();
 
@@ -230,6 +233,9 @@ class FixtureEngineApi implements EngineApi {
 
   @override
   Future<EngineResponse> cashFlow(String period) async => fixtures['assistant-bank-cash-flow'] ?? _missing;
+
+  @override
+  Future<EngineResponse> invoices() async => fixtures['assistant-invoices'] ?? _missing;
 
   @override
   Future<EngineResponse> quotations() async => fixtures['assistant-quotations'] ?? _missing;
