@@ -9,8 +9,11 @@ import 'package:the_office/engine/bank_room.dart';
 
 class _BankApi extends FixtureEngineApi {
   final EngineResponse rec, flow;
+  final EngineResponse? accounts;
   int reads = 0;
-  _BankApi(Map<String, EngineResponse> fixtures, this.rec, this.flow) : super(fixtures);
+  _BankApi(Map<String, EngineResponse> fixtures, this.rec, this.flow, {this.accounts}) : super(fixtures);
+  @override
+  Future<EngineResponse> bankAccounts() async => accounts ?? await super.bankAccounts();
   @override
   Future<EngineResponse> bankReconciliation() async { reads++; return rec; }
   @override
@@ -77,5 +80,40 @@ void main() {
     expect(bankRecHasNoStatement(200, <String, Object?>{'status': 'ok', 'result': <String, Object?>{'statement': null}}), isTrue);
     expect(bankRecHasNoStatement(500, null), isFalse);
     expect(parseCashFlow(200, <String, Object?>{'status': 'ok', 'result': <String, Object?>{}}), isNull);
+  });
+
+  testWidgets('lists the bank accounts with their balances when there is more than one, and says the statement check is for the main account', (tester) async {
+    final accounts = _ok(<String, Object?>{
+      'accounts': [
+        <String, Object?>{'id': 1, 'code': '1000', 'name': 'Bank', 'isDefault': true, 'balanceMinor': 60000},
+        <String, Object?>{'id': 9, 'code': '1020', 'name': 'Savings', 'isDefault': false, 'balanceMinor': 40000},
+      ],
+    });
+    await _open(tester, _BankApi(engineResponsesFrom(engineFixtureJson), _ok(_rec()), _flow, accounts: accounts));
+    expect(find.byKey(const Key('bank-account-1')), findsOneWidget);
+    expect(find.byKey(const Key('bank-account-9')), findsOneWidget);
+    expect(find.text('Savings'), findsOneWidget);
+    expect(find.text('R400.00'), findsWidgets);
+    expect(find.byKey(const Key('bank-main-only')), findsOneWidget);
+  });
+
+  testWidgets('shows no accounts section when there is only the main account', (tester) async {
+    final accounts = _ok(<String, Object?>{
+      'accounts': [<String, Object?>{'id': 1, 'code': '1000', 'name': 'Bank', 'isDefault': true, 'balanceMinor': 60000}],
+    });
+    await _open(tester, _BankApi(engineResponsesFrom(engineFixtureJson), _ok(_rec()), _flow, accounts: accounts));
+    expect(find.byKey(const Key('bank-account-1')), findsNothing);
+    expect(find.byKey(const Key('bank-main-only')), findsNothing);
+  });
+
+  test('the accounts parser keeps the rows it can read and says null for an unreadable answer', () {
+    final list = parseBankAccounts(200, <String, Object?>{
+      'status': 'ok',
+      'result': <String, Object?>{'accounts': [<String, Object?>{'id': 1, 'name': 'Bank', 'isDefault': true, 'balanceMinor': 5}, <String, Object?>{'id': 2}]},
+    });
+    expect(list!.length, 1);
+    expect(list.first.isDefault, isTrue);
+    expect(parseBankAccounts(500, <String, Object?>{'error': 'x'}), isNull);
+    expect(parseBankAccounts(200, <String, Object?>{'status': 'ok', 'result': <String, Object?>{}}), isNull);
   });
 }

@@ -64,3 +64,35 @@ export async function verifyAccounts(env: Env, report: (code: string, detail: st
     if (!hit) report("bank_account_inconsistent", `payment ${m.id} names an account but its entry does not touch that account`);
   }
 }
+
+// ---- a transfer between two of the business's bank accounts -------------------------------------------------------------------------------------------------------------------------------------------
+// Moving money between accounts is ONE balanced manual journal (debit where it goes, credit where it came from), posted like any other (so it can be reversed like any other). Neither side is invented and the total of
+// all the bank accounts does not change; cash flow treats it as no movement of cash.
+export interface BankTransferInput { fromAccountId: number; toAccountId: number; amountMinor: number; date: string; note?: string }
+export function checkBankTransferInput(payload: unknown): { ok: true; value: BankTransferInput } | { ok: false; reason: string } {
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) return { ok: false, reason: "the transfer must be an object" };
+  const o = payload as Record<string, unknown>;
+  for (const k of Object.keys(o)) if (!["fromAccountId", "toAccountId", "amountMinor", "date", "note"].includes(k)) return { ok: false, reason: `${k} is not a field of a transfer` };
+  const whole = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v > 0;
+  if (!whole(o.fromAccountId) || !whole(o.toAccountId)) return { ok: false, reason: "fromAccountId and toAccountId must be record numbers" };
+  if (o.fromAccountId === o.toAccountId) return { ok: false, reason: "a transfer needs two different accounts" };
+  if (!whole(o.amountMinor)) return { ok: false, reason: "amountMinor must be a whole number of cents, at least 1" };
+  if (typeof o.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(o.date) || Number.isNaN(Date.parse(o.date + "T00:00:00Z"))) return { ok: false, reason: "date must be a real date written YYYY-MM-DD" };
+  if (o.note !== undefined && (typeof o.note !== "string" || o.note.trim().length === 0 || o.note.length > 120)) return { ok: false, reason: "note must be 1 to 120 characters" };
+  return { ok: true, value: { fromAccountId: o.fromAccountId, toAccountId: o.toAccountId, amountMinor: o.amountMinor, date: o.date, ...(o.note !== undefined ? { note: (o.note as string).trim() } : {}) } };
+}
+export async function planBankTransfer(env: Env, input: BankTransferInput): Promise<{ from: BankAccountView; to: BankAccountView; reason: string }> {
+  const accounts = await bankAccounts(env);
+  const from = accounts.find((a) => a.id === input.fromAccountId), to = accounts.find((a) => a.id === input.toAccountId);
+  if (!from || !to) throw new EngineError("not_found", "A transfer is between two of the business's bank accounts.");
+  return { from, to, reason: `Transfer from ${from.name} to ${to.name}${input.note ? `: ${input.note}` : ""}` };
+}
+
+// Which account the words name ("savings", "the main account"): by name, case aside; "main" or "default" is the default account. Null when none or more than one fits.
+export async function accountNamed(env: Env, words: string): Promise<BankAccountView | null> {
+  const w = words.trim().toLowerCase();
+  const all = await bankAccounts(env);
+  if (["main", "default", "main account", "the main account", "bank"].includes(w)) return all.find((a) => a.isDefault) ?? null;
+  const hits = all.filter((a) => a.name.toLowerCase() === w);
+  return hits.length === 1 ? hits[0] : null;
+}

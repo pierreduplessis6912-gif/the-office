@@ -25,6 +25,12 @@ module.exports = kit.guard('engine interpret (the books)', async ({ check }) => 
     say(/Close the books for 2019\./, call('year.close', { year: '2019' })),
     say(/Close last year with dates\./, JSON.stringify({ capability: 'year.close', arguments: { year: 'last_financial_year', yearEnd: '2019-02-28' } })),
     say(/Is the bank reconciled\?/, call('ledger.bank_reconciliation', {})),
+    say(/How much is in each bank account\?/, call('ledger.bank_accounts', {})),
+    say(/bank accounts with a filter/, call('ledger.bank_accounts', { account: 'x' })),
+    say(/Is savings reconciled\?/, call('ledger.bank_reconciliation', { account: 'Savings' })),
+    say(/Is the main account reconciled\?/, call('ledger.bank_reconciliation', { account: 'main account' })),
+    say(/Is the card reconciled\?/, call('ledger.bank_reconciliation', { account: 'Credit card' })),
+    say(/savings by number/, JSON.stringify({ capability: 'ledger.bank_reconciliation', arguments: { account: 'Savings', bankAccountId: 1 } })),
     say(/bank as at March/, call('ledger.bank_reconciliation', { asOf: '2026-03-31' })),
   ];
   const interpret = (text, role = 'accountant', ai = SCRIPT) => kit.route({ env: ENV_A, ai, before: [SEED], method: 'POST', path: '/engine/interpret', role, body: { text } });
@@ -34,6 +40,22 @@ module.exports = kit.guard('engine interpret (the books)', async ({ check }) => 
   const status = (res) => res.result && res.result.status;
   const NOT = (res) => status(res) === 422 && body(res).error === 'not_understood';
   const monthOk = (from, to) => /^\d{4}-\d{2}-01$/.test(from) && to.slice(0, 7) === from.slice(0, 7) && Number(to.slice(8)) >= 28;
+
+  // ---- several bank accounts (docs/decisions/bank-accounts.md, B3) -------------------------------------------------------------------------------------------------------------------------
+  const addSavings = [SEED, { method: 'POST', path: '/engine/proposals', role: 'owner', body: { capability: 'bank_account.add', payload: { name: 'Savings' }, transcript: 'add a savings account' } }, { method: 'POST', path: '/actions/1/confirm', role: 'owner', body: {} }];
+  const withSavings = (text, role = 'owner') => kit.route({ env: ENV_A, ai: SCRIPT, before: addSavings, method: 'POST', path: '/engine/interpret', role, body: { text } });
+  let ba = await interpret('How much is in each bank account?');
+  check(status(ba) === 200 && body(ba).understood.capability === 'ledger.bank_accounts' && Array.isArray(body(ba).result.accounts) && body(ba).result.accounts.length === 1 && body(ba).result.accounts[0].isDefault === true && !tables(ba).some((t) => t !== 'captures' && t.startsWith('eng_') && t !== 'eng_interpretation'), '"how much is in each bank account" lists the accounts (just the main one in the sample) and writes no fact');
+  check(NOT(await interpret('bank accounts with a filter')), 'the accounts read takes no arguments: any is not understood');
+  ba = await withSavings('How much is in each bank account?');
+  check(status(ba) === 200 && body(ba).result.accounts.length === 2 && body(ba).result.accounts[1].name === 'Savings' && body(ba).result.accounts[0].isDefault === true, 'once savings is added the list has the main account first, then Savings');
+  ba = await withSavings('Is savings reconciled?');
+  check(status(ba) === 200 && body(ba).understood.capability === 'ledger.bank_reconciliation' && body(ba).result.statement === null && body(ba).result.reconciled === false, '"is savings reconciled" reads that account\'s reconciliation (no statement yet)');
+  check(status(await interpret('Is the main account reconciled?')) === 200, '"the main account" is the default account');
+  check(NOT(await interpret('Is savings reconciled?')), 'an account the business does not have is not guessed');
+  check(NOT(await withSavings('Is the card reconciled?')), 'nor is another name');
+  check(NOT(await withSavings('savings by number')), 'an account id is never accepted from the model');
+  check(NOT(await withSavings('Is savings reconciled?', 'sales')), 'someone who may not read the books is not answered');
 
   let r = await interpret('What is my profit this month?');
   check(status(r) === 200 && body(r).understood.capability === 'ledger.profit_and_loss' && monthOk(body(r).result.from, body(r).result.to) && body(r).result.totals && typeof body(r).result.totals.profitMinor === 'number' && tables(r).every((t) => ['captures', 'eng_interpretation', 'eng_observation'].includes(t)), '"my profit this month" is the engine\'s profit and loss for the calendar month it worked out from today, and nothing but the record of the question is written');

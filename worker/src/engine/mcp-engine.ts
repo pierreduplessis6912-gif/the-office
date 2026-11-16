@@ -93,6 +93,7 @@ const HINTS: Record<string, string> = {
   "year.reopen": "payload {yearEnd, reason}: reopen the latest closed year (the closing journal is reversed and the lock moves back).",
   "bank_account.add": "payload {name}: add a bank account (savings, card…); the engine picks its code. Payments and statements may then name it with bankAccountId.",
   "ledger.bank_accounts": "no params: the bank accounts with their ledger balances (the default account first); a bankAccountId names one of them.",
+  "bank.transfer": "payload {fromAccountId, toAccountId, amountMinor, date, note?}: move money between two of the business's bank accounts (one balanced journal; reversible like any journal). Owner only.",
   "year_end.set": "payload {month (1 to 12), reason?}: set the month the financial year ends in (February until set).",
   "bank_match.confirm": "payload {matches: [{bankLineId, journalLineIds: [..]}]}: match statement lines to the entries on the bank account they are (a lump sum may be several entries); they must add up to the line. Matches only what a person approves.",
   "bank_match.undo": "payload {bankLineId, reason}: undo the match of a statement line (the history stays).",

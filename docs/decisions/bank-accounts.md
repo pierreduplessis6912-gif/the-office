@@ -1,4 +1,4 @@
-> **Status:** approved 2026-11-16 (Pierre: "Yes"); B1 and B2 built. **Verified:** not yet. **Owns:** none.
+> **Status:** approved 2026-11-16 (Pierre: "Yes"); B1, B2 and B3 built. **Verified:** not yet. **Owns:** none.
 
 # Several bank accounts (current, savings, card)
 
@@ -34,3 +34,11 @@ Foreign-currency accounts, automatic bank feeds, per-account opening balances be
 - Open lines and open entries carry their account; `suggestMatches` and `ledger.bank_suggestions` take `bankAccountId`; a match across accounts is refused when confirmed and found by the verifier.
 - `ledger.bank_reconciliation` takes `bankAccountId`: the latest statement of that account against that account's ledger balance. An account with no statement says so and is never "reconciled"; one account's statement never answers for another.
 - Umbrella 11740/11740. Next: B3 (transfers between accounts, cash flow across all accounts, sentences, app).
+
+## B3 as built (2026-11-16): transfers, cash flow, sentences, app
+- `bank.transfer` (held, `engine.bank.transfer`, owner, journal.post): `{fromAccountId, toAccountId, amountMinor, date, note?}`; both must be bank accounts and different. It posts ONE ordinary manual journal (so it can be reversed with `journal.reverse`, the books lock applies and the verifier already knows it).
+- Cash flow (direct and indirect) counts every bank account and cash on hand; a transfer between accounts is no cash movement; the indirect flow does not treat an added bank account as "other assets" and still agrees with the direct one.
+- Sentences: "how much is in each bank account" (`ledger.bank_accounts`) and "is savings reconciled" (`ledger.bank_reconciliation` with an account NAME the engine resolves; "main account" is the default; an unknown name is never guessed and a model never supplies an id). No transfer sentence: a transfer is proposed through the capability or the assistant's proposal path, not by a loose sentence.
+- App: the Bank room lists the accounts with balances when there is more than one and says the statement check on screen is for the main account.
+- Limits: the app's statement check is for the main account only (others by sentence); refunds still go through the default account; no foreign-currency accounts; no per-account opening balance beyond an ordinary opening journal.
+- Umbrella 11766/11766.

@@ -121,6 +121,9 @@ class HttpEngineApi implements EngineApi {
   Future<EngineResponse> bankReconciliation() => _get('/engine/ledger/bank-reconciliation');
 
   @override
+  Future<EngineResponse> bankAccounts() => _get('/engine/ledger/bank-accounts');
+
+  @override
   Future<EngineResponse> cashFlow(String period) => _get('/engine/ledger/cash-flow?period=${Uri.encodeQueryComponent(period)}');
 
   @override

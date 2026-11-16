@@ -4,6 +4,7 @@ import type { Env } from "../types";
 import { allBills } from "./bills";
 import { accountForRole, type AccountType } from "./journal";
 import { accountOf } from "./bank";
+import { bankAccounts } from "./bank-accounts";
 import { outstandingForParty, unappliedCreditForParty } from "./ledger";
 import { valuationAsAt } from "./stock";
 import { openBankEntries, openStatementLines } from "./bank";
@@ -108,10 +109,17 @@ export async function bankReconciliation(env: Env, asOf: string | null, bankAcco
   };
 }
 
+// Every account that holds cash: the default bank account, any other bank account the business has added, and cash on hand.
+async function cashAccountIds(env: Env): Promise<number[]> {
+  const ids = (await bankAccounts(env)).map((a) => a.id);
+  const cash = await accountForRole(env, "cash");
+  if (cash) ids.push(cash.id);
+  return ids;
+}
+
 // CASH FLOW for a period, the direct way: what came into the bank and cash accounts and what went out, by what caused it. Opening plus in less out is the closing balance (checked).
 export async function cashFlow(env: Env, from: string, to: string) {
-  const roles = ["bank", "cash"], ids: number[] = [];
-  for (const r of roles) { const a = await accountForRole(env, r); if (a) ids.push(a.id); }
+  const ids = await cashAccountIds(env);
   const marks = ids.map(() => "?").join(",") || "NULL";
   const opening = ids.length ? Number((await one<{ b: number | null }>(env, `SELECT COALESCE(SUM(l.debit_minor - l.credit_minor), 0) AS b FROM eng_journal_line l JOIN eng_journal_entry e ON e.id = l.entry_id WHERE l.account_id IN (${marks}) AND e.entry_date < ?`, ...ids, from))?.b ?? 0) : 0;
   const rows = ids.length ? await many<{ kind: string; memo: string | null; reversal: number; net: number }>(env,
@@ -136,10 +144,11 @@ export async function indirectCashFlow(env: Env, from: string, to: string) {
   for (const r of await many<{ role: string; account_id: number }>(env, "SELECT r.role, r.account_id FROM eng_account_role r WHERE r.id = (SELECT MAX(id) FROM eng_account_role WHERE role = r.role)")) roleOf.set(Number(r.account_id), r.role);
   const WORDS: Record<string, string> = { receivables_control: "Money customers owe", inventory: "Stock", goods_received_not_invoiced: "Goods received, not yet billed", payables_control: "Money owed to suppliers", vat_input: "VAT", vat_output: "VAT" };
   const adjustments = new Map<string, number>(), financing = new Map<string, number>();
+  const cashIds = new Set(await cashAccountIds(env));
   let profit = 0;
   for (const r of rows) {
     const net = Number(r.d) - Number(r.c), role = roleOf.get(Number(r.id));
-    if (role === "bank" || role === "cash") continue;                                   // cash is the answer, not a cause
+    if (role === "bank" || role === "cash" || cashIds.has(Number(r.id))) continue;          // cash (every bank account too) is the answer, not a cause
     if (r.type === "income" || r.type === "cost_of_sales" || r.type === "expense") { profit += -net; continue; }
     if (net === 0) continue;
     const effect = -net;                                                                // an asset that grows takes cash; a liability or equity that grows brings it

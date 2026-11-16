@@ -681,3 +681,27 @@ BookYears? parseYears(int status, Object? body) {
   final next = _map(r['nextToClose']);
   return BookYears(monthName: _text(r['yearEndMonthName']) ?? '', currentFrom: from, currentTo: to, closed: closed, nextEnd: next == null ? null : _text(next['end']), nextEnded: next != null && next['ended'] == true);
 }
+
+class BankAccountEntry {
+  final int id;
+  final String name;
+  final bool isDefault;
+  final int balanceMinor;
+  const BankAccountEntry({required this.id, required this.name, required this.isDefault, required this.balanceMinor});
+}
+
+/// The bank accounts the engine listed (the default first), or null when the answer cannot be read. A row without its figures is left out; the balances are the engine's.
+List<BankAccountEntry>? parseBankAccounts(int status, Object? body) {
+  final r = _bookResult(status, body);
+  if (r == null || r['accounts'] is! List) return null;
+  final out = <BankAccountEntry>[];
+  for (final item in _list(r['accounts'])) {
+    final m = _map(item);
+    final id = m == null ? null : _int(m['id']);
+    final bal = m == null ? null : _int(m['balanceMinor']);
+    final name = m == null ? null : _text(m['name']);
+    if (m == null || id == null || bal == null || name == null) continue;
+    out.add(BankAccountEntry(id: id, name: name, isDefault: m['isDefault'] == true, balanceMinor: bal));
+  }
+  return out;
+}

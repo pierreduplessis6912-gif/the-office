@@ -10,6 +10,7 @@ import { ENGINE_CONTRACTS, READS } from "./capabilities";
 import { STANDARD_RATE_BP } from "./business";
 import { EXPENSE_CATEGORIES, EXPENSE_METHODS } from "./expenses";
 import { periodRange, yearsView } from "./periods";
+import { accountNamed } from "./bank-accounts";
 import { invokeRead, proposeCapabilityAs, type Member, type ReadOutcome } from "./operations";
 import { allOrders, orderProgress } from "./purchasing";
 import { permissionsFor, type EnginePermission } from "./permissions";
@@ -60,7 +61,8 @@ function catalogue(): Entry[] {
     { id: "ledger.cash_flow", describes: "Cash flow for a month: what came into the bank and cash and what went out.", arguments: { period: "this_month, last_month, this_financial_year or last_financial_year: required" }, permissions: READS.find((r) => r.id === "ledger.cash_flow")?.permissions ?? [] },
     { id: "ledger.cash_flow_indirect", describes: "Why cash changed over a period, starting from profit: adjusted for what customers owe, stock and what is owed to suppliers.", arguments: { period: "this_month, last_month, this_financial_year or last_financial_year: required" }, permissions: READS.find((r) => r.id === "ledger.cash_flow_indirect")?.permissions ?? [] },
     { id: "year.close", describes: "Close the last financial year (it is only proposed; the owner approves it): the profit moves into retained earnings and the books are locked to the year's end.", arguments: { year: "last_financial_year: required" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "year.close")?.permissions ?? [] },
-    { id: "ledger.bank_reconciliation", describes: "Whether the bank account agrees with the latest bank statement, and what explains any difference.", arguments: {}, permissions: READS.find((r) => r.id === "ledger.bank_reconciliation")?.permissions ?? [] },
+    { id: "ledger.bank_accounts", describes: "How much is in each bank account: the main account and any others such as savings or a card.", arguments: {}, permissions: READS.find((r) => r.id === "ledger.bank_accounts")?.permissions ?? [] },
+    { id: "ledger.bank_reconciliation", describes: "Whether a bank account agrees with its latest bank statement, and what explains any difference. Optional account: the name of one of the business's bank accounts (savings, card); leave it out for the main account.", arguments: { account: "optional text: the account's name" }, permissions: READS.find((r) => r.id === "ledger.bank_reconciliation")?.permissions ?? [] },
     { id: "ledger.balance_sheet", describes: "What the business owns and owes today (the balance sheet).", arguments: {}, permissions: READS.find((r) => r.id === "ledger.balance_sheet")?.permissions ?? [] },
   ];
 }
@@ -311,9 +313,17 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
     const years = await yearsView(env, today);
     return heldOrRefused(await proposeCapabilityAs(env, member, { capability: "year.close", payload: { yearEnd: years.previous.end }, transcript: text, source: "app", interpreter: "model" }));
   }
-  if (chosen.id === "ledger.bank_reconciliation") {
+  if (chosen.id === "ledger.bank_accounts") {
     if (Object.keys(args).length > 0) return notUnderstood(env, member, text);
-    return { kind: "read", understood, outcome: await invokeRead(env, member, "ledger.bank_reconciliation", {}) };
+    return { kind: "read", understood, outcome: await invokeRead(env, member, "ledger.bank_accounts", {}) };
+  }
+  if (chosen.id === "ledger.bank_reconciliation") {
+    if (Object.keys(args).some((k) => k !== "account")) return notUnderstood(env, member, text);
+    if (args.account === undefined || args.account === null || args.account === "") return { kind: "read", understood, outcome: await invokeRead(env, member, "ledger.bank_reconciliation", {}) };
+    if (typeof args.account !== "string") return notUnderstood(env, member, text);
+    const named = await accountNamed(env, args.account);
+    if (!named) return notUnderstood(env, member, text);   // an account the business does not have is never guessed
+    return { kind: "read", understood, outcome: await invokeRead(env, member, "ledger.bank_reconciliation", { bankAccountId: named.id }) };
   }
   if (chosen.id === "ledger.balance_sheet") {
     if (Object.keys(args).length > 0) return notUnderstood(env, member, text);   // it takes no arguments: the date is today, worked out here, never said by the model

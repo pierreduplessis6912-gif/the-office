@@ -18,6 +18,7 @@ class _BankRoomState extends State<BankRoom> {
   bool _noStatement = false;
   BankRec? _rec;
   CashFlow? _flow;
+  List<BankAccountEntry> _accounts = <BankAccountEntry>[];
 
   @override
   void initState() {
@@ -30,11 +31,13 @@ class _BankRoomState extends State<BankRoom> {
     try {
       final r = await widget.api.bankReconciliation();
       final f = await widget.api.cashFlow('this_month');
+      final a = await widget.api.bankAccounts();
       if (!mounted) return;
       setState(() {
         _noStatement = bankRecHasNoStatement(r.status, r.body);
         _rec = parseBankRec(r.status, r.body);
         _flow = parseCashFlow(f.status, f.body);
+        _accounts = parseBankAccounts(a.status, a.body) ?? <BankAccountEntry>[];
         _failed = !_noStatement && _rec == null && _flow == null;
         _loading = false;
       });
@@ -66,6 +69,11 @@ class _BankRoomState extends State<BankRoom> {
     } else {
       final r = _rec, f = _flow;
       body = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (_accounts.length > 1) ...[
+          _heading('Bank accounts'),
+          for (final x in _accounts) Padding(key: Key('bank-account-${x.id}'), padding: const EdgeInsets.symmetric(vertical: 2), child: Row(children: [Expanded(child: Text(x.name)), Text(randFromMinor(x.balanceMinor))])),
+          const Text('The statement check below is for the main account. Ask the assistant about another account, for example "is savings reconciled?".', key: Key('bank-main-only'), style: TextStyle(fontSize: 12, color: Color(0xFF8A8A90))),
+        ],
         if (_noStatement)
           const Padding(key: Key('bank-no-statement'), padding: EdgeInsets.only(top: 12), child: Text('No bank statement has been brought in yet.'))
         else if (r != null) ...[
