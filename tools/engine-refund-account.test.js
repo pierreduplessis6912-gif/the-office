@@ -42,6 +42,25 @@ module.exports = kit.guard('engine refund from a named bank account', async ({ c
   const v = await verifyIntegrity(w.env);
   check(v.ok === true, `the verifier is content (${JSON.stringify(v.problems || []).slice(0, 160)})`);
 
+  // ---- a credit note's refund: a paid invoice credited leaves unapplied credit to pay back ------------------------------------------------------------------------------------------------
+  const inv = await facts.recordDocument(w.env, { kind: 'invoice', direction: 'sell', partyId: customer, currency: 'ZAR', issuedOn: '2026-10-01', lines: [{ description: 'Floor', quantityMilli: 1000, unit: 'job', unitPriceMinor: 100000, taxBp: 1500 }] }, CTX);
+  await facts.recordPayment(w.env, { direction: 'in', partyId: customer, amountMinor: 115000, currency: 'ZAR', occurredOn: '2026-10-05', method: 'eft', allocations: [{ documentId: inv.id, amountMinor: 115000 }] }, CTX);
+  const cn = await facts.issueCreditNote(w.env, { invoiceId: inv.id, reason: 'Damaged', issuedOn: '2026-11-10', lines: [{ invoiceLineNo: 1, quantityMilli: 400, unitPriceMinor: 100000 }] }, CTX);
+  check(cn.unappliedMinor === 46000, `the credit note on a paid invoice leaves its whole amount to pay back (${cn.unappliedMinor})`);
+  const cr = (extra = {}) => facts.refundCredit(w.env, { creditNoteId: cn.documentId, amountMinor: 10000, refundedOn: '2026-11-12', method: 'eft', ...extra }, CTX);
+  const before2 = balance(savings);
+  const k1 = await cr({ bankAccountId: savings });
+  const lk = accountOf(k1.movementId);
+  check(lk.some((l) => l.a === savings && l.c === 10000) && balance(savings) === before2 - 10000 && Number(w.db.prepare('SELECT bank_account_id AS b FROM eng_money_movement WHERE id = ?').get(k1.movementId).b) === savings, `a credit refund naming Savings credits Savings and stores it (${JSON.stringify(lk)})`);
+  const k2 = await cr();
+  check(accountOf(k2.movementId).some((l) => l.a === def && l.c === 10000) && w.db.prepare('SELECT bank_account_id AS b FROM eng_money_movement WHERE id = ?').get(k2.movementId).b === null, 'a credit refund naming no account credits the default and stores none');
+  check(await codeOf(() => cr({ method: 'cash', bankAccountId: savings })) === 'invalid_input', 'a credit refund in cash naming a bank account is refused');
+  check(await codeOf(() => cr({ bankAccountId: 9999 })) === 'not_found', 'a credit refund naming an account that is not a bank account is refused');
+  const v2 = await verifyIntegrity(w.env);
+  check(v2.ok === true, `the verifier is still content (${JSON.stringify(v2.problems || []).slice(0, 160)})`);
+  const rc = capabilities.ENGINE_CONTRACTS.find((k) => k.id === 'refund.record');
+  check(rc.validate({ creditNoteId: 1, amountMinor: 100, refundedOn: '2026-11-10', method: 'eft', bankAccountId: 2 }).ok === true && rc.validate({ creditNoteId: 1, amountMinor: 100, refundedOn: '2026-11-10', method: 'eft', bankAccountId: 'x' }).ok === false, 'the credit refund contract takes a bank account that is a record number and refuses anything else');
+
   const c = capabilities.ENGINE_CONTRACTS.find((k) => k.id === 'payment.refund');
   check(c.validate({ paymentId: 1, amountMinor: 100, refundedOn: '2026-11-10', method: 'eft', bankAccountId: 2 }).ok === true && c.validate({ paymentId: 1, amountMinor: 100, refundedOn: '2026-11-10', method: 'eft', bankAccountId: 'x' }).ok === false, 'the contract takes a bank account that is a record number and refuses anything else');
 });

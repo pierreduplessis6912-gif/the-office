@@ -90,6 +90,12 @@ void main() {
     expect(lines.map((l) => '${l.label}: ${l.value}').toList(), <String>['Payment: Payment #5', 'Refund: R250.50', 'Date: 2026-11-17', 'Paid back by: eft']);
   });
 
+  test('a held credit refund reads as plain lines and names the account when there is one', () {
+    const h = HeldAction(id: 9, type: 'engine.refund.record', transcript: 'Refund Mokoena their credit', payload: <String, Object?>{'creditNoteId': 12, 'amountMinor': 10000, 'currency': 'ZAR', 'refundedOn': '2026-11-17', 'method': 'eft', 'bankAccountId': 9});
+    expect(heldTitle(h.type), 'Refund credit');
+    expect(heldLines(h).map((l) => '${l.label}: ${l.value}').toList(), <String>['Credit note: Credit note #12', 'Refund: R100.00', 'Date: 2026-11-17', 'Paid back by: eft', 'Bank account: Account #9']);
+  });
+
   testWidgets('lists the payments with what is left; choosing one fills the whole amount; sends the exact payload to be held', (tester) async {
     final api = _RApi(fixtures, _held);
     await _open(tester, api);

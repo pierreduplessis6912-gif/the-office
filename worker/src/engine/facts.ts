@@ -383,14 +383,15 @@ export async function applyCredit(env: Env, input: { creditNoteId: number; invoi
 }
 
 // REFUND a leftover credit: a separate money-OUT movement to the customer (nothing is allocated) plus a credit.refunded event naming the credit's movement, so the credit left (credits.ts) and the customer's account fall by it.
-export async function refundCredit(env: Env, input: { creditNoteId: number; amountMinor: number; refundedOn: string; method: string }, ctx: Ctx): Promise<{ movementId: number; eventId: number }> {
+export async function refundCredit(env: Env, input: { creditNoteId: number; amountMinor: number; refundedOn: string; method: string; bankAccountId?: number }, ctx: Ctx): Promise<{ movementId: number; eventId: number }> {
   const creditNoteId = id(input.creditNoteId, "credit note");
   return inTransaction(env, async (tx) => {
     const plan = await planRefund(tx, { ...input, creditNoteId });
+    const bankAccountId = await checkedBankAccount(tx, input.bankAccountId, plan.method);
     const posts = await refundPosts(tx, plan.currency);
     if (posts) await ensureChart(tx, ctx);
-    const mv = await insertMovement(tx, { direction: "out", partyId: plan.partyId, amountMinor: plan.amountMinor, currency: plan.currency, occurredOn: plan.refundedOn, method: plan.method }, ctx, true);
-    if (posts) await writeEntry(tx, { date: plan.refundedOn, sourceKind: "movement", sourceId: mv.id, memo: "Refund to customer", eventId: mv.eventId, lines: refundLines(plan.method, plan.amountMinor) });
+    const mv = await insertMovement(tx, { direction: "out", partyId: plan.partyId, amountMinor: plan.amountMinor, currency: plan.currency, occurredOn: plan.refundedOn, method: plan.method, bankAccountId }, ctx, true);
+    if (posts) await writeEntry(tx, { date: plan.refundedOn, sourceKind: "movement", sourceId: mv.id, memo: "Refund to customer", eventId: mv.eventId, lines: refundLines(plan.method, plan.amountMinor, bankAccountId) });
     const eventId = await appendEvent(tx, "credit.refunded", ctx, { creditNoteId, movementId: plan.movementId, refundMovementId: mv.id, amountMinor: plan.amountMinor, refundedOn: plan.refundedOn, method: plan.method });
     return { movementId: mv.id, eventId };
   });

@@ -206,6 +206,8 @@ String heldTitle(String type) {
       return 'Pay a supplier';
     case 'engine.payment.refund':
       return 'Refund an overpayment';
+    case 'engine.refund.record':
+      return 'Refund credit';
     case 'engine.quotation.create':
       return 'Make a quotation';
     case 'engine.invoice.issue':
@@ -291,9 +293,10 @@ List<HeldLine> heldLines(HeldAction a, {Map<int, String> names = const <int, Str
     if (p['allocate'] == 'oldest_first') out.add(HeldLine('Settles', supplierSide ? 'Oldest bills first' : 'Oldest invoices first'));
     return out;
   }
-  if (a.type == 'engine.payment.refund') {
-    final id = _int(p['paymentId']);
-    if (id != null) out.add(HeldLine('Payment', 'Payment #$id'));
+  if (a.type == 'engine.payment.refund' || a.type == 'engine.refund.record') {
+    final credit = a.type == 'engine.refund.record';
+    final id = _int(p[credit ? 'creditNoteId' : 'paymentId']);
+    if (id != null) out.add(HeldLine(credit ? 'Credit note' : 'Payment', '${credit ? 'Credit note' : 'Payment'} #$id'));
     final amount = money(p['amountMinor']);
     if (amount.isNotEmpty) out.add(HeldLine('Refund', amount));
     final date = _text(p['refundedOn']);

@@ -672,27 +672,29 @@ export const creditApply: CapabilityContract<CreditApply> = {
   async execute(env, v, c) { const r = await facts.applyCredit(env, { creditNoteId: v.creditNoteId, invoiceId: v.invoiceId, amountMinor: v.amountMinor, appliedOn: v.appliedOn }, ctxOf(c, "credit.apply")); return { allocationId: r.allocationId, eventId: r.eventId }; },
 };
 
-interface RefundRecord { creditNoteId: number; amountMinor: number; refundedOn: string; method: string; basedOn?: { creditVersion: number } }
+interface RefundRecord { creditNoteId: number; amountMinor: number; refundedOn: string; method: string; bankAccountId?: number; basedOn?: { creditVersion: number } }
 export const refundRecord: CapabilityContract<RefundRecord> = {
   id: "refund.record", heldType: "engine.refund.record", label: "Recording a refund of credit", requires: [], permissions: ["refund.record"], version: 1, recordsExecution: true,
   validate(payload) {
     if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
-    const s = stray(payload, ["creditNoteId", "amountMinor", "refundedOn", "method", "basedOn"]);
+    const s = stray(payload, ["creditNoteId", "amountMinor", "refundedOn", "method", "bankAccountId", "basedOn"]);
     if (s) return { ok: false, reason: `${s} is not a field of this request` };
     if (!whole(payload.creditNoteId)) return { ok: false, reason: "creditNoteId must be a record number" };
     if (!nowMinor(payload.amountMinor)) return { ok: false, reason: "amountMinor must be a whole number of cents, at least 1" };
     if (typeof payload.method !== "string" || !["eft", "cash", "card", "cheque", "other"].includes(payload.method)) return { ok: false, reason: "method must be eft, cash, card, cheque or other" };
     const d = checkDate(payload.refundedOn, "refundedOn"); if (!d.ok) return d;
     const out: RefundRecord = { creditNoteId: payload.creditNoteId, amountMinor: payload.amountMinor as number, refundedOn: d.value, method: payload.method };
+    if (payload.bankAccountId !== undefined) { if (!whole(payload.bankAccountId)) return { ok: false, reason: "bankAccountId must be a record number" }; out.bankAccountId = payload.bankAccountId; }
     if (payload.basedOn !== undefined) { if (!stampOk(payload.basedOn, "creditVersion")) return { ok: false, reason: "basedOn must name the version it was proposed against" }; out.basedOn = { creditVersion: (payload.basedOn as Record<string, number>).creditVersion }; }
     return { ok: true, value: out };
   },
   async stamp(env, value) { await planRefund(env, value); return { ...value, basedOn: { creditVersion: await verOf(env, value.creditNoteId) } }; },
   async check(env, value) {
     if (value.basedOn && (await verOf(env, value.creditNoteId)) !== value.basedOn.creditVersion) throw new EngineError("stale", "That credit changed after this was proposed, so it needs to be proposed again.");
+    await checkedBankAccount(env, value.bankAccountId, value.method);
     await planRefund(env, value);
   },
-  async execute(env, v, c) { const r = await facts.refundCredit(env, { creditNoteId: v.creditNoteId, amountMinor: v.amountMinor, refundedOn: v.refundedOn, method: v.method }, ctxOf(c, "refund.record")); return { movementId: r.movementId, eventId: r.eventId }; },
+  async execute(env, v, c) { const r = await facts.refundCredit(env, { creditNoteId: v.creditNoteId, amountMinor: v.amountMinor, refundedOn: v.refundedOn, method: v.method, ...(v.bankAccountId !== undefined ? { bankAccountId: v.bankAccountId } : {}) }, ctxOf(c, "refund.record")); return { movementId: r.movementId, eventId: r.eventId }; },
 };
 
 interface CreditNoteVoid { creditNoteId: number; reason: string; voidedOn: string; basedOn?: { creditVersion: number } }
