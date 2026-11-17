@@ -442,14 +442,15 @@ export async function allocatePayment(env: Env, input: { paymentId: number; invo
     return { allocationId: al.id, eventId };
   });
 }
-export async function refundPayment(env: Env, input: { paymentId: number; amountMinor: number; refundedOn: string; method: string }, ctx: Ctx): Promise<{ movementId: number; eventId: number }> {
+export async function refundPayment(env: Env, input: { paymentId: number; amountMinor: number; refundedOn: string; method: string; bankAccountId?: number }, ctx: Ctx): Promise<{ movementId: number; eventId: number }> {
   const paymentId = id(input.paymentId, "payment");
   return inTransaction(env, async (tx) => {
     const plan = await planPaymentRefund(tx, { ...input, paymentId });
+    const bankAccountId = await checkedBankAccount(tx, input.bankAccountId, plan.method);
     const posts = await refundPosts(tx, plan.currency);
     if (posts) await ensureChart(tx, ctx);
-    const mv = await insertMovement(tx, { direction: "out", partyId: plan.partyId, amountMinor: plan.amountMinor, currency: plan.currency, occurredOn: plan.refundedOn, method: plan.method }, ctx, true);
-    if (posts) await writeEntry(tx, { date: plan.refundedOn, sourceKind: "movement", sourceId: mv.id, memo: "Refund to customer", eventId: mv.eventId, lines: refundLines(plan.method, plan.amountMinor) });
+    const mv = await insertMovement(tx, { direction: "out", partyId: plan.partyId, amountMinor: plan.amountMinor, currency: plan.currency, occurredOn: plan.refundedOn, method: plan.method, bankAccountId }, ctx, true);
+    if (posts) await writeEntry(tx, { date: plan.refundedOn, sourceKind: "movement", sourceId: mv.id, memo: "Refund to customer", eventId: mv.eventId, lines: refundLines(plan.method, plan.amountMinor, bankAccountId) });
     const eventId = await appendEvent(tx, "overpayment.refunded", ctx, { movementId: paymentId, refundMovementId: mv.id, amountMinor: plan.amountMinor, refundedOn: plan.refundedOn, method: plan.method });
     return { movementId: mv.id, eventId };
   });

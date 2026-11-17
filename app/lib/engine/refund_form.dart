@@ -1,6 +1,6 @@
 // The "refund an overpayment" form. The engine lists the payments received that are not all used up (GET /engine/credits) and how much of each can still be refunded; the person picks one, the amount (the whole
 // of it to start) and the date, and the form proposes payment.refund, which is HELD: nothing is paid out until the owner approves it. The engine checks the amount against what is left and its reason is shown.
-// The app only turns the typed amount into cents. A credit note's refund is still said to the assistant.
+// With more than one bank account it also asks which one the money is paid back from (never for cash). The app only turns the typed amount into cents. A credit note's refund is still said to the assistant.
 import 'package:flutter/material.dart';
 
 import '../slice_model.dart' show parseProposal, randFromMinor;
@@ -23,6 +23,8 @@ class _RefundFormState extends State<RefundForm> {
   final _amount = TextEditingController();
   late final TextEditingController _date;
   List<OverpaymentEntry> _payments = <OverpaymentEntry>[];
+  List<BankAccountEntry> _accounts = <BankAccountEntry>[];
+  int? _bankAccountId;
   bool _loading = true;
   bool _failed = false;
   OverpaymentEntry? _payment;
@@ -50,9 +52,11 @@ class _RefundFormState extends State<RefundForm> {
   Future<void> _load() async {
     try {
       final r = await widget.api.credits();
+      final a = await widget.api.bankAccounts();
       final list = parseOverpayments(r.status, r.body);
       if (!mounted) return;
       setState(() {
+        _accounts = parseBankAccounts(a.status, a.body) ?? <BankAccountEntry>[];
         _payments = list ?? <OverpaymentEntry>[];
         _failed = list == null;
         _loading = false;
@@ -86,7 +90,7 @@ class _RefundFormState extends State<RefundForm> {
     final minor = randToMinor(_amount.text);
     if (minor == null) return setState(() => _problem = 'Type the amount in rand, for example 450.00.');
     if (minor > p.availableMinor) return setState(() => _problem = 'Only ${randFromMinor(p.availableMinor, currency: p.currency)} of that payment is left to refund.');
-    final payload = <String, Object?>{'paymentId': p.id, 'amountMinor': minor, 'refundedOn': _date.text.trim(), 'method': _method};
+    final payload = <String, Object?>{'paymentId': p.id, 'amountMinor': minor, 'refundedOn': _date.text.trim(), 'method': _method, if (_method != 'cash' && _bankAccountId != null) 'bankAccountId': _bankAccountId};
     setState(() {
       _sending = true;
       _problem = null;
@@ -158,6 +162,14 @@ class _RefundFormState extends State<RefundForm> {
           items: [for (final m in _methods) DropdownMenuItem<String>(value: m, child: Text(m))],
           onChanged: (m) => setState(() => _method = m ?? 'eft'),
         ),
+        if (_accounts.length > 1 && _method != 'cash')
+          DropdownButtonFormField<int>(
+            key: const Key('refund-form-account'),
+            decoration: const InputDecoration(labelText: 'Paid back from which bank account'),
+            initialValue: _bankAccountId ?? _accounts.firstWhere((a) => a.isDefault, orElse: () => _accounts.first).id,
+            items: [for (final a in _accounts) DropdownMenuItem<int>(value: a.id, child: Text(a.name))],
+            onChanged: (id) => setState(() => _bankAccountId = id),
+          ),
         if (_problem != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_problem!, key: const Key('refund-form-problem'), style: const TextStyle(color: Color(0xFFB3261E)))),
         const SizedBox(height: 12),
         Row(children: [

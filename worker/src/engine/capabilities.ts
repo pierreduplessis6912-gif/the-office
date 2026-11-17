@@ -830,27 +830,29 @@ export const paymentAllocate: CapabilityContract<PaymentAllocate> = {
   async execute(env, v, c) { const r = await facts.allocatePayment(env, { paymentId: v.paymentId, invoiceId: v.invoiceId, amountMinor: v.amountMinor, allocatedOn: v.allocatedOn }, ctxOf(c, "payment.allocate")); return { allocationId: r.allocationId, eventId: r.eventId }; },
 };
 
-interface PaymentRefund { paymentId: number; amountMinor: number; refundedOn: string; method: string; basedOn?: { paymentVersion: number } }
+interface PaymentRefund { paymentId: number; amountMinor: number; refundedOn: string; method: string; bankAccountId?: number; basedOn?: { paymentVersion: number } }
 export const paymentRefund: CapabilityContract<PaymentRefund> = {
   id: "payment.refund", heldType: "engine.payment.refund", label: "Refunding an overpayment", requires: [], permissions: ["payment.refund"], version: 1, recordsExecution: true,
   validate(payload) {
     if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
-    const s = stray(payload, ["paymentId", "amountMinor", "refundedOn", "method", "basedOn"]);
+    const s = stray(payload, ["paymentId", "amountMinor", "refundedOn", "method", "bankAccountId", "basedOn"]);
     if (s) return { ok: false, reason: `${s} is not a field of this request` };
     if (!whole(payload.paymentId)) return { ok: false, reason: "paymentId must be a record number" };
     if (!nowMinor(payload.amountMinor)) return { ok: false, reason: "amountMinor must be a whole number of cents, at least 1" };
     if (typeof payload.method !== "string" || !["eft", "cash", "card", "cheque", "other"].includes(payload.method)) return { ok: false, reason: "method must be eft, cash, card, cheque or other" };
     const d = checkDate(payload.refundedOn, "refundedOn"); if (!d.ok) return d;
     const out: PaymentRefund = { paymentId: payload.paymentId, amountMinor: payload.amountMinor as number, refundedOn: d.value, method: payload.method };
+    if (payload.bankAccountId !== undefined) { if (!whole(payload.bankAccountId)) return { ok: false, reason: "bankAccountId must be a record number" }; out.bankAccountId = payload.bankAccountId; }
     if (payload.basedOn !== undefined) { if (!stampOk(payload.basedOn, "paymentVersion")) return { ok: false, reason: "basedOn must name the version it was proposed against" }; out.basedOn = { paymentVersion: (payload.basedOn as Record<string, number>).paymentVersion }; }
     return { ok: true, value: out };
   },
   async stamp(env, value) { await planPaymentRefund(env, value); return { ...value, basedOn: { paymentVersion: await versionOf(env, { kind: "movement", id: value.paymentId }) } }; },
   async check(env, value) {
     if (value.basedOn && (await versionOf(env, { kind: "movement", id: value.paymentId })) !== value.basedOn.paymentVersion) throw new EngineError("stale", "That payment changed after this was proposed, so it needs to be proposed again.");
+    await checkedBankAccount(env, value.bankAccountId, value.method);
     await planPaymentRefund(env, value);
   },
-  async execute(env, v, c) { const r = await facts.refundPayment(env, { paymentId: v.paymentId, amountMinor: v.amountMinor, refundedOn: v.refundedOn, method: v.method }, ctxOf(c, "payment.refund")); return { movementId: r.movementId, eventId: r.eventId }; },
+  async execute(env, v, c) { const r = await facts.refundPayment(env, { paymentId: v.paymentId, amountMinor: v.amountMinor, refundedOn: v.refundedOn, method: v.method, ...(v.bankAccountId !== undefined ? { bankAccountId: v.bankAccountId } : {}) }, ctxOf(c, "payment.refund")); return { movementId: r.movementId, eventId: r.eventId }; },
 };
 
 export const vatSummaryRead: ReadCapability<{ from: string; to: string }> = {

@@ -300,6 +300,8 @@ List<HeldLine> heldLines(HeldAction a, {Map<int, String> names = const <int, Str
     if (date != null) out.add(HeldLine('Date', date));
     final method = _text(p['method']);
     if (method != null) out.add(HeldLine('Paid back by', method));
+    final account = _int(p['bankAccountId']);
+    if (account != null) out.add(HeldLine('Bank account', 'Account #$account'));
     return out;
   }
   // any other held write: its plain fields, money formatted; nothing is invented

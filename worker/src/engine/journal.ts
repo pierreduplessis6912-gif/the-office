@@ -138,7 +138,7 @@ export async function receiptPosts(env: Env, direction: string, method: string |
 export const receiptLines = (method: string | null, amountMinor: number, bankAccountId?: number | null): PostLine[] => [{ role: method === "cash" ? "cash" : "bank", ...(method !== "cash" && bankAccountId ? { accountId: bankAccountId } : {}), debitMinor: amountMinor }, { role: "receivables_control", creditMinor: amountMinor }];
 // Money paid BACK to a customer (a refund of leftover credit or of an overpayment).
 export async function refundPosts(env: Env, currency: string): Promise<boolean> { return currency === (await ledgerCurrency(env)); }
-export const refundLines = (method: string | null, amountMinor: number): PostLine[] => [{ role: "receivables_control", debitMinor: amountMinor }, { role: method === "cash" ? "cash" : "bank", creditMinor: amountMinor }];
+export const refundLines = (method: string | null, amountMinor: number, bankAccountId?: number | null): PostLine[] => [{ role: "receivables_control", debitMinor: amountMinor }, { role: method === "cash" ? "cash" : "bank", ...(method !== "cash" && bankAccountId ? { accountId: bankAccountId } : {}), creditMinor: amountMinor }];
 
 // ---- the books lock and manual journals (G3) ----------------------------------------------------------------------------------------------------------------------------------------------------------
 // ONE date: nothing is posted on or before it. It is a recorded fact like any other (`books_lock.set`), it can be moved either way (moving it back is "unlocking", needs a reason and is itself approved and on the record), and the

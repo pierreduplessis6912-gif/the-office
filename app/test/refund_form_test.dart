@@ -12,7 +12,8 @@ import 'package:the_office/engine/refund_form.dart';
 class _RApi extends FixtureEngineApi {
   final EngineResponse answer;
   final List<Object?> payments;
-  _RApi(Map<String, EngineResponse> fixtures, this.answer, {this.payments = const <Object?>[
+  final bool twoAccounts;
+  _RApi(Map<String, EngineResponse> fixtures, this.answer, {this.twoAccounts = false, this.payments = const <Object?>[
     <String, Object?>{'ref': {'kind': 'movement', 'id': 5}, 'id': 5, 'partyId': 3, 'partyName': 'Mokoena', 'currency': 'ZAR', 'receivedOn': '2026-11-01', 'availableMinor': 25050},
     <String, Object?>{'ref': {'kind': 'movement', 'id': 6}, 'id': 6, 'partyId': 4, 'partyName': 'Dlamini', 'currency': 'ZAR', 'receivedOn': '2026-11-05', 'availableMinor': 10000},
   ]}) : super(fixtures);
@@ -22,6 +23,17 @@ class _RApi extends FixtureEngineApi {
     await super.propose(capability, payload, transcript);
     return answer;
   }
+
+  @override
+  Future<EngineResponse> bankAccounts() async => EngineResponse(200, <String, Object?>{
+        'status': 'ok',
+        'result': <String, Object?>{
+          'accounts': [
+            <String, Object?>{'id': 1, 'code': '1000', 'name': 'Bank', 'isDefault': true, 'balanceMinor': 0},
+            if (twoAccounts) <String, Object?>{'id': 9, 'code': '1020', 'name': 'Savings', 'isDefault': false, 'balanceMinor': 0},
+          ],
+        },
+      });
 
   @override
   Future<EngineResponse> credits() async => EngineResponse(200, <String, Object?>{
@@ -98,6 +110,22 @@ void main() {
     await _send(tester);
     expect((api.proposed.first['payload'] as Map)['paymentId'], 6);
     expect((api.proposed.first['payload'] as Map)['amountMinor'], 4000);
+  });
+
+  testWidgets('with two bank accounts it asks which one the money is paid back from; with one it does not; cash never names one', (tester) async {
+    final one = _RApi(fixtures, _held);
+    await _open(tester, one);
+    expect(find.byKey(const Key('refund-form-account')), findsNothing);
+    final two = _RApi(fixtures, _held, twoAccounts: true);
+    await _open(tester, two);
+    await _choose(tester, 'Mokoena');
+    await tester.ensureVisible(find.byKey(const Key('refund-form-account')));
+    await tester.tap(find.byKey(const Key('refund-form-account')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Savings').last);
+    await tester.pumpAndSettle();
+    await _send(tester);
+    expect(two.proposed.first['payload'], <String, Object?>{'paymentId': 5, 'amountMinor': 25050, 'refundedOn': '2026-11-17', 'method': 'eft', 'bankAccountId': 9});
   });
 
   testWidgets('no choice, an unclear amount or more than is left is not sent', (tester) async {

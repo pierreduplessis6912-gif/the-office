@@ -126,6 +126,8 @@ module.exports = kit.guard('engine form payloads (F1 to F4, quotation, invoice, 
   check(status(r) === 200 && ((body(r).result || {}).payments || []).length === 0, 'once refunded in full, the payment no longer has money left in the list');
   r = await run({ before: mkPay, ...refund('accountant', { ...rf, amountMinor: 45051 }) });
   check(status(r) >= 400 && /left to refund/.test(String(body(r).message)), `more than is left is refused with the engine's reason (${body(r).message})`);
+  r = await run({ before: mkPay, ...refund('accountant', { ...rf, bankAccountId: 999 }) });
+  check(status(r) >= 400 && /not one of the business's bank accounts/.test(String(body(r).message)), `a bank account that does not exist is refused with the engine's reason (${body(r).message})`);
   r = await run({ before: mkPay, ...refund('installer', rf) });
   check(status(r) >= 400 && added(r, 'eng_money_movement') === 0, 'someone who may not refund is refused');
 });
