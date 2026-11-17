@@ -95,7 +95,7 @@ abstract class EngineApi {
   Future<EngineResponse> quotations();
 
   /// The open jobs, dated ones first (GET /engine/jobs). Read only.
-  Future<EngineResponse> jobs();
+  Future<EngineResponse> jobs({String? status});
 
   /// The customers and suppliers (GET /engine/parties, optionally for one role). Read only.
   Future<EngineResponse> parties({String? role});
@@ -291,7 +291,7 @@ class FixtureEngineApi implements EngineApi {
   Future<EngineResponse> quotations() async => fixtures['assistant-quotations'] ?? _missing;
 
   @override
-  Future<EngineResponse> jobs() async => fixtures['assistant-jobs'] ?? _missing;
+  Future<EngineResponse> jobs({String? status}) async => fixtures['assistant-jobs'] ?? _missing;
 
   @override
   Future<EngineResponse> parties({String? role}) async => fixtures['assistant-parties'] ?? _missing;

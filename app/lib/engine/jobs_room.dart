@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../slice_model.dart' show randFromMinor;
 import 'assistant_model.dart';
 import 'engine_api.dart';
+import 'job_actions.dart';
 import 'job_form.dart';
 
 class JobsRoom extends StatefulWidget {
@@ -21,6 +22,8 @@ class _JobsRoomState extends State<JobsRoom> {
   bool _loading = true;
   bool _failed = false;
   bool _adding = false;
+  bool _showDone = false;
+  String? _said;
 
   @override
   void initState() {
@@ -35,7 +38,7 @@ class _JobsRoomState extends State<JobsRoom> {
     });
     List<JobEntry>? rows;
     try {
-      final response = await widget.api.jobs();
+      final response = await widget.api.jobs(status: _showDone ? 'done' : null);
       rows = parseJobList(response.status, response.body);
     } catch (_) {
       rows = null;
@@ -71,6 +74,16 @@ class _JobsRoomState extends State<JobsRoom> {
             ]),
           ),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            if (!_showDone)
+              PopupMenuButton<JobAction>(
+                key: Key('job-menu-${j.id}'),
+                tooltip: 'Do something with this job',
+                onSelected: (a) async {
+                  final said = await runJobAction(context, widget.api, j, a);
+                  if (said != null && mounted) setState(() => _said = said);
+                },
+                itemBuilder: (_) => [for (final a in JobAction.values) PopupMenuItem<JobAction>(key: Key('job-menu-${j.id}-${a.name}'), value: a, child: Text(jobActionLabel(a)))],
+              ),
             Text(j.scheduledOn.isEmpty ? 'No date yet' : j.scheduledOn, style: j.overdue ? const TextStyle(color: Color(0xFFB3261E), fontWeight: FontWeight.w600) : null),
             if (j.overdue) const Text('Overdue', style: TextStyle(fontSize: 12, color: Color(0xFFB3261E))),
           ]),
@@ -102,7 +115,7 @@ class _JobsRoomState extends State<JobsRoom> {
     } else if (_failed) {
       body = const Padding(padding: EdgeInsets.all(12), child: Text('The jobs could not be read. Try again.', key: Key('jobs-error')));
     } else if (_rows.isEmpty) {
-      body = const Padding(padding: EdgeInsets.all(12), child: Text('No open jobs.', key: Key('jobs-empty')));
+      body = Padding(padding: const EdgeInsets.all(12), child: Text(_showDone ? 'No done jobs.' : 'No open jobs.', key: const Key('jobs-empty')));
     } else {
       body = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ..._group('overdue', 'Overdue', overdue),
@@ -118,6 +131,11 @@ class _JobsRoomState extends State<JobsRoom> {
           IconButton(key: const Key('jobs-add'), tooltip: 'Make a job', icon: const Icon(Icons.add), onPressed: () => setState(() => _adding = true)),
           IconButton(key: const Key('jobs-refresh'), tooltip: 'Check again', icon: const Icon(Icons.refresh), onPressed: _loading ? null : _load),
         ]),
+        Wrap(spacing: 8, children: [
+          ChoiceChip(key: const Key('jobs-show-open'), label: const Text('Open'), selected: !_showDone, onSelected: (_) { setState(() => _showDone = false); _load(); }),
+          ChoiceChip(key: const Key('jobs-show-done'), label: const Text('Done'), selected: _showDone, onSelected: (_) { setState(() => _showDone = true); _load(); }),
+        ]),
+        if (_said != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_said!, key: const Key('jobs-said'))),
         body,
       ]),
     );

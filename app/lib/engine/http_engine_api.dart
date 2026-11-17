@@ -151,7 +151,7 @@ class HttpEngineApi implements EngineApi {
   Future<EngineResponse> quotations() => _get('/engine/quotations');
 
   @override
-  Future<EngineResponse> jobs() => _get('/engine/jobs');
+  Future<EngineResponse> jobs({String? status}) => _get(status == null ? '/engine/jobs' : '/engine/jobs?status=${Uri.encodeQueryComponent(status)}');
 
   @override
   Future<EngineResponse> parties({String? role}) => _get(role == null ? '/engine/parties' : '/engine/parties?role=${Uri.encodeQueryComponent(role)}');

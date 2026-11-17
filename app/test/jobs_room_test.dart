@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:the_office/engine/assistant_model.dart';
 import 'package:the_office/engine/engine_api.dart';
 import 'package:the_office/engine/engine_fixtures.dart';
+import 'package:the_office/engine/job_actions.dart';
 import 'package:the_office/engine/job_form.dart';
 import 'package:the_office/engine/jobs_room.dart';
 
@@ -17,7 +18,12 @@ class _JApi extends FixtureEngineApi {
   _JApi(Map<String, EngineResponse> fixtures, this.answer, this.jobsAnswer) : super(fixtures);
 
   @override
-  Future<EngineResponse> jobs() async => jobsAnswer;
+  Future<EngineResponse> jobs({String? status}) async {
+    asked.add(status);
+    return jobsAnswer;
+  }
+
+  final List<String?> asked = <String?>[];
 
   @override
   Future<EngineResponse> propose(String capability, Map<String, Object?> payload, String transcript) async {
@@ -78,6 +84,7 @@ Future<void> _send(WidgetTester tester) async {
 }
 
 void main() {
+  actionTests();
   final fixtures = engineResponsesFrom(engineFixtureJson);
 
   testWidgets('the room groups the rows and a row without a description is left out', (tester) async {
@@ -192,5 +199,131 @@ void main() {
     expect(heldLines(held('engine.job.schedule', <String, Object?>{'jobId': 2, 'scheduledOn': null})).map((l) => l.value).toList(), ['Job #2', 'No date (off the calendar)']);
     expect(heldLines(held('engine.job.assign', <String, Object?>{'jobId': 2, 'assigneeId': null})).map((l) => l.value).toList(), ['Job #2', 'Nobody (taken off)']);
     expect(heldLines(held('engine.job.cancel', <String, Object?>{'jobId': 2, 'reason': 'Changed her mind'})).map((l) => l.value).toList(), ['Job #2', 'Changed her mind']);
+  });
+}
+
+class _AApi extends _JApi {
+  _AApi(super.fixtures, super.answer, super.jobsAnswer);
+
+  @override
+  Future<EngineResponse> invoices() async => _ok(<String, Object?>{
+        'invoices': [
+          <String, Object?>{'id': 21, 'number': 5, 'partyName': 'Mokoena', 'issuedOn': '2026-11-05', 'grossMinor': 115000, 'outstandingMinor': 115000},
+          <String, Object?>{'id': 22, 'number': 6, 'partyName': 'Dlamini', 'issuedOn': '2026-11-05', 'grossMinor': 5000, 'outstandingMinor': 5000},
+        ],
+        'owingMinor': 120000,
+      });
+}
+
+Future<void> _pick(WidgetTester tester, int job, JobAction a) async {
+  await tester.ensureVisible(find.byKey(Key('job-menu-$job')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(Key('job-menu-$job')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(Key('job-menu-$job-${a.name}')));
+  await tester.pumpAndSettle();
+}
+
+void actionTests() {
+  final fixtures = engineResponsesFrom(engineFixtureJson);
+
+  testWidgets('mark done proposes job.complete', (tester) async {
+    final api = _AApi(fixtures, _held, _jobs);
+    await _room(tester, api);
+    await _pick(tester, 1, JobAction.done);
+    expect(api.proposed.last['capability'], 'job.complete');
+    expect(api.proposed.last['payload'], <String, Object?>{'jobId': 1});
+    expect(find.text('Sent for approval.'), findsOneWidget);
+  });
+
+  testWidgets('note a snag sends the note and an empty one is not sent', (tester) async {
+    final api = _AApi(fixtures, _held, _jobs);
+    await _room(tester, api);
+    await _pick(tester, 1, JobAction.snag);
+    await tester.tap(find.byKey(const Key('job-action-ok')));
+    await tester.pumpAndSettle();
+    expect(api.proposed, isEmpty);
+    await _pick(tester, 1, JobAction.snag);
+    await tester.enterText(find.byKey(const Key('job-action-text')), 'Gap at the skirting');
+    await tester.tap(find.byKey(const Key('job-action-ok')));
+    await tester.pumpAndSettle();
+    expect(api.proposed.single['capability'], 'job.snag_raise');
+    expect(api.proposed.single['payload'], <String, Object?>{'jobId': 1, 'note': 'Gap at the skirting'});
+  });
+
+  testWidgets('close a snag lists the open ones and sends the chosen number', (tester) async {
+    final api = _AApi(fixtures, _held, _jobs);
+    await _room(tester, api);
+    await _pick(tester, 1, JobAction.closeSnag);
+    expect(find.text('Scratch near the door'), findsWidgets);
+    expect(find.text('Fixed already'), findsNothing);
+    await tester.tap(find.byKey(const Key('job-action-pick-31')));
+    await tester.pumpAndSettle();
+    expect(api.proposed.single['capability'], 'job.snag_close');
+    expect(api.proposed.single['payload'], <String, Object?>{'jobId': 1, 'snagId': 31});
+  });
+
+  testWidgets('move the date checks the date and an empty date takes it off the calendar', (tester) async {
+    final api = _AApi(fixtures, _held, _jobs);
+    await _room(tester, api);
+    await _pick(tester, 1, JobAction.move);
+    await tester.enterText(find.byKey(const Key('job-action-text')), '21/11/2026');
+    await tester.tap(find.byKey(const Key('job-action-ok')));
+    await tester.pumpAndSettle();
+    expect(api.proposed, isEmpty);
+    expect(find.textContaining('must look like'), findsOneWidget);
+    await _pick(tester, 1, JobAction.move);
+    await tester.enterText(find.byKey(const Key('job-action-text')), '2026-11-24');
+    await tester.tap(find.byKey(const Key('job-action-ok')));
+    await tester.pumpAndSettle();
+    await _pick(tester, 1, JobAction.move);
+    await tester.enterText(find.byKey(const Key('job-action-text')), '');
+    await tester.tap(find.byKey(const Key('job-action-ok')));
+    await tester.pumpAndSettle();
+    expect(api.proposed.map((p) => p['payload']).toList(), [<String, Object?>{'jobId': 1, 'scheduledOn': '2026-11-24'}, <String, Object?>{'jobId': 1, 'scheduledOn': null}]);
+  });
+
+  testWidgets('cancel needs a reason', (tester) async {
+    final api = _AApi(fixtures, _held, _jobs);
+    await _room(tester, api);
+    await _pick(tester, 2, JobAction.cancel);
+    await tester.tap(find.byKey(const Key('job-action-ok')));
+    await tester.pumpAndSettle();
+    expect(api.proposed, isEmpty);
+    await _pick(tester, 2, JobAction.cancel);
+    await tester.enterText(find.byKey(const Key('job-action-text')), 'Changed her mind');
+    await tester.tap(find.byKey(const Key('job-action-ok')));
+    await tester.pumpAndSettle();
+    expect(api.proposed.single['capability'], 'job.cancel');
+    expect(api.proposed.single['payload'], <String, Object?>{'jobId': 2, 'reason': 'Changed her mind'});
+  });
+
+  testWidgets("tie offers only this customer's invoices and sends the chosen document", (tester) async {
+    final api = _AApi(fixtures, _held, _jobs);
+    await _room(tester, api);
+    await _pick(tester, 1, JobAction.tie);
+    expect(find.byKey(const Key('job-action-pick-21')), findsOneWidget);
+    expect(find.byKey(const Key('job-action-pick-22')), findsNothing);
+    await tester.tap(find.byKey(const Key('job-action-pick-21')));
+    await tester.pumpAndSettle();
+    expect(api.proposed.single['capability'], 'job.link');
+    expect(api.proposed.single['payload'], <String, Object?>{'jobId': 1, 'documentId': 21});
+  });
+
+  testWidgets("the engine's refusal is shown", (tester) async {
+    final api = _AApi(fixtures, const EngineResponse(409, <String, Object?>{'status': 'error', 'message': 'That job has an open snag.'}), _jobs);
+    await _room(tester, api);
+    await _pick(tester, 1, JobAction.done);
+    expect(find.text('That job has an open snag.'), findsOneWidget);
+  });
+
+  testWidgets('the Done chip asks for done jobs and hides the menus', (tester) async {
+    final api = _AApi(fixtures, _held, _jobs);
+    await _room(tester, api);
+    await tester.tap(find.byKey(const Key('jobs-show-done')));
+    await tester.pump();
+    await tester.pump();
+    expect(api.asked.last, 'done');
+    expect(find.byKey(const Key('job-menu-1')), findsNothing);
   });
 }

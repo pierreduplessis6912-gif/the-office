@@ -516,6 +516,12 @@ List<AssistantQuote>? parseQuoteList(int status, Object? body) {
   return rows;
 }
 
+class JobSnag {
+  final int id;
+  final String note;
+  const JobSnag(this.id, this.note);
+}
+
 /// One job as the engine lists it (GET /engine/jobs). `overdue` is the engine's own word (an open job dated before today); the app never works it out.
 class JobEntry {
   final int id;
@@ -535,7 +541,9 @@ class JobEntry {
   final int leftOverMinor;
   final int openSnags;
   final List<String> snagNotes;
-  const JobEntry({required this.id, required this.partyId, required this.customer, required this.description, required this.site, required this.reference, required this.scheduledOn, required this.assignee, required this.overdue, this.linked = 0, this.quotedMinor = 0, this.invoicedMinor = 0, this.paidMinor = 0, this.spentMinor = 0, this.leftOverMinor = 0, this.openSnags = 0, this.snagNotes = const <String>[]});
+  final List<JobSnag> openSnagList;
+  final String status;
+  const JobEntry({required this.id, required this.partyId, required this.customer, required this.description, required this.site, required this.reference, required this.scheduledOn, required this.assignee, required this.overdue, this.linked = 0, this.quotedMinor = 0, this.invoicedMinor = 0, this.paidMinor = 0, this.spentMinor = 0, this.leftOverMinor = 0, this.openSnags = 0, this.snagNotes = const <String>[], this.openSnagList = const <JobSnag>[], this.status = 'open'});
 }
 
 /// The jobs the engine listed, or null when the answer cannot be read. A row without a number or a description is left out; nothing is guessed.
@@ -551,7 +559,7 @@ List<JobEntry>? parseJobList(int status, Object? body) {
     final what = m == null ? null : _text(m['description']);
     if (m == null || id == null || what == null) continue;
     final money = _map(m['money']);
-    rows.add(JobEntry(id: id, partyId: _int(m['partyId']) ?? 0, customer: _text(m['partyName']) ?? 'Customer', description: what, site: _text(m['siteAddress']) ?? '', reference: _text(m['reference']) ?? '', scheduledOn: _text(m['scheduledOn']) ?? '', assignee: _text(m['assigneeName']) ?? '', overdue: m['overdue'] == true, linked: _int(money?['linked']) ?? 0, quotedMinor: _int(money?['quotedMinor']) ?? 0, invoicedMinor: _int(money?['invoicedMinor']) ?? 0, paidMinor: _int(money?['paidMinor']) ?? 0, spentMinor: _int(money?['spentMinor']) ?? 0, leftOverMinor: _int(money?['leftOverMinor']) ?? 0, openSnags: _int(m['openSnags']) ?? 0, snagNotes: [for (final s in _list(m['snags'])) if (_map(s) != null && _map(s)!['open'] == true && _text(_map(s)!['note']) != null) _text(_map(s)!['note'])!]));
+    rows.add(JobEntry(id: id, partyId: _int(m['partyId']) ?? 0, customer: _text(m['partyName']) ?? 'Customer', description: what, site: _text(m['siteAddress']) ?? '', reference: _text(m['reference']) ?? '', scheduledOn: _text(m['scheduledOn']) ?? '', assignee: _text(m['assigneeName']) ?? '', overdue: m['overdue'] == true, linked: _int(money?['linked']) ?? 0, quotedMinor: _int(money?['quotedMinor']) ?? 0, invoicedMinor: _int(money?['invoicedMinor']) ?? 0, paidMinor: _int(money?['paidMinor']) ?? 0, spentMinor: _int(money?['spentMinor']) ?? 0, leftOverMinor: _int(money?['leftOverMinor']) ?? 0, openSnags: _int(m['openSnags']) ?? 0, snagNotes: [for (final s in _list(m['snags'])) if (_map(s) != null && _map(s)!['open'] == true && _text(_map(s)!['note']) != null) _text(_map(s)!['note'])!], openSnagList: [for (final s in _list(m['snags'])) if (_map(s) != null && _map(s)!['open'] == true && _int(_map(s)!['id']) != null && _text(_map(s)!['note']) != null) JobSnag(_int(_map(s)!['id'])!, _text(_map(s)!['note'])!)], status: _text(m['status']) ?? 'open'));
   }
   return rows;
 }
