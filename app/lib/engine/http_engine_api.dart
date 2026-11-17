@@ -63,6 +63,9 @@ class HttpEngineApi implements EngineApi {
       _post('/engine/proposals', <String, Object?>{'capability': capability, 'payload': payload, 'transcript': transcript, 'source': 'app'});
 
   @override
+  Future<EngineResponse> credits() => _get('/engine/credits');
+
+  @override
   Future<EngineResponse> createDraft(int partyId) => _post('/engine/drafts', <String, Object?>{'kind': 'invoice', 'direction': 'sell', 'partyId': partyId});
 
   @override

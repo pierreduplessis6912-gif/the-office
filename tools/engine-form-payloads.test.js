@@ -2,8 +2,8 @@
 // exactly what the form sends is HELD (nothing recorded), becomes a customer/supplier only on approval, and a refusal carries the engine's own reason for the form to show.
 const kit = require('./engine-kit.js');
 
-module.exports = kit.guard('engine form payloads (F1 to F4, quotation, invoice)', async ({ check }) => {
-  const AV = [...kit.ALL_CAPABILITIES, 'party.create', 'parties.find', 'expense.record', 'supplier_payment.record', 'quotation.create', 'invoice.issue'];
+module.exports = kit.guard('engine form payloads (F1 to F4, quotation, invoice, refund)', async ({ check }) => {
+  const AV = [...kit.ALL_CAPABILITIES, 'party.create', 'parties.find', 'expense.record', 'supplier_payment.record', 'quotation.create', 'invoice.issue', 'payment.refund', 'credits.find'];
   const run = (spec) => kit.route({ env: { BUSINESS_ID: 'eng-a' }, seed: kit.seedReceivables(AV), ...spec });
   const body = (r) => (r.result && r.result.body) || {};
   const status = (r) => r.result && r.result.status;
@@ -108,5 +108,25 @@ module.exports = kit.guard('engine form payloads (F1 to F4, quotation, invoice)'
   check(status(r) >= 400 && added(r, 'eng_document') === 0, 'proposing against an older version of the draft is refused');
   r = await run(open('installer'));
   check(status(r) === 403, 'someone who may not work on drafts cannot open one');
+
+  // ---- the refund form: the payments the engine says have money left, then a held payment.refund ---------------------------------------------------------------------------------------
+  const payBig = { partyId: 1, amountMinor: 45050, currency: 'ZAR', occurredOn: '2026-11-16', method: 'eft' };   // no invoice named and none to settle: the whole payment is left over
+  const mkPay = [pay('accountant', payBig), { method: 'POST', path: '/actions/1/confirm', role: 'accountant', body: {} }];
+  const credits = (role) => ({ method: 'GET', path: '/engine/credits', role });
+  const refund = (role, payload) => ({ method: 'POST', path: '/engine/proposals', role, body: { capability: 'payment.refund', payload, transcript: 'Added from the Refund an overpayment form', source: 'app' } });
+  r = await run({ before: mkPay, ...credits('accountant') });
+  const left = ((body(r).result || {}).payments || []);
+  check(status(r) === 200 && left.length === 1 && left[0].id === 1 && left[0].availableMinor === 45050 && left[0].partyName === 'Mokoena' && left[0].receivedOn === '2026-11-16' && left[0].currency === 'ZAR', `an unused payment is listed with the figures the form reads (${JSON.stringify(left).slice(0, 200)})`);
+  const rf = { paymentId: 1, amountMinor: 45050, refundedOn: '2026-11-17', method: 'eft' };
+  r = await run({ before: mkPay, ...refund('accountant', rf) });
+  check(status(r) === 200 && body(r).status === 'held' && added(r, 'eng_money_movement') === 0, `the refund form's payload is held and pays nothing out (${JSON.stringify(body(r)).slice(0, 140)})`);
+  r = await run({ before: [...mkPay, refund('accountant', rf)], method: 'POST', path: '/actions/2/confirm', role: 'accountant', body: {} });
+  check(status(r) === 200 && added(r, 'eng_money_movement') === 1, `approving it records the money paid back (${status(r)} ${JSON.stringify(body(r)).slice(0, 140)})`);
+  r = await run({ before: [...mkPay, refund('accountant', rf), { method: 'POST', path: '/actions/2/confirm', role: 'accountant', body: {} }], ...credits('accountant') });
+  check(status(r) === 200 && ((body(r).result || {}).payments || []).length === 0, 'once refunded in full, the payment no longer has money left in the list');
+  r = await run({ before: mkPay, ...refund('accountant', { ...rf, amountMinor: 45051 }) });
+  check(status(r) >= 400 && /left to refund/.test(String(body(r).message)), `more than is left is refused with the engine's reason (${body(r).message})`);
+  r = await run({ before: mkPay, ...refund('installer', rf) });
+  check(status(r) >= 400 && added(r, 'eng_money_movement') === 0, 'someone who may not refund is refused');
 });
 if (require.main === module) kit.standalone(module.exports);

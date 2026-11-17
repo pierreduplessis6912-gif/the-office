@@ -291,6 +291,17 @@ List<HeldLine> heldLines(HeldAction a, {Map<int, String> names = const <int, Str
     if (p['allocate'] == 'oldest_first') out.add(HeldLine('Settles', supplierSide ? 'Oldest bills first' : 'Oldest invoices first'));
     return out;
   }
+  if (a.type == 'engine.payment.refund') {
+    final id = _int(p['paymentId']);
+    if (id != null) out.add(HeldLine('Payment', 'Payment #$id'));
+    final amount = money(p['amountMinor']);
+    if (amount.isNotEmpty) out.add(HeldLine('Refund', amount));
+    final date = _text(p['refundedOn']);
+    if (date != null) out.add(HeldLine('Date', date));
+    final method = _text(p['method']);
+    if (method != null) out.add(HeldLine('Paid back by', method));
+    return out;
+  }
   // any other held write: its plain fields, money formatted; nothing is invented
   for (final e in p.entries) {
     final v = e.value;
@@ -703,6 +714,33 @@ BookYears? parseYears(int status, Object? body) {
   }
   final next = _map(r['nextToClose']);
   return BookYears(monthName: _text(r['yearEndMonthName']) ?? '', currentFrom: from, currentTo: to, closed: closed, nextEnd: next == null ? null : _text(next['end']), nextEnded: next != null && next['ended'] == true);
+}
+
+/// A payment received that is not all used up (an overpayment), as GET /engine/credits lists it: how much of it can still be refunded or put against an invoice.
+class OverpaymentEntry {
+  final int id;
+  final String partyName;
+  final String currency;
+  final String receivedOn;
+  final int availableMinor;
+  const OverpaymentEntry({required this.id, required this.partyName, required this.currency, required this.receivedOn, required this.availableMinor});
+}
+
+/// The overpayments the engine listed, or null when the answer cannot be read. An entry without its figures is left out; nothing is guessed.
+List<OverpaymentEntry>? parseOverpayments(int status, Object? body) {
+  final r = _bookResult(status, body);
+  if (r == null || r['payments'] is! List) return null;
+  final out = <OverpaymentEntry>[];
+  for (final item in _list(r['payments'])) {
+    final m = _map(item);
+    final id = m == null ? null : _int(m['id']);
+    final available = m == null ? null : _int(m['availableMinor']);
+    final on = m == null ? null : _text(m['receivedOn']);
+    final currency = m == null ? null : _text(m['currency']);
+    if (m == null || id == null || available == null || available < 1 || on == null || currency == null) continue;
+    out.add(OverpaymentEntry(id: id, partyName: _text(m['partyName']) ?? 'Customer', currency: currency, receivedOn: on, availableMinor: available));
+  }
+  return out;
 }
 
 class BankAccountEntry {

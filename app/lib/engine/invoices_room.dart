@@ -7,6 +7,7 @@ import 'assistant_model.dart';
 import 'engine_api.dart';
 import 'invoice_form.dart';
 import 'payment_form.dart';
+import 'refund_form.dart';
 
 class InvoicesRoom extends StatefulWidget {
   final EngineApi api;
@@ -22,6 +23,7 @@ class _InvoicesRoomState extends State<InvoicesRoom> {
   bool _failed = false;
   bool _paying = false;
   bool _invoicing = false;
+  bool _refunding = false;
 
   @override
   void initState() {
@@ -75,6 +77,7 @@ class _InvoicesRoomState extends State<InvoicesRoom> {
 
   @override
   Widget build(BuildContext context) {
+    if (_refunding) return RefundForm(key: const ValueKey<String>('refund-form'), api: widget.api, onClose: () { setState(() => _refunding = false); _load(); });
     if (_invoicing) return InvoiceForm(key: const ValueKey<String>('invoice-form'), api: widget.api, onClose: () { setState(() => _invoicing = false); _load(); });
     if (_paying) return PaymentForm(key: const ValueKey<String>('payment-form'), api: widget.api, onClose: () { setState(() => _paying = false); _load(); });
     final list = _list;
@@ -97,6 +100,7 @@ class _InvoicesRoomState extends State<InvoicesRoom> {
         Row(children: [
           const Expanded(child: Text('Invoices', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
           IconButton(key: const Key('invoices-add'), tooltip: 'Make an invoice', icon: const Icon(Icons.note_add_outlined), onPressed: () => setState(() => _invoicing = true)),
+          IconButton(key: const Key('invoices-refund'), tooltip: 'Refund an overpayment', icon: const Icon(Icons.undo), onPressed: () => setState(() => _refunding = true)),
           IconButton(key: const Key('invoices-pay'), tooltip: 'Record a payment received', icon: const Icon(Icons.add), onPressed: () => setState(() => _paying = true)),
           IconButton(key: const Key('invoices-refresh'), tooltip: 'Check again', icon: const Icon(Icons.refresh), onPressed: _loading ? null : _load),
         ]),

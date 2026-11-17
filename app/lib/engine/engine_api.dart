@@ -43,6 +43,9 @@ abstract class EngineApi {
   /// Proposes any capability from a form: POST /engine/proposals. The engine checks it exactly as it checks a sentence and HOLDS it; nothing is recorded until a person approves it.
   Future<EngineResponse> propose(String capability, Map<String, Object?> payload, String transcript);
 
+  /// Payments received that are not all used up, and credit notes with credit left: GET /engine/credits.
+  Future<EngineResponse> credits();
+
   /// Opens a draft invoice for a customer: POST /engine/drafts. A draft is a working copy, not a business fact: it needs no approval, and issuing it is still a held proposal.
   Future<EngineResponse> createDraft(int partyId);
 
@@ -181,6 +184,9 @@ class FixtureEngineApi implements EngineApi {
     if (!canRecord || role == 'installer' || role == 'sales') return fixtures['proposal-refused'] ?? _missing;
     return fixtures['proposal-held'] ?? _missing;
   }
+
+  @override
+  Future<EngineResponse> credits() async => fixtures['assistant-credits'] ?? _missing;
 
   /// What the forms did with drafts, in order: 'create' with the customer, 'save' with the exact contents.
   final List<Map<String, Object?>> drafted = <Map<String, Object?>>[];
