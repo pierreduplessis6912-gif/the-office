@@ -111,6 +111,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('More')));
     await tester.pump();
+    await tester.scrollUntilVisible(find.byKey(const Key('more-quotes')), 100, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('more-quotes')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -122,7 +124,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('More')));
     await tester.pump();
-    await tester.ensureVisible(find.byKey(const Key('more-parties')));
+    await tester.scrollUntilVisible(find.byKey(const Key('more-parties')), 100, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('more-parties')));
     await tester.pump();
