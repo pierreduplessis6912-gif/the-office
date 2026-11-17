@@ -97,6 +97,9 @@ abstract class EngineApi {
   /// The open jobs, dated ones first (GET /engine/jobs). Read only.
   Future<EngineResponse> jobs({String? status});
 
+  /// What needs attention now, worked out by the engine (GET /engine/attention). Read only.
+  Future<EngineResponse> attention();
+
   /// The customers and suppliers (GET /engine/parties, optionally for one role). Read only.
   Future<EngineResponse> parties({String? role});
 
@@ -292,6 +295,8 @@ class FixtureEngineApi implements EngineApi {
 
   @override
   Future<EngineResponse> jobs({String? status}) async => fixtures['assistant-jobs'] ?? _missing;
+  @override
+  Future<EngineResponse> attention() async => fixtures['assistant-attention'] ?? _missing;
 
   @override
   Future<EngineResponse> parties({String? role}) async => fixtures['assistant-parties'] ?? _missing;

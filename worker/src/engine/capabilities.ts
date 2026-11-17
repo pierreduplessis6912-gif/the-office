@@ -33,6 +33,7 @@ import { allOrders, checkReceiptLines, checkShortText, planCancel, planOrder, pl
 import { allExpenses, checkExpenseInput, EXPENSE_CATEGORIES, planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { creditAvailable, debitsOf, planCreditApplication, planDebitNote, planRefund, planVoid } from "./credits";
 import { checkCreditLines, checkReason, planCreditNote, type CreditLineInput } from "./credits";
+import { attentionItems } from "./attention";
 import { allJobs, checkAssignInput, checkCancelInput, checkCompleteInput, checkJobInput, checkLinkInput, checkScheduleInput, checkSnagCloseInput, checkSnagRaiseInput, planAssign, planComplete, planJob, planSnagClose, planSnagRaise, planJobCancel, planLink, planSchedule, type JobInput } from "./jobs";
 import { allProfiles, applyRevision, checkContact, checkName, checkRoles, holderOfName, partyProfile, PARTY_ROLES, sameName } from "./parties";
 
@@ -1486,7 +1487,27 @@ export const jobsFind: ReadCapability<{ partyId?: number; assigneeId?: number; s
   },
 };
 
-export const READS: readonly ReadCapability<any>[] = [jobsFind, ledgerBankAccounts, invoicesFind, ledgerCashFlowIndirect, ledgerYears, ledgerBankReconciliation, ledgerCashFlow, ledgerBankSuggestions, ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
+export const attentionFind: ReadCapability<{ asOf?: string }> = {
+  id: "attention.find", label: "What needs attention", permissions: [],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["asOf"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (params.asOf === undefined) return { ok: true, value: {} };
+    const d = checkDate(params.asOf, "asOf"); if (!d.ok) return d;
+    return { ok: true, value: { asOf: d.value } };
+  },
+  // each section is included only for a viewer who may read what it is made from; the list says nothing about what the viewer cannot see
+  async run(env, viewer, value) {
+    const today = value.asOf ?? businessToday();
+    const items = await attentionItems(env, viewer, today);
+    const counts: Record<string, number> = {};
+    for (const i of items) counts[i.kind] = (counts[i.kind] ?? 0) + 1;
+    return { items: items.slice(0, 50), count: items.length, truncated: items.length > 50, counts, today, derivedBy: "attention.attentionItems" };
+  },
+};
+
+export const READS: readonly ReadCapability<any>[] = [attentionFind, jobsFind, ledgerBankAccounts, invoicesFind, ledgerCashFlowIndirect, ledgerYears, ledgerBankReconciliation, ledgerCashFlow, ledgerBankSuggestions, ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({

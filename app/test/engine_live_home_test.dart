@@ -143,6 +143,19 @@ void main() {
     expect(find.byKey(const Key('jobs-refresh')), findsOneWidget);
   });
 
+  testWidgets('the More list opens what needs attention', (tester) async {
+    await tester.pumpWidget(app());
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('More')));
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('more-attention')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('more-attention')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const ValueKey<String>('attention-live')), findsOneWidget);
+  });
+
   testWidgets('signing out is the person\'s own button and calls back', (tester) async {
     var out = 0;
     await tester.pumpWidget(app(onSignOut: () => out++));

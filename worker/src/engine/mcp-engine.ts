@@ -99,6 +99,7 @@ const HINTS: Record<string, string> = {
   "job.complete": "payload {jobId}: mark a job done. A job also shows as done by itself once its tied invoices are paid in full; an open snag always stops it being done.",
   "job.snag_raise": "payload {jobId, note}: note a snag on a job (a small thing still to put right). The job is not done while a snag is open.",
   "job.snag_close": "payload {jobId, snagId}: close a snag once it is put right.",
+  "attention.find": "params {asOf?}: what needs attention now, in the order to look: overdue and soon-due supplier bills, customer invoices still owing 30 days after issue (no due date is recorded), overdue jobs, open snags, quotations that ran out, stock below its reorder level. Each item says why and names its record; only what this key may read is listed.",
   "jobs.find": "params {partyId?, assigneeId?, status? (open by default; done, cancelled or any), from?, to? (dates), asOf?}: jobs with their customer, site, date, person, whether they are overdue, and the money tied to them (quoted, invoiced, paid, spent, left over); dated jobs first, then the ones with no date.",
   "bank_account.add": "payload {name}: add a bank account (savings, card…); the engine picks its code. Payments and statements may then name it with bankAccountId.",
   "ledger.bank_accounts": "no params: the bank accounts with their ledger balances (the default account first); a bankAccountId names one of them.",

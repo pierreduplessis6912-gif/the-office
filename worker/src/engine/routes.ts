@@ -46,6 +46,7 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
     const pid = url.searchParams.get("partyId"), st = url.searchParams.get("status");
     return answer(await invokeRead(env, member, "quotations.find", { ...(pid !== null ? { partyId: /^\d+$/.test(pid) ? Number(pid) : pid } : {}), ...(st !== null ? { status: st } : {}) }));
   }
+  if (request.method === "GET" && path === "/engine/attention") return answer(await invokeRead(env, member, "attention.find", url.searchParams.get("asOf") ? { asOf: url.searchParams.get("asOf") } : {}));
   if (request.method === "GET" && path === "/engine/jobs") {
     const num = (k: string): number | string | undefined => { const v = url.searchParams.get(k); return v === null ? undefined : /^\d+$/.test(v) ? Number(v) : v; };
     const txt = (k: string): string | undefined => url.searchParams.get(k) ?? undefined;

@@ -33,6 +33,8 @@ module.exports = kit.guard('engine interpret (jobs)', async ({ check }) => {
     say(/What jobs does Nobody have\?/, call('jobs.find', { customer: 'Nobody' })),
     say(/What is on next century\?/, call('jobs.find', { period: 'next_century' })),
     say(/What is on with a filter\?/, call('jobs.find', { status: 'cancelled' })),
+    say(/What needs my attention\?/, call('attention.find', {})),
+    say(/What needs my attention with a filter\?/, call('attention.find', { kind: 'job_overdue' })),
   ];
   const WEEKDAY = ['monday'];
   const as = (role, text) => ({ method: 'POST', path: '/engine/interpret', role, body: { text } });
@@ -96,5 +98,13 @@ module.exports = kit.guard('engine interpret (jobs)', async ({ check }) => {
   check(status(await interpret('What jobs does Nobody have?', 'owner', world)) !== 200, 'a customer the business does not have is refused');
   check(NOT(await interpret('What is on next century?', 'owner', world)) && NOT(await interpret('What is on with a filter?', 'owner', world)), 'an unknown period or a stray argument is not understood');
   check(!(status(await interpret('What jobs are open?', 'installer', world)) === 200 && names(await interpret('What jobs are open?', 'installer', world)).length > 0), 'someone who may not read jobs is not answered');
+
+  // ---- what needs attention ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  r = await interpret('What needs my attention?', 'owner', world);
+  const items = (res) => ((body(res).result || {}).items || []);
+  check(status(r) === 200 && body(r).understood.capability === 'attention.find' && items(r).some((i) => i.kind === 'job_overdue' && /Shopfront/.test(i.title)) && JSON.stringify(tables(r).filter((t) => t === 'pending_actions')) === '[]', 'the attention sentence reads the list (the overdue job is on it) and holds nothing');
+  check(NOT(await interpret('What needs my attention with a filter?', 'owner', world)), 'a stray argument on the attention sentence is not understood');
+  r = await interpret('What needs my attention?', 'installer', world);
+  check(!items(r).some((i) => i.kind.startsWith('job_')), 'someone who may not read jobs is not shown the job items');
 });
 if (require.main === module) kit.standalone(module.exports);

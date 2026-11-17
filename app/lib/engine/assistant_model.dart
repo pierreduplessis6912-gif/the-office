@@ -868,3 +868,29 @@ List<BankAccountEntry>? parseBankAccounts(int status, Object? body) {
   }
   return out;
 }
+
+/// One thing the engine says needs attention (GET /engine/attention). The words and the order are the engine's; the app only shows them. An item without a kind or a title is left out.
+class AttentionEntry {
+  final String kind;
+  final String title;
+  final String detail;
+  final int? amountMinor;
+  const AttentionEntry({required this.kind, required this.title, required this.detail, this.amountMinor});
+}
+
+/// The attention list, or null when the answer cannot be read. `truncated` says the engine held back some items.
+({List<AttentionEntry> items, bool truncated})? parseAttention(int status, Object? body) {
+  final b = _map(body);
+  if (status != 200 || b == null || b['status'] != 'ok') return null;
+  final r = _map(b['result']);
+  if (r == null || r['items'] is! List) return null;
+  final rows = <AttentionEntry>[];
+  for (final item in _list(r['items'])) {
+    final m = _map(item);
+    final kind = m == null ? null : _text(m['kind']);
+    final title = m == null ? null : _text(m['title']);
+    if (m == null || kind == null || title == null) continue;
+    rows.add(AttentionEntry(kind: kind, title: title, detail: _text(m['detail']) ?? '', amountMinor: _int(m['amountMinor'])));
+  }
+  return (items: rows, truncated: r['truncated'] == true);
+}

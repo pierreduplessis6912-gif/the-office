@@ -28,7 +28,7 @@ const SUPPLIER_PAY_METHODS = ["eft", "cash", "card", "cheque", "other"] as const
 /** The words a sentence must contain for each way of paying a supplier. The engine reads the sentence too: a method the model supplies that the sentence never says is NOT understood (procurement model run 43704907826: "Paid X R500" came back with method eft, invented). "other" needs the word itself. */
 const SUPPLIER_PAY_WORDS: Record<string, RegExp> = { eft: /\b(?:eft|e\.f\.t|bank|transfer|online|swift)\b/i, cash: /\bcash\b/i, card: /\b(?:card|visa|mastercard|swipe|tapped?)\b/i, cheque: /\b(?:cheque|check)\b/i, other: /\bother\b/i };
 const saysMethod = (text: string, method: string): boolean => SUPPLIER_PAY_WORDS[method]?.test(text) === true;
-interface Entry { id: string; describes: string; arguments: Record<string, string>; permissions: readonly EnginePermission[]; readingOnly?: true }   // readingOnly: offered ONLY for words read from a picture the person said is that kind of document, never for a typed or spoken sentence
+interface Entry { id: string; describes: string; arguments: Record<string, string>; permissions: readonly EnginePermission[]; anyOf?: readonly EnginePermission[]; readingOnly?: true }   // readingOnly: offered ONLY for words read from a picture the person said is that kind of document, never for a typed or spoken sentence
 
 const JOB_DAY_WORDS = ["today", "tomorrow", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 const JOB_DATE_TALK = /\b\d{4}-\d{1,2}-\d{1,2}\b|\b\d{1,2}[\/.]\d{1,2}(?:[\/.]\d{2,4})?\b|\b\d{1,2}(?:st|nd|rd|th)\b|\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b|\bmay\s+\d|\d\s+may\b|\bnext\s+(?:week|month|year)\b/i;
@@ -87,6 +87,7 @@ function catalogue(): Entry[] {
     // ---- jobs (docs/decisions/jobs-and-scheduling.md): a customer and the work are WORDS, a day is one of a fixed few WORDS (today, tomorrow, a weekday); the engine works the date out from today and checks the sentence says it ----
     { id: "jobs.find", describes: "What jobs are on: this week, next week, the overdue ones, or a customer's jobs.", arguments: { customer: "the customer's name, only if the person gave one", period: "this_week, next_week or overdue, only if the person said" }, permissions: READS.find((r) => r.id === "jobs.find")?.permissions ?? [] },
     { id: "job.create", describes: "Make a new job for a customer (it is only proposed; a person approves it).", arguments: { customer: "the customer's name, as the person said it", description: "the work, in a few words, as the person said it (lounge floor)", site: "the site address, only if the person said", when: `only if the person said a day: one of ${JOB_DAY_WORDS.join(", ")}` }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "job.create")?.permissions ?? [] },
+    { id: "attention.find", describes: "What needs the owner's attention now: overdue bills and jobs, open snags, invoices still owing, quotations that ran out, stock running low.", arguments: {}, permissions: [], anyOf: ["receivables.read", "bill.read", "job.read", "quotation.read", "stock.read"] },
     { id: "ledger.balance_sheet", describes: "What the business owns and owes today (the balance sheet).", arguments: {}, permissions: READS.find((r) => r.id === "ledger.balance_sheet")?.permissions ?? [] },
   ];
 }
@@ -190,7 +191,7 @@ const NOT_UNDERSTOOD = "I did not understand that as something I can do, so noth
 async function usable(env: Env, member: Member, opts?: InterpretOptions): Promise<Entry[]> {
   const scoped = await withEngineAvailability(env);
   const perms = permissionsFor(member.caps);
-  return catalogue().filter((e) => (!e.readingOnly || opts?.only?.includes(e.id) === true) && isAvailable(scoped, e.id) && e.permissions.every((p) => perms.has(p)));
+  return catalogue().filter((e) => (!e.readingOnly || opts?.only?.includes(e.id) === true) && isAvailable(scoped, e.id) && e.permissions.every((p) => perms.has(p)) && (!e.anyOf || e.anyOf.some((p) => perms.has(p))));
 }
 
 /** How the text came to be: a person's sentence (the default), or words READ FROM A PICTURE the person said was a receipt (data; only the named capabilities are offered). */
@@ -348,6 +349,10 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
     const named = await accountNamed(env, args.account);
     if (!named) return notUnderstood(env, member, text);   // an account the business does not have is never guessed
     return { kind: "read", understood, outcome: await invokeRead(env, member, "ledger.bank_reconciliation", { bankAccountId: named.id }) };
+  }
+  if (chosen.id === "attention.find") {
+    if (Object.keys(args).length > 0) return notUnderstood(env, member, text);
+    return { kind: "read", understood, outcome: await invokeRead(env, member, "attention.find", { asOf: today }) };
   }
   if (chosen.id === "jobs.find") {
     if (!optName(args.customer) || (args.period !== undefined && (typeof args.period !== "string" || !(JOB_PERIODS as readonly string[]).includes(args.period)))) return notUnderstood(env, member, text);
