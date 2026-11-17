@@ -551,6 +551,7 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   "engine.job.schedule": ["can_manage_invoices", "can_make_quotes"],
   "engine.job.assign": ["can_manage_invoices", "can_make_quotes"],
   "engine.job.cancel": ["can_manage_invoices", "can_make_quotes"],
+  "engine.job.link": ["can_manage_invoices", "can_make_quotes"],
   "engine.quotation.create": ["can_manage_invoices", "can_make_quotes"],
   "engine.quotation.revise": ["can_manage_invoices", "can_make_quotes"],
   "engine.quotation.accept": ["can_manage_invoices", "can_make_quotes"],

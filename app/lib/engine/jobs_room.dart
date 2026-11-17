@@ -2,6 +2,7 @@
 // someone or cancelled through a held proposal the person approves. "Overdue" is the engine's own flag; the groups are only where a row is shown, nothing here changes a date.
 import 'package:flutter/material.dart';
 
+import '../slice_model.dart' show randFromMinor;
 import 'assistant_model.dart';
 import 'engine_api.dart';
 import 'job_form.dart';
@@ -65,6 +66,7 @@ class _JobsRoomState extends State<JobsRoom> {
               if (j.site.isNotEmpty) Text(j.site, style: grey),
               if (j.assignee.isNotEmpty) Text('With ${j.assignee}', style: grey),
               if (j.reference.isNotEmpty) Text('Ref ${j.reference}', style: grey),
+              if (j.linked > 0) Text('Quoted ${randFromMinor(j.quotedMinor)} · Invoiced ${randFromMinor(j.invoicedMinor)} · Paid ${randFromMinor(j.paidMinor)} · Spent ${randFromMinor(j.spentMinor)} · Left over ${randFromMinor(j.leftOverMinor)}', key: Key('job-money-${j.id}'), style: grey),
             ]),
           ),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [

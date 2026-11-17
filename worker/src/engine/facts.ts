@@ -25,7 +25,7 @@ import { checkDate } from "./quotations";
 import { closedYears, yearEndMonth } from "./periods";
 import { planClose, planReopen, type CloseInput, type ReopenInput } from "./year-close";
 import { checkedBankAccount, planAdd } from "./bank-accounts";
-import { planAssign, planJob, planJobCancel, planSchedule, type JobInput } from "./jobs";
+import { planAssign, planJob, planJobCancel, planLink, planSchedule, type JobInput } from "./jobs";
 import { planMatches, planStatement, planUnmatch, type MatchInput, type StatementInput } from "./bank";
 import { CHART_TEMPLATE, accountForRole, assertBooksOpen, booksLockDate, planJournal, planJournalReversal, type JournalInput, checkedLines, documentLines, documentPosting, grniAvailable, stockMoveLines, paymentOutLines, paymentOutPosts, planContra, purchaseLines, receiptLines, receiptPosts, refundLines, refundPosts, type PostLine } from "./journal";
 
@@ -159,6 +159,15 @@ export async function cancelJob(env: Env, input: { jobId: number; reason: string
   return inTransaction(env, async (tx) => {
     const p = await planJobCancel(tx, input);
     return { eventId: await appendEvent(tx, "job.cancelled", ctx, { jobId: p.jobId }, p.reason) };
+  });
+}
+
+export async function linkToJob(env: Env, input: { jobId: number; documentId: number }, ctx: Ctx): Promise<{ eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    const p = await planLink(tx, input);
+    const eventId = await appendEvent(tx, "job.linked", ctx, { jobId: p.jobId, documentId: p.documentId, kind: p.kind });
+    await tx.OFFICE_DB.prepare("INSERT INTO eng_job_link (job_id, document_id, event_id) VALUES (?, ?, ?)").bind(p.jobId, p.documentId, eventId).run();
+    return { eventId };
   });
 }
 

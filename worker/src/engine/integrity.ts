@@ -36,7 +36,7 @@ export interface IntegrityProblem {
 }
 export interface IntegrityWarning { code: "event_type_not_modelled" | "unposted_foreign_currency"; detail: string }
 
-type FactKind = "party" | "document" | "movement" | "allocation" | "reversal" | "item" | "location" | "stock_move" | "job";
+type FactKind = "party" | "document" | "movement" | "allocation" | "reversal" | "item" | "location" | "stock_move" | "job" | "job_link";
 // Every event type the engine writes. `creates` is the kind of fact the event requires (exactly one); null means the event creates none.
 export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: string }> = {
   "party.created": { creates: "party", note: "one eng_party, plus one eng_party_role per role in the payload" },
@@ -57,6 +57,7 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "year.closed": { creates: null, note: "a financial year closed: the closing journal (if any) is written beside it and the books lock moves to the last day of the year" },
   "year.reopened": { creates: null, note: "the latest closed year reopened with a reason: the closing journal is reversed by a contra entry and the lock moves back" },
   "job.created": { creates: "job", note: "one eng_job (its description, site, reference, first date and person live in this event; later job.scheduled and job.assigned events change the date and the person)" },
+  "job.linked": { creates: "job_link", note: "one eng_job_link: a quotation, invoice or expense is tied to a job; the money a job shows is DERIVED from its links (jobs.ts)" },
   "job.scheduled": { creates: null, note: "a job is put on a date, moved, or taken off the calendar; the current date is DERIVED by folding the events (jobs.ts)" },
   "job.assigned": { creates: null, note: "a person (an installer) is put on a job or taken off it; the current person is DERIVED (jobs.ts)" },
   "job.cancelled": { creates: null, note: "a job is cancelled with a reason; its status is DERIVED (jobs.ts)" },
@@ -98,7 +99,7 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "stock.written_down": { creates: "stock_move", note: "one eng_stock_move of kind adjust_out or adjust_in: the two halves of a write-down (the stock out at its carrying value and back in at the lower one). The second says by how much, why and on what evidence" },
   "operation.executed": { creates: null, note: "the record that an approved proposal executed; it creates no fact" },
 };
-const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal", item: "eng_item", location: "eng_location", stock_move: "eng_stock_move", job: "eng_job" };
+const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal", item: "eng_item", location: "eng_location", stock_move: "eng_stock_move", job: "eng_job", job_link: "eng_job_link" };
 
 import { orderLineItems, receiptLineSource } from "./purchasing";
 const many = async <T>(env: Env, sql: string, ...binds: unknown[]): Promise<T[]> => ((await env.OFFICE_DB.prepare(sql).bind(...binds).all<T>()).results ?? []);
@@ -402,6 +403,10 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
   for (const j of await many<{ id: number; party_id: number; event_id: number }>(env, "SELECT id, party_id, event_id FROM eng_job")) {
     const ev = wrongEvent("job", j.id, j.event_id, ["job.created"]);
     if (ev && (!ev.payload || ev.payload.partyId !== j.party_id)) problems.push({ code: "fact_changed", detail: `job ${j.id} no longer matches what was recorded` });
+  }
+  for (const l of await many<{ id: number; job_id: number; document_id: number; event_id: number }>(env, "SELECT id, job_id, document_id, event_id FROM eng_job_link")) {
+    const ev = wrongEvent("job link", l.id, l.event_id, ["job.linked"]);
+    if (ev && (!ev.payload || !same([ev.payload.jobId, ev.payload.documentId], [l.job_id, l.document_id]))) problems.push({ code: "fact_changed", detail: `job link ${l.id} no longer matches what was recorded` });
   }
   const moves = await many<{ id: number; item_id: number; location_id: number; kind: string; quantity_milli: number; value_minor: number; occurred_on: string; source_document_id: number | null; source_line_no: number | null; pair_id: number | null; reverses_move_id: number | null; event_id: number }>(env, "SELECT id, item_id, location_id, kind, quantity_milli, value_minor, occurred_on, source_document_id, source_line_no, pair_id, reverses_move_id, event_id FROM eng_stock_move ORDER BY id");
   const byId = new Map(moves.map((m) => [m.id, m]));

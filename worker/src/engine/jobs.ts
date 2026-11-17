@@ -5,7 +5,8 @@
 import type { Env } from "../types";
 import { EngineError } from "./errors";
 import { allProfiles, partyProfile } from "./parties";
-import { checkDate } from "./quotations";
+import { allQuotations, checkDate } from "./quotations";
+import { allocatedToDocument, documentTotals, isEffective } from "./ledger";
 
 const one = <T>(env: Env, sql: string, ...binds: unknown[]) => env.OFFICE_DB.prepare(sql).bind(...binds).first<T>();
 const many = async <T>(env: Env, sql: string, ...binds: unknown[]): Promise<T[]> => ((await env.OFFICE_DB.prepare(sql).bind(...binds).all<T>()).results ?? []);
@@ -14,7 +15,7 @@ const whole = (v: unknown): v is number => typeof v === "number" && Number.isSaf
 type Checked<T> = { ok: true; value: T } | { ok: false; reason: string };
 
 export interface JobInput { partyId: number; description: string; siteAddress?: string; scheduledOn?: string; assigneeId?: number; reference?: string }
-export const JOB_EVENTS = ["job.created", "job.scheduled", "job.assigned", "job.cancelled"] as const;
+export const JOB_EVENTS = ["job.created", "job.scheduled", "job.assigned", "job.cancelled", "job.linked"] as const;
 
 const text = (v: unknown, label: string, max: number): Checked<string> => {
   if (typeof v !== "string" || !v.trim()) return { ok: false, reason: `${label} must be text` };
@@ -69,7 +70,11 @@ export function checkCancelInput(v: unknown): Checked<{ jobId: number; reason: s
 export interface JobView {
   id: number; partyId: number; partyName: string; description: string; siteAddress: string | null; reference: string | null;
   scheduledOn: string | null; assigneeId: number | null; assigneeName: string | null; status: "open" | "cancelled"; cancelledReason: string | null; overdue: boolean;
+  money: JobMoney;
 }
+// What the money tied to a job adds up to, DERIVED from its links: the quotation that stands (not superseded, not reversed), the invoices still in force, what has been allocated to those invoices (payments received),
+// and the expenses still in force. Gross figures (VAT included) throughout, as the documents show them. leftOverMinor is paid less spent: what has actually come in less what has actually gone out for the job.
+export interface JobMoney { quotedMinor: number; invoicedMinor: number; paidMinor: number; spentMinor: number; leftOverMinor: number; linked: number }
 interface Folded { id: number; partyId: number; description: string; siteAddress: string | null; reference: string | null; scheduledOn: string | null; assigneeId: number | null; cancelled: boolean; reason: string | null }
 
 async function foldAll(env: Env): Promise<Folded[]> {
@@ -116,9 +121,24 @@ export async function allJobs(env: Env, filter: JobFilter, today: string): Promi
     if ((filter.from !== undefined || filter.to !== undefined) && f.scheduledOn === null) continue;
     if (filter.from !== undefined && f.scheduledOn !== null && f.scheduledOn < filter.from) continue;
     if (filter.to !== undefined && f.scheduledOn !== null && f.scheduledOn > filter.to) continue;
-    out.push({ id: f.id, partyId: f.partyId, partyName: profiles.get(f.partyId) ?? `Customer #${f.partyId}`, description: f.description, siteAddress: f.siteAddress, reference: f.reference, scheduledOn: f.scheduledOn, assigneeId: f.assigneeId, assigneeName: f.assigneeId === null ? null : profiles.get(f.assigneeId) ?? `Person #${f.assigneeId}`, status: f.cancelled ? "cancelled" : "open", cancelledReason: f.reason, overdue: !f.cancelled && f.scheduledOn !== null && f.scheduledOn < today });
+    out.push({ id: f.id, partyId: f.partyId, partyName: profiles.get(f.partyId) ?? `Customer #${f.partyId}`, description: f.description, siteAddress: f.siteAddress, reference: f.reference, scheduledOn: f.scheduledOn, assigneeId: f.assigneeId, assigneeName: f.assigneeId === null ? null : profiles.get(f.assigneeId) ?? `Person #${f.assigneeId}`, status: f.cancelled ? "cancelled" : "open", cancelledReason: f.reason, overdue: !f.cancelled && f.scheduledOn !== null && f.scheduledOn < today, money: await moneyFor(env, f.id) });
   }
   return out.sort((a, b) => (a.scheduledOn === null ? 1 : 0) - (b.scheduledOn === null ? 1 : 0) || (a.scheduledOn ?? "").localeCompare(b.scheduledOn ?? "") || a.id - b.id);
+}
+
+export async function moneyFor(env: Env, jobId: number): Promise<JobMoney> {
+  const docs = await many<{ document_id: number; kind: string }>(env, "SELECT l.document_id, d.kind FROM eng_job_link l JOIN eng_document d ON d.id = l.document_id WHERE l.job_id = ? ORDER BY l.id", jobId);
+  const standing = new Map((await allQuotations(env)).map((q) => [q.id, q.status]));
+  let quoted = 0, invoiced = 0, paid = 0, spent = 0, linked = 0;
+  for (const d of docs) {
+    if (!(await isEffective(env, "document", d.document_id))) continue;
+    linked += 1;
+    const gross = (await documentTotals(env, d.document_id)).grossMinor;
+    if (d.kind === "quotation") { if (standing.get(d.document_id) !== "superseded") quoted += gross; }
+    else if (d.kind === "invoice") { invoiced += gross; paid += await allocatedToDocument(env, d.document_id); }
+    else if (d.kind === "expense") spent += gross;
+  }
+  return { quotedMinor: quoted, invoicedMinor: invoiced, paidMinor: paid, spentMinor: spent, leftOverMinor: paid - spent, linked };
 }
 
 export async function jobOrThrow(env: Env, jobId: number): Promise<Folded> {
@@ -168,14 +188,41 @@ export async function planJobCancel(env: Env, input: { jobId: number; reason: st
   const c = checkCancelInput(input); if (!c.ok) throw new EngineError("invalid_input", c.reason);
   const f = await jobOrThrow(env, c.value.jobId);
   if (f.cancelled) throw new EngineError("invalid_state", "That job is already cancelled.");
+  if ((await moneyFor(env, f.id)).linked > 0) throw new EngineError("invalid_state", "That job has quotations, invoices or expenses tied to it, so it cannot be cancelled. Void or credit them first, or leave the job open.");
   return { jobId: f.id, reason: c.value.reason };
+}
+
+export function checkLinkInput(v: unknown): Checked<{ jobId: number; documentId: number }> {
+  if (!isObj(v)) return { ok: false, reason: "the request must be an object" };
+  const stray = Object.keys(v).find((k) => !["jobId", "documentId"].includes(k));
+  if (stray) return { ok: false, reason: `${stray} is not a field of this request` };
+  if (!whole(v.jobId)) return { ok: false, reason: "jobId must be a record number" };
+  if (!whole(v.documentId)) return { ok: false, reason: "documentId must be a record number" };
+  return { ok: true, value: { jobId: v.jobId, documentId: v.documentId } };
+}
+
+// Tie an existing quotation, invoice or expense to an open job. A quotation or invoice must be for the job's own customer; one document is tied to at most one job; a voided one cannot be tied.
+export async function planLink(env: Env, input: { jobId: number; documentId: number }): Promise<{ jobId: number; documentId: number; kind: string }> {
+  const c = checkLinkInput(input); if (!c.ok) throw new EngineError("invalid_input", c.reason);
+  const f = await jobOrThrow(env, c.value.jobId);
+  if (f.cancelled) throw new EngineError("invalid_state", "That job was cancelled, so nothing can be tied to it.");
+  const d = await one<{ id: number; kind: string; party_id: number }>(env, "SELECT id, kind, party_id FROM eng_document WHERE id = ?", c.value.documentId);
+  if (!d || !["quotation", "invoice", "expense"].includes(d.kind)) throw new EngineError("not_found", "There is no such quotation, invoice or expense.");
+  const have = await one<{ job_id: number }>(env, "SELECT job_id FROM eng_job_link WHERE document_id = ?", d.id);
+  if (have) throw new EngineError("duplicate", have.job_id === f.id ? "That is already tied to this job. Nothing was changed." : `That is already tied to job ${have.job_id}.`);
+  if (!(await isEffective(env, "document", d.id))) throw new EngineError("invalid_state", "That document has been voided, so it cannot be tied to a job.");
+  if (d.kind !== "expense" && d.party_id !== f.partyId) throw new EngineError("invalid_state", "That document is for a different customer than the job.");
+  return { jobId: f.id, documentId: d.id, kind: d.kind };
 }
 
 // The integrity check: every job is for a party that exists and has the customer role as far as the fact goes (roles can change later, so only existence is a violation), and every job event names a real job.
 export async function verifyJobs(env: Env, report: (code: string, detail: string) => void): Promise<void> {
   const ids = new Set((await many<{ id: number }>(env, "SELECT id FROM eng_job")).map((r) => Number(r.id)));
-  for (const e of await many<{ id: number; type: string; payload_json: string }>(env, "SELECT id, type, payload_json FROM eng_event WHERE type IN ('job.scheduled', 'job.assigned', 'job.cancelled')")) {
+  for (const e of await many<{ id: number; type: string; payload_json: string }>(env, "SELECT id, type, payload_json FROM eng_event WHERE type IN ('job.scheduled', 'job.assigned', 'job.cancelled', 'job.linked')")) {
     let p: Record<string, unknown> = {}; try { const x = JSON.parse(e.payload_json); if (isObj(x)) p = x; } catch { /* reported as a malformed payload elsewhere */ }
     if (typeof p.jobId !== "number" || !ids.has(p.jobId)) report("job_inconsistent", `event ${e.id} (${e.type}) names a job that does not exist`);
+  }
+  for (const l of await many<{ id: number; job_id: number; document_id: number }>(env, "SELECT l.id, l.job_id, d.id AS document_id FROM eng_job_link l LEFT JOIN eng_document d ON d.id = l.document_id")) {
+    if (!ids.has(Number(l.job_id))) report("job_inconsistent", `link ${l.id} names a job that does not exist`);
   }
 }

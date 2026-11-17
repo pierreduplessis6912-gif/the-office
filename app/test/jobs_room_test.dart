@@ -37,13 +37,13 @@ class _JApi extends FixtureEngineApi {
 }
 
 const _held = EngineResponse(200, <String, Object?>{'status': 'held', 'actionId': 7, 'message': 'Waiting for approval.'});
-Map<String, Object?> _job(int id, String what, {String? on, bool overdue = false, String? who, String? site}) => <String, Object?>{
-      'id': id, 'partyId': 3, 'partyName': 'Mokoena', 'description': what, 'siteAddress': site, 'reference': null, 'scheduledOn': on, 'assigneeId': null, 'assigneeName': who, 'status': 'open', 'overdue': overdue,
+Map<String, Object?> _job(int id, String what, {String? on, bool overdue = false, String? who, String? site, Map<String, Object?>? money}) => <String, Object?>{
+      'id': id, 'partyId': 3, 'partyName': 'Mokoena', 'description': what, 'siteAddress': site, 'reference': null, 'scheduledOn': on, 'assigneeId': null, 'assigneeName': who, 'status': 'open', 'overdue': overdue, 'money': money ?? <String, Object?>{'quotedMinor': 0, 'invoicedMinor': 0, 'paidMinor': 0, 'spentMinor': 0, 'leftOverMinor': 0, 'linked': 0},
     };
 final _jobs = _ok(<String, Object?>{
   'jobs': [
     _job(2, 'Bedroom blinds', on: '2026-11-12', overdue: true),
-    _job(1, 'Lounge floor', on: '2026-11-20', who: 'Sipho', site: '12 Palm Rd'),
+    _job(1, 'Lounge floor', on: '2026-11-20', who: 'Sipho', site: '12 Palm Rd', money: <String, Object?>{'quotedMinor': 115000, 'invoicedMinor': 115000, 'paidMinor': 50000, 'spentMinor': 23000, 'leftOverMinor': 27000, 'linked': 3}),
     _job(4, 'Patio', on: '2026-12-10'),
     _job(3, 'Quote visit'),
     <String, Object?>{'partyName': 'x'},
@@ -92,6 +92,9 @@ void main() {
     expect(find.text('Mokoena · Lounge floor'), findsOneWidget);
     expect(find.text('With Sipho'), findsOneWidget);
     expect(find.text('12 Palm Rd'), findsOneWidget);
+    expect(find.byKey(const Key('job-money-1')), findsOneWidget);
+    expect(find.text('Quoted R1,150.00 · Invoiced R1,150.00 · Paid R500.00 · Spent R230.00 · Left over R270.00'), findsOneWidget);
+    expect(find.byKey(const Key('job-money-2')), findsNothing);
     expect(find.text('Overdue'), findsWidgets);
     expect(find.text('No date yet'), findsWidgets);
   });
@@ -175,6 +178,8 @@ void main() {
     expect(heldTitle('engine.job.schedule'), 'Schedule a job');
     expect(heldTitle('engine.job.assign'), 'Put someone on a job');
     expect(heldTitle('engine.job.cancel'), 'Cancel a job');
+    expect(heldTitle('engine.job.link'), 'Tie money to a job');
+    expect(heldLines(held('engine.job.link', <String, Object?>{'jobId': 2, 'documentId': 9})).map((l) => l.value).toList(), ['Job #2', 'Document #9']);
     final made = heldLines(held('engine.job.create', <String, Object?>{'partyId': 3, 'description': 'Lounge floor', 'siteAddress': '12 Palm Rd', 'scheduledOn': '2026-11-20', 'assigneeId': 5}), names: <int, String>{3: 'Mokoena', 5: 'Sipho'});
     expect(made.map((l) => '${l.label}: ${l.value}').toList(), ['Customer: Mokoena', 'Work: Lounge floor', 'Site: 12 Palm Rd', 'On: 2026-11-20', 'Person: Sipho']);
     expect(heldLines(held('engine.job.schedule', <String, Object?>{'jobId': 2, 'scheduledOn': null})).map((l) => l.value).toList(), ['Job #2', 'No date (off the calendar)']);

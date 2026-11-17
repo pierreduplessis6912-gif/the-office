@@ -216,6 +216,8 @@ String heldTitle(String type) {
       return 'Put someone on a job';
     case 'engine.job.cancel':
       return 'Cancel a job';
+    case 'engine.job.link':
+      return 'Tie money to a job';
     case 'engine.quotation.create':
       return 'Make a quotation';
     case 'engine.invoice.issue':
@@ -338,6 +340,8 @@ List<HeldLine> heldLines(HeldAction a, {Map<int, String> names = const <int, Str
     }
     final ref = _text(p['reference']);
     if (ref != null) out.add(HeldLine('Reference', ref));
+    final doc = _int(p['documentId']);
+    if (doc != null) out.add(HeldLine('Document', 'Document #$doc'));
     final why = _text(p['reason']);
     if (why != null) out.add(HeldLine('Reason', why));
     return out;
@@ -513,7 +517,13 @@ class JobEntry {
   final String scheduledOn;
   final String assignee;
   final bool overdue;
-  const JobEntry({required this.id, required this.partyId, required this.customer, required this.description, required this.site, required this.reference, required this.scheduledOn, required this.assignee, required this.overdue});
+  final int linked;
+  final int quotedMinor;
+  final int invoicedMinor;
+  final int paidMinor;
+  final int spentMinor;
+  final int leftOverMinor;
+  const JobEntry({required this.id, required this.partyId, required this.customer, required this.description, required this.site, required this.reference, required this.scheduledOn, required this.assignee, required this.overdue, this.linked = 0, this.quotedMinor = 0, this.invoicedMinor = 0, this.paidMinor = 0, this.spentMinor = 0, this.leftOverMinor = 0});
 }
 
 /// The jobs the engine listed, or null when the answer cannot be read. A row without a number or a description is left out; nothing is guessed.
@@ -528,7 +538,8 @@ List<JobEntry>? parseJobList(int status, Object? body) {
     final id = m == null ? null : _int(m['id']);
     final what = m == null ? null : _text(m['description']);
     if (m == null || id == null || what == null) continue;
-    rows.add(JobEntry(id: id, partyId: _int(m['partyId']) ?? 0, customer: _text(m['partyName']) ?? 'Customer', description: what, site: _text(m['siteAddress']) ?? '', reference: _text(m['reference']) ?? '', scheduledOn: _text(m['scheduledOn']) ?? '', assignee: _text(m['assigneeName']) ?? '', overdue: m['overdue'] == true));
+    final money = _map(m['money']);
+    rows.add(JobEntry(id: id, partyId: _int(m['partyId']) ?? 0, customer: _text(m['partyName']) ?? 'Customer', description: what, site: _text(m['siteAddress']) ?? '', reference: _text(m['reference']) ?? '', scheduledOn: _text(m['scheduledOn']) ?? '', assignee: _text(m['assigneeName']) ?? '', overdue: m['overdue'] == true, linked: _int(money?['linked']) ?? 0, quotedMinor: _int(money?['quotedMinor']) ?? 0, invoicedMinor: _int(money?['invoicedMinor']) ?? 0, paidMinor: _int(money?['paidMinor']) ?? 0, spentMinor: _int(money?['spentMinor']) ?? 0, leftOverMinor: _int(money?['leftOverMinor']) ?? 0));
   }
   return rows;
 }
