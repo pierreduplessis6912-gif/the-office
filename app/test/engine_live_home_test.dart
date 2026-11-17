@@ -122,10 +122,23 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('More')));
     await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('more-parties')));
     await tester.tap(find.byKey(const Key('more-parties')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byKey(const Key('parties-refresh')), findsOneWidget);
+  });
+
+  testWidgets('the More list opens the jobs', (tester) async {
+    await tester.pumpWidget(app());
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('More')));
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('more-jobs')));
+    await tester.tap(find.byKey(const Key('more-jobs')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const Key('jobs-refresh')), findsOneWidget);
   });
 
   testWidgets('signing out is the person\'s own button and calls back', (tester) async {
