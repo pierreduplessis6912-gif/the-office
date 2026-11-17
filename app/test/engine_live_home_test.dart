@@ -123,6 +123,7 @@ void main() {
     await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('More')));
     await tester.pump();
     await tester.ensureVisible(find.byKey(const Key('more-parties')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('more-parties')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -135,6 +136,7 @@ void main() {
     await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('More')));
     await tester.pump();
     await tester.ensureVisible(find.byKey(const Key('more-jobs')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('more-jobs')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
