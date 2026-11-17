@@ -8,6 +8,7 @@ import { EngineError } from "./errors";
 import { documentTotals, wholeNumber, type Totals } from "./money";
 import { recordDocument, type Ctx } from "./facts";
 import { planLineItems } from "./stock";
+import { partyProfile } from "./parties";
 
 export interface DraftLine { description?: unknown; quantityMilli?: unknown; unit?: unknown; unitPriceMinor?: unknown; taxBp?: unknown; itemId?: unknown }
 export interface DraftPayload { currency?: unknown; issuedOn?: unknown; reference?: unknown; terms?: unknown; lines?: unknown }
@@ -104,7 +105,14 @@ export async function issueDraft(env: Env, id: number, input: { expectedVersion:
     // the item each line is for (optional): validated, then kept in the document's own terms (the foundation tables do not change shape)
     const lineItems = (payload.lines as DraftLine[]).flatMap((l, i) => (typeof l.itemId === "number" ? [{ lineNo: i + 1, itemId: l.itemId }] : []));
     if (lineItems.length) await planLineItems(tx, lineItems, lines.map((l) => ({ unit: l.unit })));
-    const doc = await recordDocument(tx, { kind: d.kind, direction: d.direction, partyId: d.party_id as number, currency: payload.currency as string, reference: typeof payload.reference === "string" ? payload.reference : null, issuedOn: payload.issuedOn as string, terms: { ...((payload.terms && typeof payload.terms === "object" ? payload.terms : {}) as Record<string, unknown>), ...(lineItems.length ? { lineItems } : {}) }, lines }, ctx);
+    // an invoice with no due date of its own gets the customer's payment term, written onto the invoice now (a later change of the term never moves it)
+    const ownTerms = (payload.terms && typeof payload.terms === "object" ? payload.terms : {}) as Record<string, unknown>;
+    let termsDue: string | null = null;
+    if (d.kind === "invoice" && d.direction === "sell" && ownTerms.dueOn === undefined && d.party_id !== null) {
+      const days = (await partyProfile(tx, d.party_id))?.contact.paymentTermsDays;
+      if (days !== undefined) { const t = new Date(`${payload.issuedOn as string}T00:00:00Z`); t.setUTCDate(t.getUTCDate() + Number(days)); termsDue = t.toISOString().slice(0, 10); }
+    }
+    const doc = await recordDocument(tx, { kind: d.kind, direction: d.direction, partyId: d.party_id as number, currency: payload.currency as string, reference: typeof payload.reference === "string" ? payload.reference : null, issuedOn: payload.issuedOn as string, terms: { ...ownTerms, ...(termsDue !== null ? { dueOn: termsDue } : {}), ...(lineItems.length ? { lineItems } : {}) }, lines }, ctx);
     await tx.OFFICE_DB.prepare("UPDATE eng_draft SET issued_document_id = ?, version = version + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").bind(doc.id, id).run();
     return { documentId: doc.id, number: doc.number, eventId: doc.eventId, totals: doc.totals };
   });

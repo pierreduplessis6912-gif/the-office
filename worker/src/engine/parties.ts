@@ -5,8 +5,8 @@ import type { Env } from "../types";
 
 export const PARTY_ROLES = ["customer", "supplier"] as const;
 export type PartyRole = (typeof PARTY_ROLES)[number];
-export interface Contact { email?: string; phone?: string; address?: string; vatNumber?: string }
-export const CONTACT_FIELDS = ["email", "phone", "address", "vatNumber"] as const;
+export interface Contact { email?: string; phone?: string; address?: string; vatNumber?: string; paymentTermsDays?: string }
+export const CONTACT_FIELDS = ["email", "phone", "address", "vatNumber", "paymentTermsDays"] as const;
 export interface PartyProfile { id: number; kind: string; name: string; roles: string[]; contact: Contact; revisionEventIds: number[] }
 export interface Revision { name?: string; addRoles?: string[]; removeRoles?: string[]; contact?: Record<string, string | null> }
 
@@ -34,13 +34,14 @@ const CHECKS: Record<(typeof CONTACT_FIELDS)[number], (s: string) => string | nu
   email: (s) => (s.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? null : "email must look like name@example.com"),
   phone: (s) => (/^\+?[0-9][0-9 ()-]{3,28}[0-9]$/.test(s) ? null : "phone must be a phone number"),
   address: (s) => (s.length <= 300 ? null : "address must be at most 300 characters"),
+  paymentTermsDays: (s) => (/^(0|[1-9][0-9]{0,2})$/.test(s) && Number(s) <= 365 ? null : "paymentTermsDays must be a whole number of days from 0 to 365"),
   vatNumber: (s) => (/^[A-Za-z0-9]{5,20}$/.test(s) ? null : "vatNumber must be 5 to 20 letters or digits, no spaces"),
 };
 // allowNull: an EDIT may clear a field (null); a CREATE may not.
 export function checkContact(v: unknown, allowNull: boolean): Checked<Record<string, string | null>> {
   if (!isObj(v)) return { ok: false, reason: "contact must be an object" };
   const stray = Object.keys(v).find((k) => !(CONTACT_FIELDS as readonly string[]).includes(k));
-  if (stray) return { ok: false, reason: `${stray} is not a contact field (email, phone, address)` };
+  if (stray) return { ok: false, reason: `${stray} is not a contact field (email, phone, address, vatNumber, paymentTermsDays)` };
   const out: Record<string, string | null> = {};
   for (const k of CONTACT_FIELDS) {
     const x = v[k];

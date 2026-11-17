@@ -19,6 +19,7 @@ class _PartyFormState extends State<PartyForm> {
   final _name = TextEditingController();
   final _phone = TextEditingController();
   final _email = TextEditingController();
+  final _terms = TextEditingController();
   bool _organisation = false;
   bool _customer = true;
   bool _supplier = false;
@@ -31,6 +32,7 @@ class _PartyFormState extends State<PartyForm> {
     _name.dispose();
     _phone.dispose();
     _email.dispose();
+    _terms.dispose();
     super.dispose();
   }
 
@@ -38,9 +40,13 @@ class _PartyFormState extends State<PartyForm> {
     final name = _name.text.trim();
     if (name.isEmpty) return setState(() => _problem = 'Type the name first.');
     if (!_customer && !_supplier) return setState(() => _problem = 'Choose customer, supplier or both.');
+    final terms = _terms.text.trim();
+    if (_customer && terms.isNotEmpty && !RegExp(r'^(0|[1-9][0-9]{0,2})$').hasMatch(terms)) return setState(() => _problem = 'The payment term is a whole number of days, like 30.');
+    if (_customer && terms.isNotEmpty && int.parse(terms) > 365) return setState(() => _problem = 'The payment term can be at most 365 days.');
     final contact = <String, Object?>{
       if (_phone.text.trim().isNotEmpty) 'phone': _phone.text.trim(),
       if (_email.text.trim().isNotEmpty) 'email': _email.text.trim(),
+      if (_customer && terms.isNotEmpty) 'paymentTermsDays': terms,
     };
     final payload = <String, Object?>{
       'kind': _organisation ? 'organisation' : 'person',
@@ -100,6 +106,7 @@ class _PartyFormState extends State<PartyForm> {
         ]),
         TextField(key: const Key('party-form-phone'), controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone (optional)')),
         TextField(key: const Key('party-form-email'), controller: _email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email (optional)')),
+        if (_customer) TextField(key: const Key('party-form-terms'), controller: _terms, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Payment term in days (optional)')),
         if (_problem != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_problem!, key: const Key('party-form-problem'), style: const TextStyle(color: Color(0xFFB3261E)))),
         const SizedBox(height: 12),
         Row(children: [

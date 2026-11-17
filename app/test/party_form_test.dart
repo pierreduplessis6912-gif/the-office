@@ -44,6 +44,7 @@ void main() {
     await tester.enterText(find.byKey(const Key('party-form-phone')), '082 555 0101');
     await tester.enterText(find.byKey(const Key('party-form-email')), 'info@mokoena.example');
     await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('party-form-send')));
     await tester.tap(find.byKey(const Key('party-form-send')));
     await tester.pump();
     await tester.pump();
@@ -58,10 +59,37 @@ void main() {
     expect(find.byKey(const Key('party-form-sent')), findsOneWidget);
   });
 
+  testWidgets('a customer\'s payment term is sent as text; one that is not whole days is not sent', (tester) async {
+    final api = _FormApi(fixtures, _held);
+    await _openForm(tester, api);
+    await tester.enterText(find.byKey(const Key('party-form-name')), 'Mokoena');
+    await tester.ensureVisible(find.byKey(const Key('party-form-terms')));
+    await tester.enterText(find.byKey(const Key('party-form-terms')), '30.5');
+    await tester.ensureVisible(find.byKey(const Key('party-form-send')));
+    await tester.tap(find.byKey(const Key('party-form-send')));
+    await tester.pump();
+    expect(api.proposed, isEmpty);
+    expect(find.byKey(const Key('party-form-problem')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('party-form-terms')));
+    await tester.enterText(find.byKey(const Key('party-form-terms')), '400');
+    await tester.ensureVisible(find.byKey(const Key('party-form-send')));
+    await tester.tap(find.byKey(const Key('party-form-send')));
+    await tester.pump();
+    expect(api.proposed, isEmpty);
+    await tester.ensureVisible(find.byKey(const Key('party-form-terms')));
+    await tester.enterText(find.byKey(const Key('party-form-terms')), '30');
+    await tester.ensureVisible(find.byKey(const Key('party-form-send')));
+    await tester.tap(find.byKey(const Key('party-form-send')));
+    await tester.pump();
+    await tester.pump();
+    expect((api.proposed.first['payload'] as Map)['contact'], <String, Object?>{'paymentTermsDays': '30'});
+  });
+
   testWidgets('a person with only a name is a customer and carries no contact', (tester) async {
     final api = _FormApi(fixtures, _held);
     await _openForm(tester, api);
     await tester.enterText(find.byKey(const Key('party-form-name')), 'Thandi');
+    await tester.ensureVisible(find.byKey(const Key('party-form-send')));
     await tester.tap(find.byKey(const Key('party-form-send')));
     await tester.pump();
     await tester.pump();
@@ -71,6 +99,7 @@ void main() {
   testWidgets('an empty name, or no role, is not sent', (tester) async {
     final api = _FormApi(fixtures, _held);
     await _openForm(tester, api);
+    await tester.ensureVisible(find.byKey(const Key('party-form-send')));
     await tester.tap(find.byKey(const Key('party-form-send')));
     await tester.pump();
     expect(api.proposed, isEmpty);
@@ -78,6 +107,7 @@ void main() {
     await tester.enterText(find.byKey(const Key('party-form-name')), 'Thandi');
     await tester.tap(find.byKey(const Key('party-form-customer')));
     await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('party-form-send')));
     await tester.tap(find.byKey(const Key('party-form-send')));
     await tester.pump();
     expect(api.proposed, isEmpty);
@@ -88,6 +118,7 @@ void main() {
     final api = _FormApi(fixtures, const EngineResponse(409, <String, Object?>{'error': 'duplicate', 'message': 'There is already a customer or supplier called Thandi.'}));
     await _openForm(tester, api);
     await tester.enterText(find.byKey(const Key('party-form-name')), 'Thandi');
+    await tester.ensureVisible(find.byKey(const Key('party-form-send')));
     await tester.tap(find.byKey(const Key('party-form-send')));
     await tester.pump();
     await tester.pump();
@@ -100,6 +131,7 @@ void main() {
     final api = _FormApi(fixtures, const EngineResponse(500, null));
     await _openForm(tester, api);
     await tester.enterText(find.byKey(const Key('party-form-name')), 'Thandi');
+    await tester.ensureVisible(find.byKey(const Key('party-form-send')));
     await tester.tap(find.byKey(const Key('party-form-send')));
     await tester.pump();
     await tester.pump();
