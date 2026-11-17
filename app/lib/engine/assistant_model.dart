@@ -218,6 +218,12 @@ String heldTitle(String type) {
       return 'Cancel a job';
     case 'engine.job.link':
       return 'Tie money to a job';
+    case 'engine.job.complete':
+      return 'Mark a job done';
+    case 'engine.job.snag_raise':
+      return 'Note a snag';
+    case 'engine.job.snag_close':
+      return 'Close a snag';
     case 'engine.quotation.create':
       return 'Make a quotation';
     case 'engine.invoice.issue':
@@ -340,6 +346,10 @@ List<HeldLine> heldLines(HeldAction a, {Map<int, String> names = const <int, Str
     }
     final ref = _text(p['reference']);
     if (ref != null) out.add(HeldLine('Reference', ref));
+    final note = _text(p['note']);
+    if (note != null) out.add(HeldLine('Snag', note));
+    final snag = _int(p['snagId']);
+    if (snag != null) out.add(HeldLine('Snag', 'Snag #$snag'));
     final doc = _int(p['documentId']);
     if (doc != null) out.add(HeldLine('Document', 'Document #$doc'));
     final why = _text(p['reason']);
@@ -523,7 +533,9 @@ class JobEntry {
   final int paidMinor;
   final int spentMinor;
   final int leftOverMinor;
-  const JobEntry({required this.id, required this.partyId, required this.customer, required this.description, required this.site, required this.reference, required this.scheduledOn, required this.assignee, required this.overdue, this.linked = 0, this.quotedMinor = 0, this.invoicedMinor = 0, this.paidMinor = 0, this.spentMinor = 0, this.leftOverMinor = 0});
+  final int openSnags;
+  final List<String> snagNotes;
+  const JobEntry({required this.id, required this.partyId, required this.customer, required this.description, required this.site, required this.reference, required this.scheduledOn, required this.assignee, required this.overdue, this.linked = 0, this.quotedMinor = 0, this.invoicedMinor = 0, this.paidMinor = 0, this.spentMinor = 0, this.leftOverMinor = 0, this.openSnags = 0, this.snagNotes = const <String>[]});
 }
 
 /// The jobs the engine listed, or null when the answer cannot be read. A row without a number or a description is left out; nothing is guessed.
@@ -539,7 +551,7 @@ List<JobEntry>? parseJobList(int status, Object? body) {
     final what = m == null ? null : _text(m['description']);
     if (m == null || id == null || what == null) continue;
     final money = _map(m['money']);
-    rows.add(JobEntry(id: id, partyId: _int(m['partyId']) ?? 0, customer: _text(m['partyName']) ?? 'Customer', description: what, site: _text(m['siteAddress']) ?? '', reference: _text(m['reference']) ?? '', scheduledOn: _text(m['scheduledOn']) ?? '', assignee: _text(m['assigneeName']) ?? '', overdue: m['overdue'] == true, linked: _int(money?['linked']) ?? 0, quotedMinor: _int(money?['quotedMinor']) ?? 0, invoicedMinor: _int(money?['invoicedMinor']) ?? 0, paidMinor: _int(money?['paidMinor']) ?? 0, spentMinor: _int(money?['spentMinor']) ?? 0, leftOverMinor: _int(money?['leftOverMinor']) ?? 0));
+    rows.add(JobEntry(id: id, partyId: _int(m['partyId']) ?? 0, customer: _text(m['partyName']) ?? 'Customer', description: what, site: _text(m['siteAddress']) ?? '', reference: _text(m['reference']) ?? '', scheduledOn: _text(m['scheduledOn']) ?? '', assignee: _text(m['assigneeName']) ?? '', overdue: m['overdue'] == true, linked: _int(money?['linked']) ?? 0, quotedMinor: _int(money?['quotedMinor']) ?? 0, invoicedMinor: _int(money?['invoicedMinor']) ?? 0, paidMinor: _int(money?['paidMinor']) ?? 0, spentMinor: _int(money?['spentMinor']) ?? 0, leftOverMinor: _int(money?['leftOverMinor']) ?? 0, openSnags: _int(m['openSnags']) ?? 0, snagNotes: [for (final s in _list(m['snags'])) if (_map(s) != null && _map(s)!['open'] == true && _text(_map(s)!['note']) != null) _text(_map(s)!['note'])!]));
   }
   return rows;
 }

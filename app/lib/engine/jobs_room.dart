@@ -66,6 +66,7 @@ class _JobsRoomState extends State<JobsRoom> {
               if (j.site.isNotEmpty) Text(j.site, style: grey),
               if (j.assignee.isNotEmpty) Text('With ${j.assignee}', style: grey),
               if (j.reference.isNotEmpty) Text('Ref ${j.reference}', style: grey),
+              for (final n in j.snagNotes) Text('Snag: $n', key: Key('job-snag-${j.id}'), style: const TextStyle(fontSize: 12, color: Color(0xFFB3261E))),
               if (j.linked > 0) Text('Quoted ${randFromMinor(j.quotedMinor)} · Invoiced ${randFromMinor(j.invoicedMinor)} · Paid ${randFromMinor(j.paidMinor)} · Spent ${randFromMinor(j.spentMinor)} · Left over ${randFromMinor(j.leftOverMinor)}', key: Key('job-money-${j.id}'), style: grey),
             ]),
           ),

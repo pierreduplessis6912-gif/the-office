@@ -51,7 +51,7 @@ module.exports = kit.guard('engine jobs (J1)', async ({ check }) => {
   check((await read({ from: '2026-11-17', to: '2026-11-23', asOf: '2026-11-17' })).count === 1, 'a week window shows only the dated jobs inside it');
   check((await read({ partyId: customer, asOf: '2026-11-17' })).count === 2 && (await read({ partyId: supplier, asOf: '2026-11-17' })).count === 0, 'the read can be narrowed to one customer');
   const rd = capabilities.READS.find((q) => q.id === 'jobs.find');
-  check(rd.validate({ from: '2026-11-20', to: '2026-11-01' }).ok === false && rd.validate({ status: 'done' }).ok === false && rd.validate({ nope: 1 }).ok === false, 'the read refuses a backwards window, an unknown status and strays');
+  check(rd.validate({ from: '2026-11-20', to: '2026-11-01' }).ok === false && rd.validate({ status: 'finished' }).ok === false && rd.validate({ nope: 1 }).ok === false, 'the read refuses a backwards window, an unknown status and strays');
 
   // ---- cancelling ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   check(await codeOf(() => facts.cancelJob(w.env, { jobId: j2.jobId, reason: '  ' }, CTX)) === 'invalid_input', 'cancelling needs a reason');

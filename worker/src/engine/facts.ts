@@ -25,7 +25,7 @@ import { checkDate } from "./quotations";
 import { closedYears, yearEndMonth } from "./periods";
 import { planClose, planReopen, type CloseInput, type ReopenInput } from "./year-close";
 import { checkedBankAccount, planAdd } from "./bank-accounts";
-import { planAssign, planJob, planJobCancel, planLink, planSchedule, type JobInput } from "./jobs";
+import { planAssign, planComplete, planJob, planJobCancel, planLink, planSchedule, planSnagClose, planSnagRaise, type JobInput } from "./jobs";
 import { planMatches, planStatement, planUnmatch, type MatchInput, type StatementInput } from "./bank";
 import { CHART_TEMPLATE, accountForRole, assertBooksOpen, booksLockDate, planJournal, planJournalReversal, type JournalInput, checkedLines, documentLines, documentPosting, grniAvailable, stockMoveLines, paymentOutLines, paymentOutPosts, planContra, purchaseLines, receiptLines, receiptPosts, refundLines, refundPosts, type PostLine } from "./journal";
 
@@ -162,6 +162,15 @@ export async function cancelJob(env: Env, input: { jobId: number; reason: string
   });
 }
 
+export async function completeJob(env: Env, input: { jobId: number }, ctx: Ctx): Promise<{ eventId: number }> {
+  return inTransaction(env, async (tx) => { const p = await planComplete(tx, input); return { eventId: await appendEvent(tx, "job.completed", ctx, { jobId: p.jobId }) }; });
+}
+export async function raiseSnag(env: Env, input: { jobId: number; note: string }, ctx: Ctx): Promise<{ eventId: number; snagId: number }> {
+  return inTransaction(env, async (tx) => { const p = await planSnagRaise(tx, input); const eventId = await appendEvent(tx, "job.snag_raised", ctx, { jobId: p.jobId, note: p.note }); return { eventId, snagId: eventId }; });
+}
+export async function closeSnag(env: Env, input: { jobId: number; snagId: number }, ctx: Ctx): Promise<{ eventId: number }> {
+  return inTransaction(env, async (tx) => { const p = await planSnagClose(tx, input); return { eventId: await appendEvent(tx, "job.snag_closed", ctx, { jobId: p.jobId, snagId: p.snagId }) }; });
+}
 export async function linkToJob(env: Env, input: { jobId: number; documentId: number }, ctx: Ctx): Promise<{ eventId: number }> {
   return inTransaction(env, async (tx) => {
     const p = await planLink(tx, input);

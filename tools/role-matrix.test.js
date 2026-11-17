@@ -1016,6 +1016,7 @@ async function expect(role, method, path, want) {
   await require('./engine-refund-account.test.js')({ check, bundleTo, srcDir });
   await require('./engine-jobs.test.js')({ check, bundleTo, srcDir });
   await require('./engine-job-money.test.js')({ check, bundleTo, srcDir });
+  await require('./engine-job-done.test.js')({ check, bundleTo, srcDir });
   await require('./engine-bank-match.test.js')({ check, bundleTo, srcDir });
   await require('./engine-bank-reports.test.js')({ check, bundleTo, srcDir });
   await require('./engine-years.test.js')({ check, bundleTo, srcDir });

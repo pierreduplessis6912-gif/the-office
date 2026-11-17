@@ -15,7 +15,7 @@ const whole = (v: unknown): v is number => typeof v === "number" && Number.isSaf
 type Checked<T> = { ok: true; value: T } | { ok: false; reason: string };
 
 export interface JobInput { partyId: number; description: string; siteAddress?: string; scheduledOn?: string; assigneeId?: number; reference?: string }
-export const JOB_EVENTS = ["job.created", "job.scheduled", "job.assigned", "job.cancelled", "job.linked"] as const;
+export const JOB_EVENTS = ["job.created", "job.scheduled", "job.assigned", "job.cancelled", "job.linked", "job.completed", "job.snag_raised", "job.snag_closed"] as const;
 
 const text = (v: unknown, label: string, max: number): Checked<string> => {
   if (typeof v !== "string" || !v.trim()) return { ok: false, reason: `${label} must be text` };
@@ -69,13 +69,15 @@ export function checkCancelInput(v: unknown): Checked<{ jobId: number; reason: s
 // ---- the state of a job, derived ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 export interface JobView {
   id: number; partyId: number; partyName: string; description: string; siteAddress: string | null; reference: string | null;
-  scheduledOn: string | null; assigneeId: number | null; assigneeName: string | null; status: "open" | "cancelled"; cancelledReason: string | null; overdue: boolean;
-  money: JobMoney;
+  scheduledOn: string | null; assigneeId: number | null; assigneeName: string | null; status: "open" | "done" | "cancelled"; cancelledReason: string | null; overdue: boolean;
+  money: JobMoney; snags: Snag[]; openSnags: number; markedDone: boolean;
 }
+// A snag is a small note on a job (a scratch near the door) that stays open until it is closed. Its number is the number of the event that raised it. An open snag stops a job showing as done.
+export interface Snag { id: number; note: string; open: boolean }
 // What the money tied to a job adds up to, DERIVED from its links: the quotation that stands (not superseded, not reversed), the invoices still in force, what has been allocated to those invoices (payments received),
 // and the expenses still in force. Gross figures (VAT included) throughout, as the documents show them. leftOverMinor is paid less spent: what has actually come in less what has actually gone out for the job.
 export interface JobMoney { quotedMinor: number; invoicedMinor: number; paidMinor: number; spentMinor: number; leftOverMinor: number; linked: number }
-interface Folded { id: number; partyId: number; description: string; siteAddress: string | null; reference: string | null; scheduledOn: string | null; assigneeId: number | null; cancelled: boolean; reason: string | null }
+interface Folded { id: number; partyId: number; description: string; siteAddress: string | null; reference: string | null; scheduledOn: string | null; assigneeId: number | null; cancelled: boolean; reason: string | null; completed: boolean; snags: Snag[] }
 
 async function foldAll(env: Env): Promise<Folded[]> {
   const jobs = await many<{ id: number; party_id: number; event_id: number }>(env, "SELECT id, party_id, event_id FROM eng_job ORDER BY id");
@@ -84,7 +86,7 @@ async function foldAll(env: Env): Promise<Folded[]> {
   const byId = new Map<number, Folded>();
   const events = await many<{ id: number; type: string; reason: string | null; payload_json: string }>(env, `SELECT id, type, reason, payload_json FROM eng_event WHERE type IN (${JOB_EVENTS.map(() => "?").join(", ")}) ORDER BY id`, ...JOB_EVENTS);
   const parse = (s: string): Record<string, unknown> => { try { const p = JSON.parse(s); return isObj(p) ? p : {}; } catch { return {}; } };
-  for (const j of jobs) byCreate.set(j.event_id, { id: j.id, partyId: j.party_id, description: "", siteAddress: null, reference: null, scheduledOn: null, assigneeId: null, cancelled: false, reason: null });
+  for (const j of jobs) byCreate.set(j.event_id, { id: j.id, partyId: j.party_id, description: "", siteAddress: null, reference: null, scheduledOn: null, assigneeId: null, cancelled: false, reason: null, completed: false, snags: [] });
   for (const e of events) {
     const p = parse(e.payload_json);
     if (e.type === "job.created") {
@@ -102,11 +104,20 @@ async function foldAll(env: Env): Promise<Folded[]> {
     if (e.type === "job.scheduled") f.scheduledOn = typeof p.scheduledOn === "string" ? p.scheduledOn : null;
     else if (e.type === "job.assigned") f.assigneeId = typeof p.assigneeId === "number" ? p.assigneeId : null;
     else if (e.type === "job.cancelled") { f.cancelled = true; f.reason = e.reason; }
+    else if (e.type === "job.completed") f.completed = true;
+    else if (e.type === "job.snag_raised") f.snags.push({ id: e.id, note: typeof p.note === "string" ? p.note : "", open: true });
+    else if (e.type === "job.snag_closed") { const s = f.snags.find((x) => x.id === p.snagId); if (s) s.open = false; }
   }
   return [...byCreate.values()].sort((a, b) => a.id - b.id);
 }
 
-export interface JobFilter { partyId?: number; assigneeId?: number; status?: "open" | "cancelled" | "any"; from?: string; to?: string }
+export interface JobFilter { partyId?: number; assigneeId?: number; status?: "open" | "done" | "cancelled" | "any"; from?: string; to?: string }
+
+// DONE is derived, never stored as a state: no open snag, and either someone said "mark it done" or the job has invoices tied to it and they are all paid in full. An open snag always wins: a job with one is not done.
+export function doneOf(f: { cancelled: boolean; completed: boolean; snags: Snag[] }, money: JobMoney): boolean {
+  if (f.cancelled || f.snags.some((s) => s.open)) return false;
+  return f.completed || (money.invoicedMinor > 0 && money.paidMinor >= money.invoicedMinor);
+}
 
 // Dated jobs first (earliest first), then the ones with no date yet; cancelled jobs only when asked for. `today` is the business's own date: an open job dated before it is overdue (nothing is moved silently).
 export async function allJobs(env: Env, filter: JobFilter, today: string): Promise<JobView[]> {
@@ -116,12 +127,14 @@ export async function allJobs(env: Env, filter: JobFilter, today: string): Promi
   for (const f of await foldAll(env)) {
     if (filter.partyId !== undefined && f.partyId !== filter.partyId) continue;
     if (filter.assigneeId !== undefined && f.assigneeId !== filter.assigneeId) continue;
-    if (want === "open" && f.cancelled) continue;
-    if (want === "cancelled" && !f.cancelled) continue;
+    const money = await moneyFor(env, f.id);
+    const done = doneOf(f, money);
+    const status = f.cancelled ? "cancelled" : done ? "done" : "open";
+    if (want !== "any" && want !== status) continue;
     if ((filter.from !== undefined || filter.to !== undefined) && f.scheduledOn === null) continue;
     if (filter.from !== undefined && f.scheduledOn !== null && f.scheduledOn < filter.from) continue;
     if (filter.to !== undefined && f.scheduledOn !== null && f.scheduledOn > filter.to) continue;
-    out.push({ id: f.id, partyId: f.partyId, partyName: profiles.get(f.partyId) ?? `Customer #${f.partyId}`, description: f.description, siteAddress: f.siteAddress, reference: f.reference, scheduledOn: f.scheduledOn, assigneeId: f.assigneeId, assigneeName: f.assigneeId === null ? null : profiles.get(f.assigneeId) ?? `Person #${f.assigneeId}`, status: f.cancelled ? "cancelled" : "open", cancelledReason: f.reason, overdue: !f.cancelled && f.scheduledOn !== null && f.scheduledOn < today, money: await moneyFor(env, f.id) });
+    out.push({ id: f.id, partyId: f.partyId, partyName: profiles.get(f.partyId) ?? `Customer #${f.partyId}`, description: f.description, siteAddress: f.siteAddress, reference: f.reference, scheduledOn: f.scheduledOn, assigneeId: f.assigneeId, assigneeName: f.assigneeId === null ? null : profiles.get(f.assigneeId) ?? `Person #${f.assigneeId}`, status, cancelledReason: f.reason, overdue: status === "open" && f.scheduledOn !== null && f.scheduledOn < today, money, snags: f.snags, openSnags: f.snags.filter((s) => s.open).length, markedDone: f.completed });
   }
   return out.sort((a, b) => (a.scheduledOn === null ? 1 : 0) - (b.scheduledOn === null ? 1 : 0) || (a.scheduledOn ?? "").localeCompare(b.scheduledOn ?? "") || a.id - b.id);
 }
@@ -188,6 +201,7 @@ export async function planJobCancel(env: Env, input: { jobId: number; reason: st
   const c = checkCancelInput(input); if (!c.ok) throw new EngineError("invalid_input", c.reason);
   const f = await jobOrThrow(env, c.value.jobId);
   if (f.cancelled) throw new EngineError("invalid_state", "That job is already cancelled.");
+  if (doneOf(f, await moneyFor(env, f.id))) throw new EngineError("invalid_state", "That job is done, so it cannot be cancelled.");
   if ((await moneyFor(env, f.id)).linked > 0) throw new EngineError("invalid_state", "That job has quotations, invoices or expenses tied to it, so it cannot be cancelled. Void or credit them first, or leave the job open.");
   return { jobId: f.id, reason: c.value.reason };
 }
@@ -199,6 +213,55 @@ export function checkLinkInput(v: unknown): Checked<{ jobId: number; documentId:
   if (!whole(v.jobId)) return { ok: false, reason: "jobId must be a record number" };
   if (!whole(v.documentId)) return { ok: false, reason: "documentId must be a record number" };
   return { ok: true, value: { jobId: v.jobId, documentId: v.documentId } };
+}
+
+export function checkCompleteInput(v: unknown): Checked<{ jobId: number }> {
+  if (!isObj(v)) return { ok: false, reason: "the request must be an object" };
+  const stray = Object.keys(v).find((k) => k !== "jobId");
+  if (stray) return { ok: false, reason: `${stray} is not a field of this request` };
+  if (!whole(v.jobId)) return { ok: false, reason: "jobId must be a record number" };
+  return { ok: true, value: { jobId: v.jobId } };
+}
+export function checkSnagRaiseInput(v: unknown): Checked<{ jobId: number; note: string }> {
+  if (!isObj(v)) return { ok: false, reason: "the request must be an object" };
+  const stray = Object.keys(v).find((k) => !["jobId", "note"].includes(k));
+  if (stray) return { ok: false, reason: `${stray} is not a field of this request` };
+  if (!whole(v.jobId)) return { ok: false, reason: "jobId must be a record number" };
+  const n = text(v.note, "note", 200); if (!n.ok) return n;
+  return { ok: true, value: { jobId: v.jobId, note: n.value } };
+}
+export function checkSnagCloseInput(v: unknown): Checked<{ jobId: number; snagId: number }> {
+  if (!isObj(v)) return { ok: false, reason: "the request must be an object" };
+  const stray = Object.keys(v).find((k) => !["jobId", "snagId"].includes(k));
+  if (stray) return { ok: false, reason: `${stray} is not a field of this request` };
+  if (!whole(v.jobId)) return { ok: false, reason: "jobId must be a record number" };
+  if (!whole(v.snagId)) return { ok: false, reason: "snagId must be a record number" };
+  return { ok: true, value: { jobId: v.jobId, snagId: v.snagId } };
+}
+
+// "Mark it done": refused for a cancelled job, one that already shows as done, or one with an open snag (close the snag first).
+export async function planComplete(env: Env, input: { jobId: number }): Promise<{ jobId: number }> {
+  const c = checkCompleteInput(input); if (!c.ok) throw new EngineError("invalid_input", c.reason);
+  const f = await jobOrThrow(env, c.value.jobId);
+  if (f.cancelled) throw new EngineError("invalid_state", "That job was cancelled, so it cannot be marked done.");
+  if (f.snags.some((s) => s.open)) throw new EngineError("invalid_state", "That job has an open snag. Close it first, then mark the job done.");
+  if (doneOf(f, await moneyFor(env, f.id))) throw new EngineError("invalid_state", "That job already shows as done. Nothing was changed.");
+  return { jobId: f.id };
+}
+export async function planSnagRaise(env: Env, input: { jobId: number; note: string }): Promise<{ jobId: number; note: string }> {
+  const c = checkSnagRaiseInput(input); if (!c.ok) throw new EngineError("invalid_input", c.reason);
+  const f = await jobOrThrow(env, c.value.jobId);
+  if (f.cancelled) throw new EngineError("invalid_state", "That job was cancelled, so a snag cannot be added.");
+  if (f.snags.some((s) => s.open && s.note.toLowerCase() === c.value.note.toLowerCase())) throw new EngineError("duplicate", "That snag is already open on this job. Nothing was added.");
+  return { jobId: f.id, note: c.value.note };
+}
+export async function planSnagClose(env: Env, input: { jobId: number; snagId: number }): Promise<{ jobId: number; snagId: number }> {
+  const c = checkSnagCloseInput(input); if (!c.ok) throw new EngineError("invalid_input", c.reason);
+  const f = await jobOrThrow(env, c.value.jobId);
+  const s = f.snags.find((x) => x.id === c.value.snagId);
+  if (!s) throw new EngineError("not_found", "There is no such snag on that job.");
+  if (!s.open) throw new EngineError("invalid_state", "That snag is already closed. Nothing was changed.");
+  return { jobId: f.id, snagId: s.id };
 }
 
 // Tie an existing quotation, invoice or expense to an open job. A quotation or invoice must be for the job's own customer; one document is tied to at most one job; a voided one cannot be tied.
@@ -218,7 +281,7 @@ export async function planLink(env: Env, input: { jobId: number; documentId: num
 // The integrity check: every job is for a party that exists and has the customer role as far as the fact goes (roles can change later, so only existence is a violation), and every job event names a real job.
 export async function verifyJobs(env: Env, report: (code: string, detail: string) => void): Promise<void> {
   const ids = new Set((await many<{ id: number }>(env, "SELECT id FROM eng_job")).map((r) => Number(r.id)));
-  for (const e of await many<{ id: number; type: string; payload_json: string }>(env, "SELECT id, type, payload_json FROM eng_event WHERE type IN ('job.scheduled', 'job.assigned', 'job.cancelled', 'job.linked')")) {
+  for (const e of await many<{ id: number; type: string; payload_json: string }>(env, "SELECT id, type, payload_json FROM eng_event WHERE type IN ('job.scheduled', 'job.assigned', 'job.cancelled', 'job.linked', 'job.completed', 'job.snag_raised', 'job.snag_closed')")) {
     let p: Record<string, unknown> = {}; try { const x = JSON.parse(e.payload_json); if (isObj(x)) p = x; } catch { /* reported as a malformed payload elsewhere */ }
     if (typeof p.jobId !== "number" || !ids.has(p.jobId)) report("job_inconsistent", `event ${e.id} (${e.type}) names a job that does not exist`);
   }

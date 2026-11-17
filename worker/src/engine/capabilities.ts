@@ -33,7 +33,7 @@ import { allOrders, checkReceiptLines, checkShortText, planCancel, planOrder, pl
 import { allExpenses, checkExpenseInput, EXPENSE_CATEGORIES, planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { creditAvailable, debitsOf, planCreditApplication, planDebitNote, planRefund, planVoid } from "./credits";
 import { checkCreditLines, checkReason, planCreditNote, type CreditLineInput } from "./credits";
-import { allJobs, checkAssignInput, checkCancelInput, checkJobInput, checkLinkInput, checkScheduleInput, planAssign, planJob, planJobCancel, planLink, planSchedule, type JobInput } from "./jobs";
+import { allJobs, checkAssignInput, checkCancelInput, checkCompleteInput, checkJobInput, checkLinkInput, checkScheduleInput, checkSnagCloseInput, checkSnagRaiseInput, planAssign, planComplete, planJob, planSnagClose, planSnagRaise, planJobCancel, planLink, planSchedule, type JobInput } from "./jobs";
 import { allProfiles, applyRevision, checkContact, checkName, checkRoles, holderOfName, partyProfile, PARTY_ROLES, sameName } from "./parties";
 
 type Checked<T> = { ok: true; value: T } | { ok: false; reason: string };
@@ -1435,6 +1435,24 @@ export const jobCancel: CapabilityContract<{ jobId: number; reason: string }> = 
   async execute(env, v, c) { const r = await facts.cancelJob(env, v, ctxOf(c, "job.cancel")); return { eventId: r.eventId }; },
 };
 
+export const jobComplete: CapabilityContract<{ jobId: number }> = {
+  id: "job.complete", heldType: "engine.job.complete", label: "Marking a job done", requires: [], permissions: ["job.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkCompleteInput(payload); },
+  async check(env, value) { await planComplete(env, value); },
+  async execute(env, v, c) { const r = await facts.completeJob(env, v, ctxOf(c, "job.complete")); return { eventId: r.eventId }; },
+};
+export const jobSnagRaise: CapabilityContract<{ jobId: number; note: string }> = {
+  id: "job.snag_raise", heldType: "engine.job.snag_raise", label: "Noting a snag", requires: [], permissions: ["job.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkSnagRaiseInput(payload); },
+  async check(env, value) { await planSnagRaise(env, value); },
+  async execute(env, v, c) { const r = await facts.raiseSnag(env, v, ctxOf(c, "job.snag_raise")); return { snagId: r.snagId, eventId: r.eventId }; },
+};
+export const jobSnagClose: CapabilityContract<{ jobId: number; snagId: number }> = {
+  id: "job.snag_close", heldType: "engine.job.snag_close", label: "Closing a snag", requires: [], permissions: ["job.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkSnagCloseInput(payload); },
+  async check(env, value) { await planSnagClose(env, value); },
+  async execute(env, v, c) { const r = await facts.closeSnag(env, v, ctxOf(c, "job.snag_close")); return { eventId: r.eventId }; },
+};
 export const jobLink: CapabilityContract<{ jobId: number; documentId: number }> = {
   id: "job.link", heldType: "engine.job.link", label: "Tying money to a job", requires: [], permissions: ["job.manage"], version: 1, recordsExecution: true,
   validate(payload) { return checkLinkInput(payload); },
@@ -1444,16 +1462,16 @@ export const jobLink: CapabilityContract<{ jobId: number; documentId: number }> 
 
 // The business's own date (the Worker's clock is UTC, the business runs on SAST, UTC+2 with no daylight saving), read as UTC so the shift is applied once.
 const businessToday = () => new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString().slice(0, 10);
-export const jobsFind: ReadCapability<{ partyId?: number; assigneeId?: number; status?: "open" | "cancelled" | "any"; from?: string; to?: string; asOf?: string }> = {
+export const jobsFind: ReadCapability<{ partyId?: number; assigneeId?: number; status?: "open" | "done" | "cancelled" | "any"; from?: string; to?: string; asOf?: string }> = {
   id: "jobs.find", label: "Finding jobs", permissions: ["job.read"],
   validate(params) {
     if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
     const s = stray(params, ["partyId", "assigneeId", "status", "from", "to", "asOf"]);
     if (s) return { ok: false, reason: `${s} is not a field of this request` };
-    const out: { partyId?: number; assigneeId?: number; status?: "open" | "cancelled" | "any"; from?: string; to?: string; asOf?: string } = {};
+    const out: { partyId?: number; assigneeId?: number; status?: "open" | "done" | "cancelled" | "any"; from?: string; to?: string; asOf?: string } = {};
     if (params.partyId !== undefined) { if (!whole(params.partyId)) return { ok: false, reason: "partyId must be a record number" }; out.partyId = params.partyId; }
     if (params.assigneeId !== undefined) { if (!whole(params.assigneeId)) return { ok: false, reason: "assigneeId must be a record number" }; out.assigneeId = params.assigneeId; }
-    if (params.status !== undefined) { if (typeof params.status !== "string" || !["open", "cancelled", "any"].includes(params.status)) return { ok: false, reason: "status must be open, cancelled or any" }; out.status = params.status as "open" | "cancelled" | "any"; }
+    if (params.status !== undefined) { if (typeof params.status !== "string" || !["open", "done", "cancelled", "any"].includes(params.status)) return { ok: false, reason: "status must be open, done, cancelled or any" }; out.status = params.status as "open" | "done" | "cancelled" | "any"; }
     if (params.from !== undefined) { const d = checkDate(params.from, "from"); if (!d.ok) return d; out.from = d.value; }
     if (params.to !== undefined) { const d = checkDate(params.to, "to"); if (!d.ok) return d; out.to = d.value; }
     if (out.from !== undefined && out.to !== undefined && out.to < out.from) return { ok: false, reason: "to cannot be before from" };
@@ -1476,5 +1494,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([jobCreate, jobSchedule, jobAssign, jobCancel, jobLink, paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, bankAccountAdd, bankTransfer, yearEndSet, yearClose, yearReopen, bankStatementImport, bankMatchConfirm, bankMatchUndo, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([jobCreate, jobSchedule, jobAssign, jobCancel, jobLink, jobComplete, jobSnagRaise, jobSnagClose, paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, bankAccountAdd, bankTransfer, yearEndSet, yearClose, yearReopen, bankStatementImport, bankMatchConfirm, bankMatchUndo, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];
