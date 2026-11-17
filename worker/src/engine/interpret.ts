@@ -31,6 +31,7 @@ const saysMethod = (text: string, method: string): boolean => SUPPLIER_PAY_WORDS
 interface Entry { id: string; describes: string; arguments: Record<string, string>; permissions: readonly EnginePermission[]; readingOnly?: true }   // readingOnly: offered ONLY for words read from a picture the person said is that kind of document, never for a typed or spoken sentence
 
 const JOB_DAY_WORDS = ["today", "tomorrow", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+const JOB_DATE_TALK = /\b\d{4}-\d{1,2}-\d{1,2}\b|\b\d{1,2}[\/.]\d{1,2}(?:[\/.]\d{2,4})?\b|\b\d{1,2}(?:st|nd|rd|th)\b|\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b|\bmay\s+\d|\d\s+may\b|\bnext\s+(?:week|month|year)\b/i;
 const JOB_PERIODS = ["this_week", "next_week", "overdue"] as const;
 /** A day WORD becomes a date: today, tomorrow, or the NEXT such weekday after today (a sentence on a Friday that says Friday means next Friday). Worked out here from the business date, never by the model. */
 function jobDay(word: string, today: string): string | null {
@@ -363,6 +364,8 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
   }
   if (chosen.id === "job.create") {
     if (!isName(args.customer) || !isName(args.description) || (args.description as string).trim().length > 200 || (args.site !== undefined && (!isName(args.site) || (args.site as string).trim().length > 200))) return notUnderstood(env, member, text);
+    // a date the person said that the model did not turn into a day word must not be dropped quietly (a job would be held with no date): not understood, so the person says a weekday, today or tomorrow (real model run 44120067321, S3)
+    if (args.when === undefined && JOB_DATE_TALK.test(text)) return notUnderstood(env, member, text);
     let date: string | undefined;
     if (args.when !== undefined) {
       const w = typeof args.when === "string" ? args.when.trim().toLowerCase() : "";

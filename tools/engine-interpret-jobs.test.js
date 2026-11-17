@@ -18,6 +18,13 @@ module.exports = kit.guard('engine interpret (jobs)', async ({ check }) => {
     say(/New job for Mokoena by id/, JSON.stringify({ capability: 'job.create', arguments: { customer: 'Mokoena', description: 'Floor', partyId: 1 } })),
     say(/New job for Mokoena on the thirty-first/, call('job.create', { customer: 'Mokoena', description: 'Floor', when: '2026-12-31' })),
     { match: /New job for Mokoena on the same weekday/, reply: () => call('job.create', { customer: 'Mokoena', description: 'Weekly', when: WEEKDAY[0] }) },
+    // the real model's reply to the date sentence (run 44120067321): it dropped the date and kept the rest
+    say(/New job for Mokoena on 2027-03-01, floor/, call('job.create', { customer: 'Mokoena', description: 'floor' })),
+    say(/New job for Mokoena on 3 March, floor/, call('job.create', { customer: 'Mokoena', description: 'floor' })),
+    say(/New job for Mokoena on the 5th, floor/, call('job.create', { customer: 'Mokoena', description: 'floor' })),
+    say(/New job for Mokoena on 12\/03, floor/, call('job.create', { customer: 'Mokoena', description: 'floor' })),
+    say(/New job for Mokoena next week, floor/, call('job.create', { customer: 'Mokoena', description: 'floor' })),
+    say(/New job for Mokoena at 12 Palm Road, floor/, call('job.create', { customer: 'Mokoena', description: 'Floor', site: '12 Palm Road' })),
     say(/What is on this week\?/, call('jobs.find', { period: 'this_week' })),
     say(/What is on next week\?/, call('jobs.find', { period: 'next_week' })),
     say(/What is overdue\?/, call('jobs.find', { period: 'overdue' })),
@@ -58,6 +65,8 @@ module.exports = kit.guard('engine interpret (jobs)', async ({ check }) => {
   check(p && p.scheduledOn === plus(1), 'tomorrow is worked out from today');
   p = await pendingOf('New job for Mokoena, patio at 5 Palm Road');
   check(p && p.siteAddress === '5 Palm Road' && p.scheduledOn === undefined, 'a site is kept, and no day means no date');
+  for (const t of ['New job for Mokoena on 2027-03-01, floor', 'New job for Mokoena on 3 March, floor', 'New job for Mokoena on the 5th, floor', 'New job for Mokoena on 12/03, floor', 'New job for Mokoena next week, floor']) check(NOT(await interpret(t)), `a date the model dropped is not held without it: "${t}"`);
+  check(status(await interpret('New job for Mokoena at 12 Palm Road, floor')) === 200, 'a street number is not mistaken for a date');
   check(NOT(await interpret('New job for Mokoena, bath, sometime')), 'a day word the sentence never says is not understood (a model never invents a day)');
   check(NOT(await interpret('New job for Mokoena on the thirty-first')), 'a date from the model is not accepted, only a day word');
   check(NOT(await interpret('New job for Mokoena with a date')) && NOT(await interpret('New job for Mokoena by id')), 'a date or an id supplied as an argument is not understood');
