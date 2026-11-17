@@ -1,18 +1,24 @@
 {
- "commit": "966bd18",
- "when": "2026-11-17T14:07:16.897360+00:00",
+ "commit": "4e02f11",
+ "when": "2026-11-17T18:00:08.989496+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
- "tests": "success",
- "failing_lines": [],
+ "tests": "failure",
+ "failing_lines": [
+  "::group::\u274c /home/runner/work/the-office/the-office/app/test/engine_live_home_test.dart: the More list opens the quotations (failed)",
+  "Expected: exactly one matching candidate",
+  "Actual: _KeyWidgetFinder:<Found 0 widgets with key [<'quotes-refresh'>]: []>",
+  "Which: means none were found but one was expected",
+  "::group::\u274c /home/runner/work/the-office/the-office/app/test/engine_live_home_test.dart: the More list opens the customers and suppliers (failed)"
+ ],
  "test_tail": [
   "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: the gate shows the app normally, replaces it when access ends, and \"Sign in\" brings it back",
   "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: anything open on top (a dialog, a pushed page) is closed when access ends",
   "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: the screen is announced to a screen reader (live region) and has no way to continue except signing in",
   "::endgroup::",
   "",
-  "\ud83c\udf89 432 tests passed."
+  "::error::436 tests passed, 2 failed."
  ],
- "build": "success"
+ "build": "skipped"
 }
