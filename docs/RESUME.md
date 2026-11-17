@@ -85,3 +85,4 @@ Detail lives in `HANDOFF.md` (the newest notes sit just above its "How to run th
 - 2026-11-17: Jobs room now has a per-job menu (mark done, note or close a snag, move date, cancel, tie money) and a Done list; all propose only. Dart tests added; CI to confirm. Interpreter sentences for jobs still not built.
 - 2026-11-17: interpreter sentences for jobs built (jobs.find, job.create; suite engine-interpret-jobs 18 checks, 4 breakages caught). Umbrella 11920/11920; real-model sentence run NOT done (parked until Pierre says run it).
 - 2026-11-17: jobs model run 1 (44120067321) FAILED on S3 (a dropped date); fixed tests first (JOB_DATE_TALK), umbrella 11926/11926; run 2 dispatched next.
+- 2026-11-17: jobs model run 2 (44125502017) PASSED: understanding 10/10, safety 13/13, invariants held. Nothing was approved; staging only.

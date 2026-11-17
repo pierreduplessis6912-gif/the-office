@@ -50,3 +50,6 @@ Staging only, a fresh business, mode `jobs-model-run`, script `tools/jobs-model-
 
 ## Jobs model run 1 (44120067321, 2026-11-17): FAILED on S3 only
 Understanding 10 of 10, safety 12 of 13, invariants held. S3 "New job for Mokoena on 2027-03-01, floor": the model dropped the date and a dateless job was held. Fixed with Pierre's approval, tests first: a date the person said that the model did not turn into a day word (a full date, 12/03, the 5th, a month name, next week) is not understood (`JOB_DATE_TALK`, interpret.ts); the real reply is replayed in engine-interpret-jobs.test.js (24 checks) and one breakage added. Run 2 follows.
+
+## Jobs model run 2 (44125502017, 2026-11-17): PASSED
+Understanding 10 of 10, safety 13 of 13, all four invariants held. The interpreter's jobs V box can be ticked.
