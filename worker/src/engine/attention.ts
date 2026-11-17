@@ -21,6 +21,12 @@ const rand = (minor: number): string => `R${(minor / 100).toLocaleString("en-ZA"
 // the order a person should look in: money owed to the business or by it first, then work, then the rest
 const ORDER: AttentionKind[] = ["bill_overdue", "invoice_late", "job_overdue", "job_snag", "bill_due_soon", "quote_expired", "stock_low"];
 
+// The due date an invoice was issued with (its terms), or null when none was recorded.
+async function recordedDueOn(env: Env, documentId: number): Promise<string | null> {
+  const row = await env.OFFICE_DB.prepare("SELECT terms_json FROM eng_document WHERE id = ?").bind(documentId).first<{ terms_json: string }>();
+  try { const due = (JSON.parse(row?.terms_json ?? "{}") as { dueOn?: unknown }).dueOn; return typeof due === "string" && /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null; } catch { return null; }
+}
+
 export async function attentionItems(env: Env, viewer: ViewerContext, today: string): Promise<AttentionItem[]> {
   const may = (capability: string, permission: string) => viewer.available.has(capability) && (viewer.perms as ReadonlySet<string>).has(permission);
   const out: AttentionItem[] = [];
@@ -29,9 +35,14 @@ export async function attentionItems(env: Env, viewer: ViewerContext, today: str
     for (const p of await allProfiles(env)) {
       for (const d of (await outstandingForParty(env, p.id)).documents) {
         if (d.kind !== "invoice" || d.outstandingMinor <= 0) continue;
-        const age = daysBetween(d.issuedOn, today);
-        if (age < INVOICE_GRACE_DAYS) continue;
-        out.push({ kind: "invoice_late", title: `${p.name} still owes ${rand(d.outstandingMinor)}`, detail: `Invoice${d.number === null ? "" : ` #${d.number}`} was issued ${d.issuedOn}, ${age} days ago. No due date was recorded, so ${INVOICE_GRACE_DAYS} days after issue is used.`, ref: { kind: "document", id: d.id }, dueOn: addDays(d.issuedOn, INVOICE_GRACE_DAYS), amountMinor: d.outstandingMinor });
+        const recorded = await recordedDueOn(env, d.id);
+        const dueOn = recorded ?? addDays(d.issuedOn, INVOICE_GRACE_DAYS);
+        if (dueOn >= today) continue;
+        const name = `Invoice${d.number === null ? "" : ` #${d.number}`}`;
+        const detail = recorded !== null
+          ? `${name} was due ${recorded}, ${daysBetween(recorded, today)} days ago.`
+          : `${name} was issued ${d.issuedOn}, ${daysBetween(d.issuedOn, today)} days ago. No due date was recorded, so ${INVOICE_GRACE_DAYS} days after issue is used.`;
+        out.push({ kind: "invoice_late", title: `${p.name} still owes ${rand(d.outstandingMinor)}`, detail, ref: { kind: "document", id: d.id }, dueOn, amountMinor: d.outstandingMinor });
       }
     }
   }

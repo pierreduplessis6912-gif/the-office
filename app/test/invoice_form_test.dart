@@ -115,6 +115,31 @@ void main() {
     expect(find.byKey(const Key('invoice-form-sent')), findsOneWidget);
   });
 
+  testWidgets('an optional due date is sent in the terms; a date that is not real or is before the invoice date is not sent', (tester) async {
+    final api = _IApi(fixtures, _held);
+    await _open(tester, api);
+    await tester.tap(find.byKey(const Key('invoice-form-customer')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mokoena').last);
+    await tester.pumpAndSettle();
+    await _fill(tester, 0);
+    await tester.ensureVisible(find.byKey(const Key('invoice-form-due')));
+    await tester.enterText(find.byKey(const Key('invoice-form-due')), '2026-02-30');
+    await _send(tester);
+    await tester.ensureVisible(find.byKey(const Key('invoice-form-problem')));
+    expect(find.byKey(const Key('invoice-form-problem')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('invoice-form-due')));
+    await tester.enterText(find.byKey(const Key('invoice-form-due')), '2026-11-01');
+    await _send(tester);
+    expect(find.byKey(const Key('invoice-form-problem')), findsOneWidget);
+    expect(api.drafted, isEmpty, reason: 'nothing was opened or saved for a bad due date');
+    await tester.ensureVisible(find.byKey(const Key('invoice-form-due')));
+    await tester.enterText(find.byKey(const Key('invoice-form-due')), '2026-12-15');
+    await _send(tester);
+    final save = api.drafted.last;
+    expect((save['payload'] as Map)['terms'], <String, Object?>{'dueOn': '2026-12-15'});
+  });
+
   testWidgets('lines can be added and removed; a line without VAT sends rate 0 and a blank unit sends null', (tester) async {
     final api = _IApi(fixtures, _held);
     await _open(tester, api);

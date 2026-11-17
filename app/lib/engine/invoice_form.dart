@@ -22,6 +22,7 @@ class _InvoiceFormState extends State<InvoiceForm> {
   final _lines = LineEditorController();
   final _reference = TextEditingController();
   late final TextEditingController _date;
+  final _due = TextEditingController();
   List<PartyEntry> _customers = <PartyEntry>[];
   bool _loading = true;
   bool _failed = false;
@@ -44,6 +45,7 @@ class _InvoiceFormState extends State<InvoiceForm> {
     _lines.dispose();
     _reference.dispose();
     _date.dispose();
+    _due.dispose();
     super.dispose();
   }
 
@@ -73,10 +75,17 @@ class _InvoiceFormState extends State<InvoiceForm> {
     final lines = _lines.read((p) => bad = p);
     if (lines == null) return setState(() => _problem = bad);
     final ref = _reference.text.trim();
+    final due = _due.text.trim();
+    if (due.isNotEmpty) {
+      final parsed = DateTime.tryParse(due);
+      if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(due) || parsed == null || parsed.toIso8601String().substring(0, 10) != due) return setState(() => _problem = 'The due date must be a real date, like 2026-12-15.');
+      if (due.compareTo(_date.text.trim()) < 0) return setState(() => _problem = 'The due date is before the invoice date.');
+    }
     final contents = <String, Object?>{
       'currency': 'ZAR',
       'issuedOn': _date.text.trim(),
       if (ref.isNotEmpty) 'reference': ref,
+      if (due.isNotEmpty) 'terms': <String, Object?>{'dueOn': due},
       'lines': lines,
     };
     setState(() {
@@ -165,6 +174,7 @@ class _InvoiceFormState extends State<InvoiceForm> {
           onChanged: (id) => setState(() => _customer = id == null ? null : _customers.firstWhere((c) => c.id == id)),
         ),
         TextField(key: const Key('invoice-form-date'), controller: _date, decoration: const InputDecoration(labelText: 'Date (YYYY-MM-DD)')),
+        TextField(key: const Key('invoice-form-due'), controller: _due, decoration: const InputDecoration(labelText: 'Due date (optional, YYYY-MM-DD)')),
         TextField(key: const Key('invoice-form-reference'), controller: _reference, decoration: const InputDecoration(labelText: 'Reference (optional)')),
         const SizedBox(height: 8),
         LineEditor(controller: _lines, keyPrefix: 'invoice-form'),

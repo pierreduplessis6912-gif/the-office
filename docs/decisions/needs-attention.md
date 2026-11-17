@@ -26,3 +26,6 @@ Inside a kind: earliest date first, then the larger amount.
 
 ## Not in this slice
 Dismissing or snoozing an item, notifications, credit notes netted off invoices, a per-business threshold for the 30 days.
+
+## Invoice due dates (added 2026-11-17, no schema change)
+A customer invoice may now carry a due date. A draft's `terms.dueOn` is checked on every save (a real date, not before the issue date; `terms` must be an object) and is kept on the issued document's terms, the same place a bill keeps its own. "Needs attention" uses that date when there is one (item says "was due <date>"); only an invoice with none falls back to 30 days after issue and says so. The app's invoice form has an optional due-date field. Not done: payment terms ("net 30") as a customer default, showing the due date in the Invoices room, changing a due date after issue.

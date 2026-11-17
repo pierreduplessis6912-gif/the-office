@@ -26,6 +26,17 @@ export function validateDraft(partyId: number | null, payload: DraftPayload): Dr
   if (partyId === null) errors.push({ field: "partyId", message: "choose the customer or supplier" });
   if (typeof payload.currency !== "string" || !/^[A-Z]{3}$/.test(payload.currency)) errors.push({ field: "currency", message: "a 3-letter currency such as ZAR is needed" });
   if (!isDate(payload.issuedOn)) errors.push({ field: "issuedOn", message: "an issue date is needed" });
+  // an optional due date lives in the terms: a real date, not before the issue date (a bill's own due date is checked where bills are recorded)
+  if (payload.terms !== undefined) {
+    if (payload.terms === null || typeof payload.terms !== "object" || Array.isArray(payload.terms)) errors.push({ field: "terms", message: "terms must be an object, or left out" });
+    else {
+      const due = (payload.terms as Record<string, unknown>).dueOn;
+      if (due !== undefined) {
+        if (!isDate(due)) errors.push({ field: "terms.dueOn", message: "the due date must be a real date" });
+        else if (isDate(payload.issuedOn) && (due as string) < (payload.issuedOn as string)) errors.push({ field: "terms.dueOn", message: "the due date is before the issue date" });
+      }
+    }
+  }
   const raw = Array.isArray(payload.lines) ? (payload.lines as DraftLine[]) : [];
   if (raw.length === 0) errors.push({ field: "lines", message: "add at least one line" });
   const sound: Array<{ quantityMilli: number; unitPriceMinor: number; taxBp: number }> = [];
