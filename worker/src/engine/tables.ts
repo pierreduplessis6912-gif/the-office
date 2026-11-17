@@ -5,6 +5,7 @@ export const FACT_TABLES = [
   "eng_event", "eng_party", "eng_party_role", "eng_document", "eng_document_line", "eng_document_number",
   "eng_money_movement", "eng_allocation", "eng_reversal", "eng_interpretation",
   "eng_item", "eng_location", "eng_stock_move",   // 0005_engine_stock.sql (stock: items, locations and the movement ledger)
+  "eng_job",   // 0010_engine_jobs.sql (jobs: who the work is for; everything that changes is a later event)
   "eng_bank_statement", "eng_bank_line", "eng_bank_match", "eng_bank_account",   // 0007_engine_bank.sql (bank statements as the bank says them; they never change the books by themselves)
   "eng_account", "eng_account_role", "eng_journal_entry", "eng_journal_line",   // 0006_engine_ledger.sql (the general ledger: accounts, role mapping, entries and their lines)
 ] as const;

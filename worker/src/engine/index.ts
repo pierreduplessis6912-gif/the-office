@@ -33,4 +33,5 @@ import * as ledgerReports from "./ledger-reports";
 import * as bank from "./bank";
 import * as periods from "./periods";
 import * as bankAccountsModule from "./bank-accounts";
-export { boundary, permissions, drafts, records, operations, capabilities, parties, quotations, credits, business, config, expenses, purchasing, bills, stock, journal, ledgerReports, bank, periods, bankAccountsModule as bankAccounts };
+import * as jobsModule from "./jobs";
+export { boundary, permissions, drafts, records, operations, capabilities, parties, quotations, credits, business, config, expenses, purchasing, bills, stock, journal, ledgerReports, bank, periods, bankAccountsModule as bankAccounts, jobsModule as jobs };

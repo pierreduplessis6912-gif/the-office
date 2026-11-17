@@ -24,7 +24,7 @@ module.exports = kit.guard('engine admin', async ({ check }) => {
 
   // ---- status ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const fresh = await call(w0.env, 'GET', '/admin/engine/status');
-  check(fresh.status === 200 && fresh.body.mode === 'legacy' && fresh.body.rows === 0 && fresh.body.integrity.ok === true && Object.keys(fresh.body.tables).length === 24 && Object.keys(fresh.body.hashes).length === 24, 'a business that never used the engine reports: legacy mode, no rows, 24 empty engine tables each with a hash, integrity clean');
+  check(fresh.status === 200 && fresh.body.mode === 'legacy' && fresh.body.rows === 0 && fresh.body.integrity.ok === true && Object.keys(fresh.body.tables).length === 25 && Object.keys(fresh.body.hashes).length === 25, 'a business that never used the engine reports: legacy mode, no rows, 25 empty engine tables each with a hash, integrity clean');
   const twice = await call(w0.env, 'GET', '/admin/engine/status');
   check(JSON.stringify(twice.body) === JSON.stringify(fresh.body), 'the status of an unchanged business is identical every time (a hash that moved on its own would be useless)');
 

@@ -33,6 +33,7 @@ import { allOrders, checkReceiptLines, checkShortText, planCancel, planOrder, pl
 import { allExpenses, checkExpenseInput, EXPENSE_CATEGORIES, planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { creditAvailable, debitsOf, planCreditApplication, planDebitNote, planRefund, planVoid } from "./credits";
 import { checkCreditLines, checkReason, planCreditNote, type CreditLineInput } from "./credits";
+import { allJobs, checkAssignInput, checkCancelInput, checkJobInput, checkScheduleInput, planAssign, planJob, planJobCancel, planSchedule, type JobInput } from "./jobs";
 import { allProfiles, applyRevision, checkContact, checkName, checkRoles, holderOfName, partyProfile, PARTY_ROLES, sameName } from "./parties";
 
 type Checked<T> = { ok: true; value: T } | { ok: false; reason: string };
@@ -1408,7 +1409,59 @@ export const ledgerCashFlow = bookRead<{ from: string; to: string }>("ledger.cas
   return { ok: true, value: { from: f.value as string, to: t.value as string } };
 }, (env, v) => reports.cashFlow(env, v.from, v.to));
 export const ledgerBankSuggestions = bookRead<{ bankAccountId?: number }>("ledger.bank_suggestions", "Suggested bank matches", ["bankAccountId"], (p) => { if (p.bankAccountId !== undefined && !whole(p.bankAccountId)) return { ok: false, reason: "bankAccountId must be a record number" }; return { ok: true, value: p.bankAccountId !== undefined ? { bankAccountId: p.bankAccountId as number } : {} }; }, (env, v) => suggestMatches(env, v.bankAccountId));
-export const READS: readonly ReadCapability<any>[] = [ledgerBankAccounts, invoicesFind, ledgerCashFlowIndirect, ledgerYears, ledgerBankReconciliation, ledgerCashFlow, ledgerBankSuggestions, ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
+// ---- jobs (jobs.ts, docs/decisions/jobs-and-scheduling.md) --------------------------------------------------------------------------------------------------------------------------------------------------
+export const jobCreate: CapabilityContract<JobInput> = {
+  id: "job.create", heldType: "engine.job.create", label: "Making a job", requires: [], permissions: ["job.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkJobInput(payload); },
+  async check(env, value) { await planJob(env, value); },
+  async execute(env, v, c) { const r = await facts.createJob(env, v, ctxOf(c, "job.create")); return { jobId: r.jobId, eventId: r.eventId }; },
+};
+export const jobSchedule: CapabilityContract<{ jobId: number; scheduledOn: string | null }> = {
+  id: "job.schedule", heldType: "engine.job.schedule", label: "Scheduling a job", requires: [], permissions: ["job.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkScheduleInput(payload); },
+  async check(env, value) { await planSchedule(env, value); },
+  async execute(env, v, c) { const r = await facts.scheduleJob(env, v, ctxOf(c, "job.schedule")); return { eventId: r.eventId }; },
+};
+export const jobAssign: CapabilityContract<{ jobId: number; assigneeId: number | null }> = {
+  id: "job.assign", heldType: "engine.job.assign", label: "Putting someone on a job", requires: [], permissions: ["job.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkAssignInput(payload); },
+  async check(env, value) { await planAssign(env, value); },
+  async execute(env, v, c) { const r = await facts.assignJob(env, v, ctxOf(c, "job.assign")); return { eventId: r.eventId }; },
+};
+export const jobCancel: CapabilityContract<{ jobId: number; reason: string }> = {
+  id: "job.cancel", heldType: "engine.job.cancel", label: "Cancelling a job", requires: [], permissions: ["job.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkCancelInput(payload); },
+  async check(env, value) { await planJobCancel(env, value); },
+  async execute(env, v, c) { const r = await facts.cancelJob(env, v, ctxOf(c, "job.cancel")); return { eventId: r.eventId }; },
+};
+
+// The business's own date (the Worker's clock is UTC, the business runs on SAST, UTC+2 with no daylight saving), read as UTC so the shift is applied once.
+const businessToday = () => new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString().slice(0, 10);
+export const jobsFind: ReadCapability<{ partyId?: number; assigneeId?: number; status?: "open" | "cancelled" | "any"; from?: string; to?: string; asOf?: string }> = {
+  id: "jobs.find", label: "Finding jobs", permissions: ["job.read"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["partyId", "assigneeId", "status", "from", "to", "asOf"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const out: { partyId?: number; assigneeId?: number; status?: "open" | "cancelled" | "any"; from?: string; to?: string; asOf?: string } = {};
+    if (params.partyId !== undefined) { if (!whole(params.partyId)) return { ok: false, reason: "partyId must be a record number" }; out.partyId = params.partyId; }
+    if (params.assigneeId !== undefined) { if (!whole(params.assigneeId)) return { ok: false, reason: "assigneeId must be a record number" }; out.assigneeId = params.assigneeId; }
+    if (params.status !== undefined) { if (typeof params.status !== "string" || !["open", "cancelled", "any"].includes(params.status)) return { ok: false, reason: "status must be open, cancelled or any" }; out.status = params.status as "open" | "cancelled" | "any"; }
+    if (params.from !== undefined) { const d = checkDate(params.from, "from"); if (!d.ok) return d; out.from = d.value; }
+    if (params.to !== undefined) { const d = checkDate(params.to, "to"); if (!d.ok) return d; out.to = d.value; }
+    if (out.from !== undefined && out.to !== undefined && out.to < out.from) return { ok: false, reason: "to cannot be before from" };
+    if (params.asOf !== undefined) { const d = checkDate(params.asOf, "asOf"); if (!d.ok) return d; out.asOf = d.value; }
+    return { ok: true, value: out };
+  },
+  async run(env, _viewer, value) {
+    const { asOf, ...filter } = value;
+    const today = asOf ?? businessToday();
+    const all = await allJobs(env, filter, today);
+    return { jobs: all.slice(0, 100), count: all.length, truncated: all.length > 100, today, overdueCount: all.filter((j) => j.overdue).length, derivedBy: "jobs.allJobs" };
+  },
+};
+
+export const READS: readonly ReadCapability<any>[] = [jobsFind, ledgerBankAccounts, invoicesFind, ledgerCashFlowIndirect, ledgerYears, ledgerBankReconciliation, ledgerCashFlow, ledgerBankSuggestions, ledgerTrialBalance, ledgerAccount, ledgerProfitAndLoss, ledgerBalanceSheet, ledgerSuspense, ledgerReconciliation, receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind, purchaseOrdersFind, supplierInvoicesFind, itemsFind, stockOnHand, stockLedgerRead, stockReservationsFind, stockReorderRead, goodsUnbilledRead, pricesFind, stockFulfilmentRead, salesMarginRead, stockWriteDownsRead, stockValuationRead, stockRollforwardRead];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
@@ -1416,5 +1469,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, bankAccountAdd, bankTransfer, yearEndSet, yearClose, yearReopen, bankStatementImport, bankMatchConfirm, bankMatchUndo, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([jobCreate, jobSchedule, jobAssign, jobCancel, paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, booksLockSet, journalPost, journalReverse, bankAccountAdd, bankTransfer, yearEndSet, yearClose, yearReopen, bankStatementImport, bankMatchConfirm, bankMatchUndo, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid, purchaseOrderCreate, goodsReceive, purchaseOrderCancel, supplierInvoiceRecord, supplierInvoiceVoid, supplierPaymentRecord, itemCreate, itemRevise, locationCreate, stockReceive, stockIssue, stockTransfer, stockAdjust, stockReverse, stockReserve, stockRelease, stockCount, stockReceiveDelivery, itemPrice, stockReturn, stockWriteDown] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

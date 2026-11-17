@@ -25,6 +25,7 @@ import { checkDate } from "./quotations";
 import { closedYears, yearEndMonth } from "./periods";
 import { planClose, planReopen, type CloseInput, type ReopenInput } from "./year-close";
 import { checkedBankAccount, planAdd } from "./bank-accounts";
+import { planAssign, planJob, planJobCancel, planSchedule, type JobInput } from "./jobs";
 import { planMatches, planStatement, planUnmatch, type MatchInput, type StatementInput } from "./bank";
 import { CHART_TEMPLATE, accountForRole, assertBooksOpen, booksLockDate, planJournal, planJournalReversal, type JournalInput, checkedLines, documentLines, documentPosting, grniAvailable, stockMoveLines, paymentOutLines, paymentOutPosts, planContra, purchaseLines, receiptLines, receiptPosts, refundLines, refundPosts, type PostLine } from "./journal";
 
@@ -130,6 +131,34 @@ export async function addBankAccount(env: Env, input: { name: string }, ctx: Ctx
     const acct = await one<{ id: number }>(tx, "INSERT INTO eng_account (code, name, type, event_id) VALUES (?, ?, 'asset', ?) RETURNING id", plan.code, plan.name, eventId);
     await run(tx, "INSERT INTO eng_bank_account (account_id, event_id) VALUES (?, ?)", Number(acct!.id), eventId);
     return { eventId, accountId: Number(acct!.id), code: plan.code };
+  });
+}
+
+// JOBS (jobs.ts, docs/decisions/jobs-and-scheduling.md): a job is made by one job.created event and the eng_job row it points at; the date, the person and cancelling are later events. Nothing is edited.
+export async function createJob(env: Env, input: JobInput, ctx: Ctx): Promise<{ jobId: number; eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    const v = await planJob(tx, input);
+    const eventId = await appendEvent(tx, "job.created", ctx, { partyId: v.partyId, description: v.description, ...(v.siteAddress !== undefined ? { siteAddress: v.siteAddress } : {}), ...(v.reference !== undefined ? { reference: v.reference } : {}), ...(v.scheduledOn !== undefined ? { scheduledOn: v.scheduledOn } : {}), ...(v.assigneeId !== undefined ? { assigneeId: v.assigneeId } : {}) });
+    const row = await one<{ id: number }>(tx, "INSERT INTO eng_job (party_id, event_id) VALUES (?, ?) RETURNING id", v.partyId, eventId);
+    return { jobId: Number(row!.id), eventId };
+  });
+}
+export async function scheduleJob(env: Env, input: { jobId: number; scheduledOn: string | null }, ctx: Ctx): Promise<{ eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    const p = await planSchedule(tx, input);
+    return { eventId: await appendEvent(tx, "job.scheduled", ctx, { jobId: p.jobId, scheduledOn: p.scheduledOn, previousOn: p.previousOn }) };
+  });
+}
+export async function assignJob(env: Env, input: { jobId: number; assigneeId: number | null }, ctx: Ctx): Promise<{ eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    const p = await planAssign(tx, input);
+    return { eventId: await appendEvent(tx, "job.assigned", ctx, { jobId: p.jobId, assigneeId: p.assigneeId, previousId: p.previousId }) };
+  });
+}
+export async function cancelJob(env: Env, input: { jobId: number; reason: string }, ctx: Ctx): Promise<{ eventId: number }> {
+  return inTransaction(env, async (tx) => {
+    const p = await planJobCancel(tx, input);
+    return { eventId: await appendEvent(tx, "job.cancelled", ctx, { jobId: p.jobId }, p.reason) };
   });
 }
 

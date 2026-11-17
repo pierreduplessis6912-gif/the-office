@@ -75,7 +75,7 @@ module.exports = kit.guard('engine fit', async ({ check }) => {
   check((await ledger.outstandingForDocument(w.env, si.id)) === 0, 'money out settles the supplier invoice through the SAME allocation mechanism as money in settles a customer invoice');
 
   // ---- 3. JOBS: job -> plan -> actual consumption and cost -> completion -> profitability --------------------------------------------------------------------------------------------------------------------------
-  const job = Number(db.prepare('INSERT INTO tf_work_item (kind, party_id, title, event_id) VALUES (?, ?, ?, ?) RETURNING id').get('job', customer, 'Kitchen floor', ev('job.created')).id);
+  const job = Number(db.prepare('INSERT INTO tf_work_item (kind, party_id, title, event_id) VALUES (?, ?, ?, ?) RETURNING id').get('job', customer, 'Kitchen floor', ev('work_item.created')).id);
   db.prepare('INSERT INTO tf_plan_line (work_item_id, resource_kind, quantity_milli, unit_cost_minor) VALUES (?, ?, ?, ?)').run(job, 'labour_hours', 16000, 15000);
   const attribute = (d, side, amount) => db.prepare('INSERT INTO tf_attribution (document_id, work_item_id, side, amount_minor, event_id) VALUES (?, ?, ?, ?, ?)').run(d, job, side, amount, ev('attributed'));
   attribute(inv1.id, 'revenue', inv1.totals.netMinor);   // the invoice's net amount is this job's revenue
