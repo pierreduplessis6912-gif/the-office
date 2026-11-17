@@ -48,12 +48,16 @@ class _PendingRoomState extends State<PendingRoom> {
       } else {
         for (final held in parseHeldList(response.status, response.body)) {
           final names = <int, String>{};
-          final supplier = held.payload['supplierId'] ?? held.payload['partyId'];
-          if (supplier is int) {
+          final ids = <int>{};
+          final first = held.payload['supplierId'] ?? held.payload['partyId'];
+          if (first is int) ids.add(first);
+          final who = held.payload['assigneeId'];
+          if (who is int) ids.add(who);
+          for (final id in ids) {
             try {
-              final record = await widget.api.record('party', supplier);
+              final record = await widget.api.record('party', id);
               final parsed = parseRecord(record.status, record.body);
-              if (parsed != null) names[supplier] = parsed.title;
+              if (parsed != null) names[id] = parsed.title;
             } catch (_) {
               // the number is shown instead of a name
             }

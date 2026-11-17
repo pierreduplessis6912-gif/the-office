@@ -208,6 +208,14 @@ String heldTitle(String type) {
       return 'Refund an overpayment';
     case 'engine.refund.record':
       return 'Refund credit';
+    case 'engine.job.create':
+      return 'Make a job';
+    case 'engine.job.schedule':
+      return 'Schedule a job';
+    case 'engine.job.assign':
+      return 'Put someone on a job';
+    case 'engine.job.cancel':
+      return 'Cancel a job';
     case 'engine.quotation.create':
       return 'Make a quotation';
     case 'engine.invoice.issue':
@@ -305,6 +313,33 @@ List<HeldLine> heldLines(HeldAction a, {Map<int, String> names = const <int, Str
     if (method != null) out.add(HeldLine('Paid back by', method));
     final account = _int(p['bankAccountId']);
     if (account != null) out.add(HeldLine('Bank account', 'Account #$account'));
+    return out;
+  }
+  if (a.type.startsWith('engine.job.')) {
+    final party = _int(p['partyId']);
+    if (party != null) out.add(HeldLine('Customer', names[party] ?? 'Customer #$party'));
+    final job = _int(p['jobId']);
+    if (job != null) out.add(HeldLine('Job', 'Job #$job'));
+    final what = _text(p['description']);
+    if (what != null) out.add(HeldLine('Work', what));
+    final site = _text(p['siteAddress']);
+    if (site != null) out.add(HeldLine('Site', site));
+    if (a.type == 'engine.job.schedule') {
+      out.add(HeldLine('On', _text(p['scheduledOn']) ?? 'No date (off the calendar)'));
+    } else {
+      final date = _text(p['scheduledOn']);
+      if (date != null) out.add(HeldLine('On', date));
+    }
+    if (a.type == 'engine.job.assign' && p['assigneeId'] == null) {
+      out.add(const HeldLine('Person', 'Nobody (taken off)'));
+    } else {
+      final who = _int(p['assigneeId']);
+      if (who != null) out.add(HeldLine('Person', names[who] ?? 'Person #$who'));
+    }
+    final ref = _text(p['reference']);
+    if (ref != null) out.add(HeldLine('Reference', ref));
+    final why = _text(p['reason']);
+    if (why != null) out.add(HeldLine('Reason', why));
     return out;
   }
   // any other held write: its plain fields, money formatted; nothing is invented
@@ -463,6 +498,37 @@ List<AssistantQuote>? parseQuoteList(int status, Object? body) {
     final gross = m == null ? null : _int(m['grossMinor']);
     if (m == null || id == null || gross == null) continue;
     rows.add(AssistantQuote(id: id, number: _int(m['number']), customer: _text(m['partyName']) ?? 'Customer', issuedOn: _text(m['issuedOn']) ?? '', validUntil: _text(m['validUntil']) ?? '', grossMinor: gross, status: _text(m['status']) ?? ''));
+  }
+  return rows;
+}
+
+/// One job as the engine lists it (GET /engine/jobs). `overdue` is the engine's own word (an open job dated before today); the app never works it out.
+class JobEntry {
+  final int id;
+  final int partyId;
+  final String customer;
+  final String description;
+  final String site;
+  final String reference;
+  final String scheduledOn;
+  final String assignee;
+  final bool overdue;
+  const JobEntry({required this.id, required this.partyId, required this.customer, required this.description, required this.site, required this.reference, required this.scheduledOn, required this.assignee, required this.overdue});
+}
+
+/// The jobs the engine listed, or null when the answer cannot be read. A row without a number or a description is left out; nothing is guessed.
+List<JobEntry>? parseJobList(int status, Object? body) {
+  final b = _map(body);
+  if (status != 200 || b == null || b['status'] != 'ok') return null;
+  final r = _map(b['result']);
+  if (r == null || r['jobs'] is! List) return null;
+  final rows = <JobEntry>[];
+  for (final item in _list(r['jobs'])) {
+    final m = _map(item);
+    final id = m == null ? null : _int(m['id']);
+    final what = m == null ? null : _text(m['description']);
+    if (m == null || id == null || what == null) continue;
+    rows.add(JobEntry(id: id, partyId: _int(m['partyId']) ?? 0, customer: _text(m['partyName']) ?? 'Customer', description: what, site: _text(m['siteAddress']) ?? '', reference: _text(m['reference']) ?? '', scheduledOn: _text(m['scheduledOn']) ?? '', assignee: _text(m['assigneeName']) ?? '', overdue: m['overdue'] == true));
   }
   return rows;
 }
