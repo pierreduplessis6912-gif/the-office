@@ -41,3 +41,6 @@ No new table. Four more events: `job.completed`, `job.snag_raised` (its event nu
 
 ## As built: app actions on a job (2026-11-17)
 Each open job in the Jobs room has a menu: mark done, note a snag, close a snag, move the date, cancel, tie money to it (this customer's invoices and quotations, and any expense). Every one proposes and shows the engine's own reason on a refusal. A Done chip lists done jobs. Still not built: interpreter sentences for jobs.
+
+## As built: the model's sentences (2026-11-17)
+Two entries in the interpreter catalogue: `jobs.find` ("what is on this week", "what is overdue", "what jobs does Mokoena have": period this_week, next_week or overdue, and an optional customer) and `job.create` ("new job for Mokoena, lounge floor, Friday": customer, work, optional site, optional day word). The model supplies WORDS only: the engine resolves the customer, works the date out from its own clock (a weekday means the NEXT such day; this week is Monday to Sunday; overdue is before today), and a day word is accepted only if the sentence itself says it. A new job is only PROPOSED and held. No date or id from the model is ever accepted. Not offered to the model: schedule, assign, cancel, link, done and snags (the Jobs room menu does those).

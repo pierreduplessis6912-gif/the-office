@@ -30,6 +30,26 @@ const SUPPLIER_PAY_WORDS: Record<string, RegExp> = { eft: /\b(?:eft|e\.f\.t|bank
 const saysMethod = (text: string, method: string): boolean => SUPPLIER_PAY_WORDS[method]?.test(text) === true;
 interface Entry { id: string; describes: string; arguments: Record<string, string>; permissions: readonly EnginePermission[]; readingOnly?: true }   // readingOnly: offered ONLY for words read from a picture the person said is that kind of document, never for a typed or spoken sentence
 
+const JOB_DAY_WORDS = ["today", "tomorrow", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+const JOB_PERIODS = ["this_week", "next_week", "overdue"] as const;
+/** A day WORD becomes a date: today, tomorrow, or the NEXT such weekday after today (a sentence on a Friday that says Friday means next Friday). Worked out here from the business date, never by the model. */
+function jobDay(word: string, today: string): string | null {
+  if (word === "today") return today;
+  if (word === "tomorrow") return addDays(today, 1);
+  const want = JOB_DAY_WORDS.indexOf(word as (typeof JOB_DAY_WORDS)[number]) - 2;   // monday = 0
+  if (want < 0) return null;
+  const mondayBased = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7;
+  const ahead = ((want - mondayBased + 7) % 7) || 7;
+  return addDays(today, ahead);
+}
+function jobPeriod(word: string, today: string): { from?: string; to: string } | null {
+  const monday = addDays(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7));
+  if (word === "this_week") return { from: monday, to: addDays(monday, 6) };
+  if (word === "next_week") return { from: addDays(monday, 7), to: addDays(monday, 13) };
+  if (word === "overdue") return { to: addDays(today, -1) };
+  return null;
+}
+
 function catalogue(): Entry[] {
   return [
     { id: "receivables.query", describes: "How much a customer owes the business.", arguments: { customer: "the customer's name, as the person said it" }, permissions: READS.find((r) => r.id === "receivables.query")?.permissions ?? [] },
@@ -63,6 +83,9 @@ function catalogue(): Entry[] {
     { id: "year.close", describes: "Close the last financial year (it is only proposed; the owner approves it): the profit moves into retained earnings and the books are locked to the year's end.", arguments: { year: "last_financial_year: required" }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "year.close")?.permissions ?? [] },
     { id: "ledger.bank_accounts", describes: "How much is in each bank account: the main account and any others such as savings or a card.", arguments: {}, permissions: READS.find((r) => r.id === "ledger.bank_accounts")?.permissions ?? [] },
     { id: "ledger.bank_reconciliation", describes: "Whether a bank account agrees with its latest bank statement, and what explains any difference. Optional account: the name of one of the business's bank accounts (savings, card); leave it out for the main account.", arguments: { account: "optional text: the account's name" }, permissions: READS.find((r) => r.id === "ledger.bank_reconciliation")?.permissions ?? [] },
+    // ---- jobs (docs/decisions/jobs-and-scheduling.md): a customer and the work are WORDS, a day is one of a fixed few WORDS (today, tomorrow, a weekday); the engine works the date out from today and checks the sentence says it ----
+    { id: "jobs.find", describes: "What jobs are on: this week, next week, the overdue ones, or a customer's jobs.", arguments: { customer: "the customer's name, only if the person gave one", period: "this_week, next_week or overdue, only if the person said" }, permissions: READS.find((r) => r.id === "jobs.find")?.permissions ?? [] },
+    { id: "job.create", describes: "Make a new job for a customer (it is only proposed; a person approves it).", arguments: { customer: "the customer's name, as the person said it", description: "the work, in a few words, as the person said it (lounge floor)", site: "the site address, only if the person said", when: `only if the person said a day: one of ${JOB_DAY_WORDS.join(", ")}` }, permissions: ENGINE_CONTRACTS.find((c) => c.id === "job.create")?.permissions ?? [] },
     { id: "ledger.balance_sheet", describes: "What the business owns and owes today (the balance sheet).", arguments: {}, permissions: READS.find((r) => r.id === "ledger.balance_sheet")?.permissions ?? [] },
   ];
 }
@@ -324,6 +347,35 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
     const named = await accountNamed(env, args.account);
     if (!named) return notUnderstood(env, member, text);   // an account the business does not have is never guessed
     return { kind: "read", understood, outcome: await invokeRead(env, member, "ledger.bank_reconciliation", { bankAccountId: named.id }) };
+  }
+  if (chosen.id === "jobs.find") {
+    if (!optName(args.customer) || (args.period !== undefined && (typeof args.period !== "string" || !(JOB_PERIODS as readonly string[]).includes(args.period)))) return notUnderstood(env, member, text);
+    const params: Record<string, unknown> = { asOf: today };
+    if (args.period !== undefined) Object.assign(params, jobPeriod(args.period as string, today));
+    if (args.customer !== undefined) {
+      const who = await resolveParty(env, member, (args.customer as string).trim(), "customer");
+      if (who.kind === "refused") return { kind: "refused", understood, code: who.code, message: who.message };
+      if (who.kind === "none") return { kind: "refused", understood, code: "not_found", message: `There is no customer called ${(args.customer as string).trim()}.` };
+      if (who.kind === "many") return { kind: "read", understood, outcome: who.outcome };
+      params.partyId = who.id;
+    }
+    return { kind: "read", understood, outcome: await invokeRead(env, member, "jobs.find", params) };
+  }
+  if (chosen.id === "job.create") {
+    if (!isName(args.customer) || !isName(args.description) || (args.description as string).trim().length > 200 || (args.site !== undefined && (!isName(args.site) || (args.site as string).trim().length > 200))) return notUnderstood(env, member, text);
+    let date: string | undefined;
+    if (args.when !== undefined) {
+      const w = typeof args.when === "string" ? args.when.trim().toLowerCase() : "";
+      // the sentence itself must say the day: a model never invents one
+      if (!(JOB_DAY_WORDS as readonly string[]).includes(w) || !new RegExp(`\\b${w}\\b`, "i").test(text)) return notUnderstood(env, member, text);
+      date = jobDay(w, today) ?? undefined;
+    }
+    const who = await resolveParty(env, member, (args.customer as string).trim(), "customer");
+    if (who.kind === "refused") return { kind: "refused", understood, code: who.code, message: who.message };
+    if (who.kind === "none") return { kind: "refused", understood, code: "not_found", message: `There is no customer called ${(args.customer as string).trim()}.` };
+    if (who.kind === "many") return { kind: "read", understood, outcome: who.outcome };
+    const payload = { partyId: who.id, description: (args.description as string).trim(), ...(args.site !== undefined ? { siteAddress: (args.site as string).trim() } : {}), ...(date !== undefined ? { scheduledOn: date } : {}) };
+    return heldOrRefused(await proposeCapabilityAs(env, member, { capability: "job.create", payload, transcript: text, source: "app", interpreter: "model" }));
   }
   if (chosen.id === "ledger.balance_sheet") {
     if (Object.keys(args).length > 0) return notUnderstood(env, member, text);   // it takes no arguments: the date is today, worked out here, never said by the model
