@@ -906,7 +906,7 @@ class AttentionEntry {
 }
 
 /// The attention list, or null when the answer cannot be read. `truncated` says the engine held back some items.
-({List<AttentionEntry> items, bool truncated})? parseAttention(int status, Object? body) {
+({List<AttentionEntry> items, bool truncated, int count})? parseAttention(int status, Object? body) {
   final b = _map(body);
   if (status != 200 || b == null || b['status'] != 'ok') return null;
   final r = _map(b['result']);
@@ -919,5 +919,7 @@ class AttentionEntry {
     if (m == null || kind == null || title == null) continue;
     rows.add(AttentionEntry(kind: kind, title: title, detail: _text(m['detail']) ?? '', amountMinor: _int(m['amountMinor'])));
   }
-  return (items: rows, truncated: r['truncated'] == true);
+  // the engine's own count (it may be more than the rows it sent); never less than the rows
+  final said = _int(r['count']);
+  return (items: rows, truncated: r['truncated'] == true, count: said != null && said >= rows.length ? said : rows.length);
 }

@@ -73,5 +73,7 @@ void main() {
     final ok = parseAttention(200, <String, Object?>{'status': 'ok', 'result': <String, Object?>{'items': [<String, Object?>{'kind': 'x', 'title': 'T', 'amountMinor': 5}, 'junk']}});
     expect(ok!.items.length, 1);
     expect(ok.items.first.amountMinor, 5);
+    expect(ok.count, 1, reason: 'with no count from the engine it is the rows');
+    expect(parseAttention(200, <String, Object?>{'status': 'ok', 'result': <String, Object?>{'items': <Object?>[], 'count': 80, 'truncated': true}})!.count, 80, reason: 'the engine count can be more than the rows it sent');
   });
 }

@@ -14,6 +14,7 @@ import 'books_room.dart';
 import 'bank_room.dart';
 import 'orders_room.dart';
 import 'invoices_room.dart';
+import 'assistant_model.dart' show parseAttention;
 import 'attention_room.dart';
 import 'jobs_room.dart';
 import 'quotes_room.dart';
@@ -49,6 +50,27 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
   late final EngineApi _api = (widget.apiFactory ?? _realApi)(widget.baseUrl, widget.sessionToken);
   int _tab = 0;
 
+  /// How many things the engine says need attention (0 when it cannot be read: no badge is better than a wrong one).
+  int _attention = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAttention();
+  }
+
+  Future<void> _loadAttention() async {
+    int n = 0;
+    try {
+      final response = await _api.attention();
+      n = parseAttention(response.status, response.body)?.count ?? 0;
+    } catch (_) {
+      n = 0;
+    }
+    if (!mounted || n == _attention) return;
+    setState(() => _attention = n);
+  }
+
   /// Which of the "More" rooms is open (null shows the list of them).
   String? _room;
 
@@ -70,7 +92,7 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
       };
       return SafeArea(
         child: Column(children: [
-          Align(alignment: Alignment.centerLeft, child: TextButton.icon(key: const Key('more-back'), onPressed: () => setState(() => _room = null), icon: const Icon(Icons.arrow_back), label: const Text('More'))),
+          Align(alignment: Alignment.centerLeft, child: TextButton.icon(key: const Key('more-back'), onPressed: () { setState(() => _room = null); _loadAttention(); }, icon: const Icon(Icons.arrow_back), label: const Text('More'))),
           Expanded(child: child),
         ]),
       );
@@ -78,7 +100,7 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
     Widget tile(String key, IconData icon, String title) => ListTile(key: Key('more-$key'), leading: Icon(icon), title: Text(title), onTap: () => setState(() => _room = key));
     return SafeArea(
       child: ListView(padding: const EdgeInsets.all(12), children: [
-        tile('attention', Icons.notifications_none, 'Needs attention'),
+        tile('attention', Icons.notifications_none, _attention > 0 ? 'Needs attention ($_attention)' : 'Needs attention'),
         tile('expenses', Icons.receipt_long_outlined, 'Expenses'),
         tile('stock', Icons.inventory_2_outlined, 'Stock'),
         tile('bills', Icons.request_quote_outlined, 'Bills to pay'),
@@ -142,15 +164,18 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
       bottomNavigationBar: NavigationBar(
         key: const Key('live-tabs'),
         selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() {
-          _tab = i;
-          if (i == 3) _room = null;
-        }),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'What is owed'),
-          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Assistant'),
-          NavigationDestination(icon: Icon(Icons.fact_check_outlined), label: 'To approve'),
-          NavigationDestination(icon: Icon(Icons.more_horiz), label: 'More'),
+        onDestinationSelected: (i) {
+          setState(() {
+            _tab = i;
+            if (i == 3) _room = null;
+          });
+          _loadAttention();
+        },
+        destinations: [
+          const NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'What is owed'),
+          const NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Assistant'),
+          const NavigationDestination(icon: Icon(Icons.fact_check_outlined), label: 'To approve'),
+          NavigationDestination(icon: Badge(key: const Key('more-badge'), isLabelVisible: _attention > 0, label: Text('$_attention'), child: const Icon(Icons.more_horiz)), label: 'More'),
         ],
       ),
     );

@@ -38,3 +38,6 @@ A customer may have a default payment term: contact field `paymentTermsDays` (wh
 
 ## Change customer form (added 2026-11-18, app only)
 The customer's page in the parties room has "Change details": name, phone, email, address and (customers) payment term in days, sent as ONE party.edit holding only what changed; an emptied detail is cleared (null). Held and approved like any other change. The roles and VAT number are not editable here yet.
+
+## Count on the home screen (added 2026-11-18, app only)
+The More tab carries a badge with the engine's own count from `attention.find` (read at start, on every tab change and whenever a room is closed), and the Needs attention tile shows it. No badge when the count is 0 or cannot be read. The app counts nothing itself. Not done: a push or other notification when something becomes overdue.

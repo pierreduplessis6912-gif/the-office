@@ -8,6 +8,13 @@ import 'package:the_office/engine/engine_api.dart';
 import 'package:the_office/engine/engine_fixtures.dart';
 import 'package:the_office/engine/engine_live_home.dart';
 
+class _AttApi extends FixtureEngineApi {
+  final EngineResponse answer;
+  _AttApi(Map<String, EngineResponse> fixtures, this.answer) : super(fixtures);
+  @override
+  Future<EngineResponse> attention() async => answer;
+}
+
 void main() {
   final fixtures = engineResponsesFrom(engineFixtureJson);
 
@@ -143,6 +150,23 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byKey(const Key('jobs-refresh')), findsOneWidget);
+  });
+
+  testWidgets('the More tab shows how many things need attention, and no badge when there are none or it cannot be read', (tester) async {
+    Widget withAttention(EngineResponse r) => app(factory: (String b, String t) => _AttApi(fixtures, r));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(withAttention(const EngineResponse(200, <String, Object?>{'status': 'ok', 'result': <String, Object?>{'items': [<String, Object?>{'kind': 'job_snag', 'title': 'A snag'}], 'count': 3, 'truncated': false}})));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.widget<Badge>(find.byKey(const Key('more-badge'))).isLabelVisible, isTrue);
+    expect(find.text('3'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(withAttention(const EngineResponse(200, <String, Object?>{'status': 'ok', 'result': <String, Object?>{'items': <Object?>[], 'count': 0, 'truncated': false}})));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.widget<Badge>(find.byKey(const Key('more-badge'))).isLabelVisible, isFalse);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(withAttention(const EngineResponse(500, null)));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.widget<Badge>(find.byKey(const Key('more-badge'))).isLabelVisible, isFalse, reason: 'an unreadable answer shows no badge rather than a wrong one');
   });
 
   testWidgets('the More list opens what needs attention', (tester) async {

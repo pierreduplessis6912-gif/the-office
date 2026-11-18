@@ -29,7 +29,7 @@ class _AttentionRoomState extends State<AttentionRoom> {
       _loading = true;
       _failed = false;
     });
-    ({List<AttentionEntry> items, bool truncated})? parsed;
+    ({List<AttentionEntry> items, bool truncated, int count})? parsed;
     try {
       final response = await widget.api.attention();
       parsed = parseAttention(response.status, response.body);
