@@ -31,6 +31,12 @@ SummaryMessage? summaryMessage(({List<AttentionEntry> items, bool truncated, int
   return SummaryMessage(title, [...shown, if (more > 0) '+ $more more'].join('\n'));
 }
 
+/// What the TEST notification says: the real list when something needs attention, otherwise a plain line saying which case it is, so the person sees a notification arrive either way.
+SummaryMessage testSummaryMessage(({List<AttentionEntry> items, bool truncated, int count})? parsed) {
+  if (parsed == null) return const SummaryMessage('Test: the list could not be read', 'Notifications work, but the engine did not answer. Nothing is wrong with the notification.');
+  return summaryMessage(parsed) ?? const SummaryMessage('Test: nothing needs your attention', 'Notifications work. This is what a quiet morning looks like (no notification is sent then).');
+}
+
 /// Asks the engine and words the answer. Any failure (no network, a refused session, a business that is not on the engine) is null: nothing is posted.
 Future<SummaryMessage?> dailySummaryMessage(EngineApi api) async {
   try {
@@ -50,6 +56,9 @@ abstract class DailySummary {
   /// Asks Android's permission to post notifications, then schedules the daily run. False when the person said no (nothing is scheduled).
   Future<bool> turnOn(String baseUrl);
   Future<void> turnOff();
+
+  /// Posts a notification right now (for the test button). False when Android does not allow notifications.
+  Future<bool> showNow(SummaryMessage message);
 }
 
 class NoDailySummary implements DailySummary {
@@ -62,4 +71,6 @@ class NoDailySummary implements DailySummary {
   Future<bool> turnOn(String baseUrl) async => false;
   @override
   Future<void> turnOff() async {}
+  @override
+  Future<bool> showNow(SummaryMessage message) async => false;
 }

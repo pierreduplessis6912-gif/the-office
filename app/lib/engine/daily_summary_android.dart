@@ -20,6 +20,18 @@ final FlutterLocalNotificationsPlugin _notes = FlutterLocalNotificationsPlugin()
 
 Future<void> _initNotes() => _notes.initialize(const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')));
 
+Future<void> _post(SummaryMessage message) async {
+  await _initNotes();
+  await _notes.show(
+    1,
+    message.title,
+    message.body,
+    NotificationDetails(
+      android: AndroidNotificationDetails(_channelId, 'Daily summary', channelDescription: 'What needs your attention, once a day', importance: Importance.defaultImportance, priority: Priority.defaultPriority, styleInformation: BigTextStyleInformation(message.body)),
+    ),
+  );
+}
+
 /// The background entry point WorkManager starts once a day, in its own isolate: no screen, only the saved session and the address.
 @pragma('vm:entry-point')
 void dailySummaryDispatcher() {
@@ -30,15 +42,7 @@ void dailySummaryDispatcher() {
     if (token == null || base == null) return true;
     final message = await dailySummaryMessage(HttpEngineApi(baseUrl: base, sessionToken: token));
     if (message == null) return true;
-    await _initNotes();
-    await _notes.show(
-      1,
-      message.title,
-      message.body,
-      NotificationDetails(
-        android: AndroidNotificationDetails(_channelId, 'Daily summary', channelDescription: 'What needs your attention, once a day', importance: Importance.defaultImportance, priority: Priority.defaultPriority, styleInformation: BigTextStyleInformation(message.body)),
-      ),
-    );
+    await _post(message);
     return true;
   });
 }
@@ -70,6 +74,15 @@ class AndroidDailySummary implements DailySummary {
       existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
     );
     await _storage.write(key: _flagKey, value: '1');
+    return true;
+  }
+
+  @override
+  Future<bool> showNow(SummaryMessage message) async {
+    await _initNotes();
+    final android = _notes.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    if (await android?.areNotificationsEnabled() != true && await android?.requestNotificationsPermission() != true) return false;
+    await _post(message);
     return true;
   }
 

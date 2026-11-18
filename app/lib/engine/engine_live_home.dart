@@ -74,6 +74,19 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
     setState(() => _summaryOn = on);
   }
 
+  Future<void> _testSummary() async {
+    SummaryMessage message;
+    try {
+      final response = await _api.attention();
+      message = testSummaryMessage(parseAttention(response.status, response.body));
+    } catch (_) {
+      message = testSummaryMessage(null);
+    }
+    final shown = await _summary.showNow(message);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(shown ? 'Test notification sent.' : 'Notifications are not allowed for this app. Allow them in the phone settings.')));
+  }
+
   Future<void> _toggleSummary(bool want) async {
     if (want) {
       final ok = await _summary.turnOn(widget.baseUrl);
@@ -140,6 +153,7 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
         tile('quotes', Icons.description_outlined, 'Quotations'),
         tile('parties', Icons.people_outline, 'Customers and suppliers'),
         if (_summary.supported) SwitchListTile(key: const Key('more-daily-summary'), secondary: const Icon(Icons.notifications_active_outlined), title: const Text('Daily summary at 06:00'), subtitle: const Text('A notification saying what needs your attention.'), value: _summaryOn, onChanged: _toggleSummary),
+        if (_summary.supported) ListTile(key: const Key('more-daily-summary-test'), leading: const Icon(Icons.send_outlined), title: const Text('Send a test notification now'), subtitle: const Text('Shows what the 06:00 summary would say, so you can check it works.'), onTap: _testSummary),
       ]),
     );
   }

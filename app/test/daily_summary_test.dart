@@ -30,6 +30,7 @@ class _FakeSummary implements DailySummary {
   int turnedOn = 0;
   int turnedOff = 0;
   String? base;
+  final List<SummaryMessage> shown = <SummaryMessage>[];
   _FakeSummary({this.allow = true, this.canDo = true});
   @override
   bool get supported => canDo;
@@ -40,6 +41,12 @@ class _FakeSummary implements DailySummary {
     turnedOn++;
     base = baseUrl;
     on = allow;
+    return allow;
+  }
+
+  @override
+  Future<bool> showNow(SummaryMessage message) async {
+    shown.add(message);
     return allow;
   }
 
@@ -81,6 +88,14 @@ void main() {
     expect(await dailySummaryMessage(_AttApi(fixtures, _ok(<Object?>[], 0), throws: true)), isNull, reason: 'no network posts nothing');
     final said = await dailySummaryMessage(_AttApi(fixtures, _ok([_item('A')], 1)));
     expect(said!.title, '1 thing needs your attention');
+  });
+
+  test('the test notification always says something, and says which case it is', () {
+    expect(testSummaryMessage(null).title, 'Test: the list could not be read');
+    expect(testSummaryMessage(parseAttention(200, _ok(<Object?>[], 0).body)).title, 'Test: nothing needs your attention');
+    final real = testSummaryMessage(parseAttention(200, _ok([_item('A'), _item('B')], 2).body));
+    expect(real.title, '2 things need your attention');
+    expect(real.body, 'A\nB');
   });
 
   test('the do-nothing summary is not supported and never turns on', () async {
@@ -125,6 +140,36 @@ void main() {
     await tester.tap(find.byKey(const Key('more-daily-summary')));
     await tester.pumpAndSettle();
     expect(tester.widget<SwitchListTile>(find.byKey(const Key('more-daily-summary'))).value, isFalse);
+    expect(find.textContaining('Notifications are not allowed'), findsOneWidget);
+  });
+
+  testWidgets('the test button posts a notification now, whatever the list says, and reports when it is not allowed', (tester) async {
+    final summary = _FakeSummary();
+    await tester.pumpWidget(MaterialApp(
+      home: EngineLiveHome(baseUrl: 'https://example.test', sessionToken: 'tok', onSignOut: () {}, apiFactory: (String b, String t) => _AttApi(fixtures, _ok([_item('Tile Co bill is overdue')], 1)), dailySummary: summary),
+    ));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('More')));
+    await tester.pump();
+    await tester.scrollUntilVisible(find.byKey(const Key('more-daily-summary-test')), 100, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('more-daily-summary-test')));
+    await tester.pumpAndSettle();
+    expect(summary.shown.length, 1);
+    expect(summary.shown.first.title, '1 thing needs your attention');
+    expect(summary.turnedOn, 0, reason: 'a test does not schedule anything');
+    expect(find.text('Test notification sent.'), findsOneWidget);
+    final refused = _FakeSummary(allow: false);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(app(refused));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.descendant(of: find.byKey(const Key('live-tabs')), matching: find.text('More')));
+    await tester.pump();
+    await tester.scrollUntilVisible(find.byKey(const Key('more-daily-summary-test')), 100, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('more-daily-summary-test')));
+    await tester.pumpAndSettle();
+    expect(refused.shown.first.title, 'Test: the list could not be read', reason: 'the fixture has no attention answer, so the test says so');
     expect(find.textContaining('Notifications are not allowed'), findsOneWidget);
   });
 

@@ -50,3 +50,5 @@ At about 06:00 South African time (04:00 UTC) the phone posts ONE notification s
 - Web build and tests never see the Android plugins (`daily_summary_platform.dart` picks a no-op there).
 
 The Android build check found two problems before any phone did: `record` ^5 resolved a Linux implementation that no longer compiles (fixed by `record: ^6.0.0`, same API), and `workmanager` 0.9.3 did not build its Android plugin class (fixed by `^0.10.0`). Green on 02d0469.
+
+A "Send a test notification now" tile sits under the switch: it asks the engine now and posts what the summary would say, or a plain line saying the list was empty or could not be read, so a notification always arrives to prove the channel. It schedules nothing.
