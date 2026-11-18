@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../slice_model.dart';
 import 'assistant_model.dart';
 import 'engine_api.dart';
+import 'party_edit_form.dart';
 import 'party_form.dart';
 
 class PartiesRoom extends StatefulWidget {
@@ -21,6 +22,7 @@ class _PartiesRoomState extends State<PartiesRoom> {
   bool _failed = false;
 
   PartyEntry? _open;
+  PartyEntry? _editing;
   bool _adding = false;
   bool _owedLoading = false;
   SliceRead? _owed;
@@ -133,6 +135,8 @@ class _PartiesRoomState extends State<PartiesRoom> {
       child: ListView(padding: const EdgeInsets.all(12), children: [
         Align(alignment: Alignment.centerLeft, child: TextButton.icon(key: const Key('party-back'), onPressed: () => setState(() => _open = null), icon: const Icon(Icons.arrow_back), label: const Text('Customers and suppliers'))),
         Text(p.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+        if (p.paymentTermsDays.isNotEmpty) Text('Payment term: ${p.paymentTermsDays} days', key: const Key('party-terms'), style: _grey),
+        Align(alignment: Alignment.centerLeft, child: TextButton.icon(key: const Key('party-edit'), onPressed: () => setState(() => _editing = p), icon: const Icon(Icons.edit_outlined), label: const Text('Change details'))),
         body,
       ]),
     );
@@ -145,6 +149,8 @@ class _PartiesRoomState extends State<PartiesRoom> {
 
   @override
   Widget build(BuildContext context) {
+    final editing = _editing;
+    if (editing != null) return PartyEditForm(key: ValueKey<String>('party-edit-${editing.id}'), api: widget.api, party: editing, onClose: () { setState(() => _editing = null); _load(); });
     if (_adding) return PartyForm(key: const ValueKey<String>('party-form'), api: widget.api, onClose: () { setState(() => _adding = false); _load(); });
     final open = _open;
     if (open != null) return _detail(open);

@@ -270,6 +270,24 @@ List<HeldLine> heldLines(HeldAction a, {Map<int, String> names = const <int, Str
         final v = _text(contact[k]);
         if (v != null) out.add(HeldLine(_titleCase(k), v));
       }
+      final term = _text(contact['paymentTermsDays']);
+      if (term != null) out.add(HeldLine('Payment term', '$term days'));
+    }
+    return out;
+  }
+  if (a.type == 'engine.party.edit') {
+    final id = _int(p['partyId']);
+    if (id != null) out.add(HeldLine('Customer or supplier', names[id] ?? '#$id'));
+    final name = _text(p['name']);
+    if (name != null) out.add(HeldLine('New name', name));
+    final contact = _map(p['contact']);
+    if (contact != null) {
+      for (final k in const <String>['email', 'phone', 'address', 'vatNumber', 'paymentTermsDays']) {
+        if (!contact.containsKey(k)) continue;
+        final v = _text(contact[k]);
+        final label = k == 'paymentTermsDays' ? 'Payment term' : _titleCase(k);
+        out.add(HeldLine(label, v == null ? 'Cleared' : (k == 'paymentTermsDays' ? '$v days' : v)));
+      }
     }
     return out;
   }
@@ -612,7 +630,12 @@ class PartyEntry {
   final List<String> roles;
   final String email;
   final String phone;
-  const PartyEntry({required this.id, required this.name, required this.roles, required this.email, required this.phone});
+  final String address;
+  final String vatNumber;
+
+  /// The customer's default payment term in whole days, as the engine holds it ('' when none).
+  final String paymentTermsDays;
+  const PartyEntry({required this.id, required this.name, required this.roles, required this.email, required this.phone, this.address = '', this.vatNumber = '', this.paymentTermsDays = ''});
 
   bool get isCustomer => roles.contains('customer');
 }
@@ -630,7 +653,7 @@ List<PartyEntry>? parsePartyList(int status, Object? body) {
     final name = m == null ? null : _text(m['name']);
     if (m == null || id == null || name == null) continue;
     final contact = _map(m['contact']);
-    rows.add(PartyEntry(id: id, name: name, roles: <String>[for (final x in _list(m['roles'])) if (_text(x) != null) _text(x)!], email: contact == null ? '' : (_text(contact['email']) ?? ''), phone: contact == null ? '' : (_text(contact['phone']) ?? '')));
+    rows.add(PartyEntry(id: id, name: name, roles: <String>[for (final x in _list(m['roles'])) if (_text(x) != null) _text(x)!], email: contact == null ? '' : (_text(contact['email']) ?? ''), phone: contact == null ? '' : (_text(contact['phone']) ?? ''), address: contact == null ? '' : (_text(contact['address']) ?? ''), vatNumber: contact == null ? '' : (_text(contact['vatNumber']) ?? ''), paymentTermsDays: contact == null ? '' : (_text(contact['paymentTermsDays']) ?? '')));
   }
   return rows;
 }

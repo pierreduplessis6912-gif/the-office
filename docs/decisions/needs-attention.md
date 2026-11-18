@@ -35,3 +35,6 @@ A customer may have a default payment term: contact field `paymentTermsDays` (wh
 
 ## Due date in the Invoices room (added 2026-11-18, no schema change)
 `invoices.find` takes an optional `asOf` and each row carries `dueOn` (the recorded due date or null) and `overdue` (a recorded due date before that day, money still owing). The 30-day fallback is deliberately NOT used here: an invoice with no recorded due date shows none and is never called overdue; only Needs attention uses the fallback, and says so. The Invoices room shows "Due <date>" or, in red, "Overdue: was due <date>", using the engine's flag; the app works nothing out.
+
+## Change customer form (added 2026-11-18, app only)
+The customer's page in the parties room has "Change details": name, phone, email, address and (customers) payment term in days, sent as ONE party.edit holding only what changed; an emptied detail is cleared (null). Held and approved like any other change. The roles and VAT number are not editable here yet.
