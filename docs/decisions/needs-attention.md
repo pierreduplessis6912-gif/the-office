@@ -41,3 +41,10 @@ The customer's page in the parties room has "Change details": name, phone, email
 
 ## Count on the home screen (added 2026-11-18, app only)
 The More tab carries a badge with the engine's own count from `attention.find` (read at start, on every tab change and whenever a room is closed), and the Needs attention tile shows it. No badge when the count is 0 or cannot be read. The app counts nothing itself. Not done: a push or other notification when something becomes overdue.
+
+## Daily summary notification (added 2026-11-18, app only, built without Firebase)
+At about 06:00 South African time (04:00 UTC) the phone posts ONE notification saying how many things need attention and the first three, but only when something does. No server push, no cron, no Firebase: Android's WorkManager (package `workmanager`) wakes the app once a day, the app reads the saved session and asks `GET /engine/attention`, and `flutter_local_notifications` posts the result. Switch: More, "Daily summary at 06:00" (off by default; turning it on asks Android's notification permission and stays off if refused; signing out turns it off).
+- **What is proven by tests:** when it runs, the words, saying nothing when there is nothing or the answer cannot be read (`app/test/daily_summary_test.dart`).
+- **What is proven by CI:** the Android build check (`.github/workflows/android-build-check.yml`) builds a debug APK exactly as Codemagic does, with the Gradle patch for core library desugaring and the POST_NOTIFICATIONS permission in `patch_android_manifest.py`.
+- **NOT proven (needs a phone):** the exact minute Android runs it (it can be late), and that battery saving or a force-stop can stop it. Server push (Firebase) is the alternative if this proves too unreliable.
+- Web build and tests never see the Android plugins (`daily_summary_platform.dart` picks a no-op there).

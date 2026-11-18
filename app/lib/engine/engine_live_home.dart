@@ -16,6 +16,8 @@ import 'orders_room.dart';
 import 'invoices_room.dart';
 import 'assistant_model.dart' show parseAttention;
 import 'attention_room.dart';
+import 'daily_summary.dart';
+import 'daily_summary_platform.dart';
 import 'jobs_room.dart';
 import 'quotes_room.dart';
 import 'parties_room.dart';
@@ -34,13 +36,16 @@ class EngineLiveHome extends StatefulWidget {
   final VoidCallback onSignOut;
   final EngineApiFactory? apiFactory;
 
+  /// The daily notification. Tests give a recorded one; the app gives the Android one (a no-op elsewhere).
+  final DailySummary? dailySummary;
+
   /// How the person chooses a picture. When null, the camera or the gallery, by the person's choice.
   final Future<EngineCaptureFile?> Function()? pickPhoto;
 
   /// The microphone for the voice button. When null there is no voice button (tests, and any build without one).
   final VoiceRecorder? voiceRecorder;
 
-  const EngineLiveHome({super.key, required this.baseUrl, required this.sessionToken, required this.onSignOut, this.apiFactory, this.pickPhoto, this.voiceRecorder});
+  const EngineLiveHome({super.key, required this.baseUrl, required this.sessionToken, required this.onSignOut, this.apiFactory, this.dailySummary, this.pickPhoto, this.voiceRecorder});
 
   @override
   State<EngineLiveHome> createState() => _EngineLiveHomeState();
@@ -52,11 +57,34 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
 
   /// How many things the engine says need attention (0 when it cannot be read: no badge is better than a wrong one).
   int _attention = 0;
+  late final DailySummary _summary = widget.dailySummary ?? createDailySummary();
+  bool _summaryOn = false;
 
   @override
   void initState() {
     super.initState();
     _loadAttention();
+    _loadSummary();
+  }
+
+  Future<void> _loadSummary() async {
+    if (!_summary.supported) return;
+    final on = await _summary.isOn();
+    if (!mounted) return;
+    setState(() => _summaryOn = on);
+  }
+
+  Future<void> _toggleSummary(bool want) async {
+    if (want) {
+      final ok = await _summary.turnOn(widget.baseUrl);
+      if (!mounted) return;
+      setState(() => _summaryOn = ok);
+      if (!ok) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Notifications are not allowed for this app, so the daily summary stays off.')));
+    } else {
+      await _summary.turnOff();
+      if (!mounted) return;
+      setState(() => _summaryOn = false);
+    }
   }
 
   Future<void> _loadAttention() async {
@@ -111,6 +139,7 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
         tile('jobs', Icons.event_outlined, 'Jobs'),
         tile('quotes', Icons.description_outlined, 'Quotations'),
         tile('parties', Icons.people_outline, 'Customers and suppliers'),
+        if (_summary.supported) SwitchListTile(key: const Key('more-daily-summary'), secondary: const Icon(Icons.notifications_active_outlined), title: const Text('Daily summary at 06:00'), subtitle: const Text('A notification saying what needs your attention.'), value: _summaryOn, onChanged: _toggleSummary),
       ]),
     );
   }
@@ -154,7 +183,10 @@ class _EngineLiveHomeState extends State<EngineLiveHome> {
                   child: SafeArea(
                     child: Material(
                       type: MaterialType.transparency,
-                      child: IconButton(key: const Key('live-sign-out'), tooltip: 'Sign out', icon: const Icon(Icons.logout, color: Color(0xFF5A5A5F)), onPressed: widget.onSignOut),
+                      child: IconButton(key: const Key('live-sign-out'), tooltip: 'Sign out', icon: const Icon(Icons.logout, color: Color(0xFF5A5A5F)), onPressed: () {
+                        widget.onSignOut();
+                        if (_summary.supported) _summary.turnOff();   // signing out ends the daily summary on this phone
+                      }),
                     ),
                   ),
                 ),

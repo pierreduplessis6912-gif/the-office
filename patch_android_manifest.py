@@ -22,6 +22,7 @@ PERMISSIONS = [
     "android.permission.CAMERA",
     "android.permission.READ_CALENDAR",
     "android.permission.WRITE_CALENDAR",
+    "android.permission.POST_NOTIFICATIONS",   # the daily summary notification (Android 13 and later ask the person)
 ]
 
 # Real, exact XML required by flutter_web_auth_2 to catch the
@@ -194,3 +195,20 @@ else:
     else:
         print(f"Subprojects compileSdk-forcing block already present in {root_gradle_path} — skipping.")
 
+# The daily summary (flutter_local_notifications) needs core library desugaring in the APP module: the plugin's own documented Android setup, and its build fails with "requires core library desugaring to be
+# enabled for :app" without it. Handles both the Kotlin DSL (.kts) and Groovy forms; skipped (with a message) when the file is not where expected, and the Android build check in CI says whether it worked.
+if app_gradle_path is None:
+    print("WARNING: no app/build.gradle(.kts) found - core library desugaring not patched.")
+else:
+    g = open(app_gradle_path).read()
+    kts = app_gradle_path.endswith(".kts")
+    flag = "isCoreLibraryDesugaringEnabled = true" if kts else "coreLibraryDesugaringEnabled true"
+    dep = 'coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")' if kts else "coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'"
+    if "oreLibraryDesugaringEnabled" not in g:
+        g, n = re.subn(r"(compileOptions\s*\{)", rf"\1\n        {flag}", g, count=1)
+        print("core library desugaring flag added." if n else "WARNING: no compileOptions block found - desugaring flag not added.")
+    if "desugar_jdk_libs" not in g:
+        g = g.rstrip("\n") + "\n\ndependencies {\n    " + dep + "\n}\n"
+        print("desugar_jdk_libs dependency added.")
+    open(app_gradle_path, "w").write(g)
+    assert "oreLibraryDesugaringEnabled" in g and "desugar_jdk_libs" in g, "core library desugaring is not set up after patch"

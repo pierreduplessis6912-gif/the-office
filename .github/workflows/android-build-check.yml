@@ -1,0 +1,59 @@
+name: Android build check
+
+# Builds the REAL Android app the way Codemagic does (flutter create the scaffold, patch the manifest and Gradle with patch_android_manifest.py, flutter build apk) on every branch EXCEPT main, and deploys nothing.
+# Why: the daily summary added Android-only plugins (workmanager, flutter_local_notifications) and "App compile check" only builds the WEB app, so a native build problem would first have shown up in the Codemagic
+# release build after a push to main. A debug APK is enough to prove the plugins and the Gradle patches work together; the release signing and the exact release flags stay Codemagic's.
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - "app/pubspec.yaml"
+      - "app/lib/**"
+      - "patch_android_manifest.py"
+      - ".github/workflows/android-build-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Bootstrap native scaffolding (same as Codemagic)
+        run: |
+          cd app
+          cp pubspec.yaml /tmp/pubspec.yaml.bak
+          cp lib/main.dart /tmp/main.dart.bak
+          flutter create --platforms=android --org za.co.websitehub --project-name the_office .
+          cp /tmp/pubspec.yaml.bak pubspec.yaml
+          cp /tmp/main.dart.bak lib/main.dart
+          python3 ../patch_android_manifest.py
+
+      - name: Get Flutter packages
+        run: |
+          cd app
+          flutter pub get
+
+      - name: Build APK (debug)
+        run: |
+          cd app
+          flutter build apk --debug --android-skip-build-dependency-validation 2>&1 | tee /tmp/apk.txt
+
+      - name: The notification permission is in the built manifest
+        run: |
+          cd app
+          grep -q "android.permission.POST_NOTIFICATIONS" android/app/src/main/AndroidManifest.xml
+          ls -l build/app/outputs/flutter-apk/*.apk
