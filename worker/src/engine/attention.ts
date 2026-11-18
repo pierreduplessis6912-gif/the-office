@@ -22,7 +22,7 @@ const rand = (minor: number): string => `R${(minor / 100).toLocaleString("en-ZA"
 const ORDER: AttentionKind[] = ["bill_overdue", "invoice_late", "job_overdue", "job_snag", "bill_due_soon", "quote_expired", "stock_low"];
 
 // The due date an invoice was issued with (its terms), or null when none was recorded.
-async function recordedDueOn(env: Env, documentId: number): Promise<string | null> {
+export async function recordedDueOn(env: Env, documentId: number): Promise<string | null> {
   const row = await env.OFFICE_DB.prepare("SELECT terms_json FROM eng_document WHERE id = ?").bind(documentId).first<{ terms_json: string }>();
   try { const due = (JSON.parse(row?.terms_json ?? "{}") as { dueOn?: unknown }).dueOn; return typeof due === "string" && /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null; } catch { return null; }
 }

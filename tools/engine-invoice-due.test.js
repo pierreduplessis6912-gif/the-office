@@ -51,5 +51,20 @@ module.exports = kit.guard('engine invoice due date', async ({ check }) => {
   r = await attention();
   check(mine(ci.documentId) && /no due date was recorded/i.test(mine(ci.documentId).detail), 'an invoice with no due date still falls back to 30 days and says so');
   check(mine(ci.documentId).dueOn === '2026-10-01', 'the fallback date is the issue date plus 30 days');
+
+  // ---- the invoice list says the due date and whether it is overdue (the engine's own word; the app never works it out) ----------------------------------------------------------------------
+  const list = async (asOf) => (await capabilities.READS.find((q) => q.id === 'invoices.find').run(w.env, viewer, { status: 'any', ...(asOf ? { asOf } : {}) })).invoices;
+  let rows = await list('2026-11-17');
+  const row = (id) => rows.find((x) => x.id === id);
+  check(row(ai.documentId).dueOn === '2026-11-15' && row(ai.documentId).overdue === true, 'an invoice past its recorded due date is overdue and shows the date');
+  check(row(bi.documentId).dueOn === '2026-12-31' && row(bi.documentId).overdue === false, 'an invoice before its due date is not overdue');
+  check(row(ci.documentId).dueOn === null && row(ci.documentId).overdue === false, 'an invoice with no recorded due date shows none and is never called overdue (the 30-day fallback is only for Needs attention)');
+  rows = await list('2026-11-14');
+  check(row(ai.documentId).overdue === false, 'asked as of an earlier day, the same invoice is not yet overdue');
+  rows = await list('2026-11-17');
+  await facts.recordPayment(w.env, { direction: 'in', partyId: cust, amountMinor: 115000, currency: 'ZAR', occurredOn: '2026-11-16', method: 'eft', allocations: [{ documentId: ai.documentId, amountMinor: 115000 }] }, CTX);
+  rows = await list('2026-11-17');
+  check(row(ai.documentId).dueOn === '2026-11-15' && row(ai.documentId).overdue === false, 'a paid invoice is not overdue, though it still shows its due date');
+  check(capabilities.READS.find((q) => q.id === 'invoices.find').validate({ asOf: 'tomorrow' }).ok === false, 'a badly written asOf is refused');
 });
 if (require.main === module) kit.standalone(module.exports);

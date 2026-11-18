@@ -33,7 +33,7 @@ import { allOrders, checkReceiptLines, checkShortText, planCancel, planOrder, pl
 import { allExpenses, checkExpenseInput, EXPENSE_CATEGORIES, planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { creditAvailable, debitsOf, planCreditApplication, planDebitNote, planRefund, planVoid } from "./credits";
 import { checkCreditLines, checkReason, planCreditNote, type CreditLineInput } from "./credits";
-import { attentionItems } from "./attention";
+import { attentionItems, recordedDueOn } from "./attention";
 import { allJobs, checkAssignInput, checkCancelInput, checkCompleteInput, checkJobInput, checkLinkInput, checkScheduleInput, checkSnagCloseInput, checkSnagRaiseInput, planAssign, planComplete, planJob, planSnagClose, planSnagRaise, planJobCancel, planLink, planSchedule, type JobInput } from "./jobs";
 import { allProfiles, applyRevision, checkContact, checkName, checkRoles, holderOfName, partyProfile, PARTY_ROLES, sameName } from "./parties";
 
@@ -452,23 +452,26 @@ export const quotationsFind: ReadCapability<{ partyId?: number; status?: string 
 };
 
 // The business-wide invoice list: every customer invoice not reversed, newest first, with what is still owed on each (the same figure receivables.query gives per customer). Derived, never stored.
-export const invoicesFind: ReadCapability<{ partyId?: number; status?: string }> = {
+export const invoicesFind: ReadCapability<{ partyId?: number; status?: string; asOf?: string }> = {
   id: "invoices.find", label: "Finding invoices", permissions: ["receivables.read"],
   validate(params) {
     if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
-    const s = stray(params, ["partyId", "status"]);
+    const s = stray(params, ["partyId", "status", "asOf"]);
     if (s) return { ok: false, reason: `${s} is not a field of this request` };
-    const out: { partyId?: number; status?: string } = {};
+    const out: { partyId?: number; status?: string; asOf?: string } = {};
+    if (params.asOf !== undefined) { const d = checkDate(params.asOf, "asOf"); if (!d.ok) return d; out.asOf = d.value; }
     if (params.partyId !== undefined) { if (!whole(params.partyId)) return { ok: false, reason: "partyId must be a record number" }; out.partyId = params.partyId; }
     if (params.status !== undefined) { if (typeof params.status !== "string" || !["owing", "paid", "any"].includes(params.status)) return { ok: false, reason: "status must be owing, paid or any" }; out.status = params.status; }
     return { ok: true, value: out };
   },
   async run(env, _viewer, value) {
     const profiles = (await allProfiles(env)).filter((p) => value.partyId === undefined || p.id === value.partyId);
-    const rows: Array<{ ref: { kind: string; id: number }; id: number; number: number | null; kind: string; partyId: number; partyName: string; issuedOn: string; grossMinor: number; allocatedMinor: number; outstandingMinor: number; status: string }> = [];
+    const rows: Array<{ ref: { kind: string; id: number }; id: number; number: number | null; kind: string; partyId: number; partyName: string; issuedOn: string; grossMinor: number; allocatedMinor: number; outstandingMinor: number; status: string; dueOn: string | null; overdue: boolean }> = [];
+    const today = value.asOf ?? businessToday();   // "overdue" is the engine's word: only a RECORDED due date before today, with money still owing (the 30-day fallback belongs to Needs attention alone)
     for (const p of profiles) {
       for (const d of (await outstandingForParty(env, p.id)).documents) {
-        rows.push({ ref: { kind: "document", id: d.id }, id: d.id, number: d.number, kind: d.kind, partyId: p.id, partyName: p.name, issuedOn: d.issuedOn, grossMinor: d.grossMinor, allocatedMinor: d.allocatedMinor, outstandingMinor: d.outstandingMinor, status: d.outstandingMinor > 0 ? "owing" : "paid" });
+        const dueOn = await recordedDueOn(env, d.id);
+        rows.push({ ref: { kind: "document", id: d.id }, id: d.id, number: d.number, kind: d.kind, partyId: p.id, partyName: p.name, issuedOn: d.issuedOn, grossMinor: d.grossMinor, allocatedMinor: d.allocatedMinor, outstandingMinor: d.outstandingMinor, status: d.outstandingMinor > 0 ? "owing" : "paid", dueOn, overdue: dueOn !== null && d.outstandingMinor > 0 && dueOn < today });
       }
     }
     const want = value.status ?? "any";

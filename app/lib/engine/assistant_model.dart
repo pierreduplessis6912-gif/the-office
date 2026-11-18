@@ -571,7 +571,11 @@ class InvoiceEntry {
   final String issuedOn;
   final int grossMinor;
   final int outstandingMinor;
-  const InvoiceEntry({required this.id, required this.number, required this.customer, required this.issuedOn, required this.grossMinor, required this.outstandingMinor});
+
+  /// The due date the invoice was issued with ('' when none was recorded) and the engine's own word for whether it is overdue; the app never works either out.
+  final String dueOn;
+  final bool overdue;
+  const InvoiceEntry({required this.id, required this.number, required this.customer, required this.issuedOn, required this.grossMinor, required this.outstandingMinor, this.dueOn = '', this.overdue = false});
 }
 
 class InvoiceList {
@@ -594,7 +598,7 @@ InvoiceList? parseInvoiceList(int status, Object? body) {
     final gross = m == null ? null : _int(m['grossMinor']);
     final out = m == null ? null : _int(m['outstandingMinor']);
     if (m == null || id == null || gross == null || out == null) continue;
-    rows.add(InvoiceEntry(id: id, number: _int(m['number']), customer: _text(m['partyName']) ?? 'Customer', issuedOn: _text(m['issuedOn']) ?? '', grossMinor: gross, outstandingMinor: out));
+    rows.add(InvoiceEntry(id: id, number: _int(m['number']), customer: _text(m['partyName']) ?? 'Customer', issuedOn: _text(m['issuedOn']) ?? '', grossMinor: gross, outstandingMinor: out, dueOn: _text(m['dueOn']) ?? '', overdue: m['overdue'] == true));
   }
   final owing = _int(r['owingMinor']);
   if (owing == null) return null;

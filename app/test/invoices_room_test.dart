@@ -55,6 +55,21 @@ void main() {
     expect(find.byKey(const Key('invoices-truncated')), findsNothing);
   });
 
+  testWidgets('shows the due date, and says overdue only when the engine does', (tester) async {
+    final api = _InvoicesApi(fixtures, _ok(<Object?>[
+      <String, Object?>{..._row(3, 3, 'Mokoena', '2026-11-10', 115000, 115000), 'dueOn': '2026-11-15', 'overdue': true},
+      <String, Object?>{..._row(2, 2, 'Dlamini', '2026-11-10', 23000, 23000), 'dueOn': '2026-12-31', 'overdue': false},
+      _row(1, 1, 'Sipho', '2026-10-01', 5000, 5000),
+    ], 143000));
+    await _open(tester, api);
+    expect(find.text('Overdue: was due 2026-11-15'), findsOneWidget);
+    expect(find.text('Due 2026-12-31'), findsOneWidget);
+    expect(find.byKey(const Key('invoice-due-1')), findsNothing, reason: 'no recorded due date, nothing shown and nothing worked out');
+    final list = parseInvoiceList(200, <String, Object?>{'status': 'ok', 'result': <String, Object?>{'invoices': <Object?>[_row(1, 1, 'A', '2026-10-01', 1, 1)], 'owingMinor': 1, 'truncated': false}});
+    expect(list!.rows.first.dueOn, '');
+    expect(list.rows.first.overdue, isFalse);
+  });
+
   testWidgets('says so when the list is cut at 50', (tester) async {
     await _open(tester, _InvoicesApi(fixtures, _ok(<Object?>[_row(1, 1, 'Mokoena', '2026-10-01', 1000, 1000)], 1000, truncated: true)));
     expect(find.byKey(const Key('invoices-truncated')), findsOneWidget);

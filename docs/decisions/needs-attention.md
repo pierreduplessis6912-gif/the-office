@@ -32,3 +32,6 @@ A customer invoice may now carry a due date. A draft's `terms.dueOn` is checked 
 
 ## Payment terms (added 2026-11-17, no schema change)
 A customer may have a default payment term: contact field `paymentTermsDays` (whole days, 0 to 365, as text), set through party.create or party.edit so it is held, approved and kept in history. When an invoice is issued from a draft with no `terms.dueOn` of its own, the due date becomes the issue date plus the customer's term and is written onto the invoice's terms at that moment: changing the term later never moves an issued invoice, and a due date typed on the invoice always wins. Quotations and bills are not given one. Not done: an edit-customer form in the app, showing the due date in the Invoices room.
+
+## Due date in the Invoices room (added 2026-11-18, no schema change)
+`invoices.find` takes an optional `asOf` and each row carries `dueOn` (the recorded due date or null) and `overdue` (a recorded due date before that day, money still owing). The 30-day fallback is deliberately NOT used here: an invoice with no recorded due date shows none and is never called overdue; only Needs attention uses the fallback, and says so. The Invoices room shows "Due <date>" or, in red, "Overdue: was due <date>", using the engine's flag; the app works nothing out.

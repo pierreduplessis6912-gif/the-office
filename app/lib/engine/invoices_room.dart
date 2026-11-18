@@ -64,6 +64,7 @@ class _InvoicesRoomState extends State<InvoicesRoom> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
               if (i.issuedOn.isNotEmpty) Text('Issued ${i.issuedOn}', style: grey),
+              if (i.dueOn.isNotEmpty) Text(i.overdue ? 'Overdue: was due ${i.dueOn}' : 'Due ${i.dueOn}', key: Key('invoice-due-${i.id}'), style: i.overdue ? const TextStyle(fontSize: 12, color: Color(0xFFB3261E), fontWeight: FontWeight.w600) : grey),
             ]),
           ),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
