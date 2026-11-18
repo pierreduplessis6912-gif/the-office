@@ -49,6 +49,7 @@ jobs:
 
       - name: Build APK (debug)
         run: |
+          set -o pipefail
           cd app
           flutter build apk --debug --android-skip-build-dependency-validation 2>&1 | tee /tmp/apk.txt
 
@@ -56,4 +57,4 @@ jobs:
         run: |
           cd app
           grep -q "android.permission.POST_NOTIFICATIONS" android/app/src/main/AndroidManifest.xml
-          ls -l build/app/outputs/flutter-apk/*.apk
+          find build -name "*.apk" | grep . && ls -l $(find build -name "*.apk")
