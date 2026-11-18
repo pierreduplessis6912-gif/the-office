@@ -22,7 +22,7 @@ dependencies:
   flutter_secure_storage: ^9.2.2
   flutter_animate: ^4.5.2
   animations: ^2.2.0
-  workmanager: ^0.9.0+3
+  workmanager: ^0.10.0   # 0.9.3 registered a plugin class its Android module did not build (Android build check)
   flutter_local_notifications: ^19.5.0
 
 dev_dependencies:
