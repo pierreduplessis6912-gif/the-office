@@ -121,7 +121,7 @@ module.exports = kit.guard('model routes', async ({ check, srcDir }) => {
 
   // ---- the index cannot go stale -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   // No file but the router may name a chat model or call Moonshot. The files still on the retired Cloudflare Kimi are listed in UNMOVED: the list may only SHRINK (an entry that no longer names a model is stale and fails), and a new file can never join it.
-  const UNMOVED = ['debug.ts', 'trial.ts'];
+  const UNMOVED = [];
   const OWN_PATH = ['converse-moonshot.ts'];   // the conversation front door, which calls Moonshot directly on its own path (its own tests pin its one fetch)
   const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : e.name.endsWith('.ts') ? [path.join(dir, e.name)] : []));
   const files = walk(srcDir).map((f) => ({ rel: path.relative(srcDir, f).split(path.sep).join('/'), text: fs.readFileSync(f, 'utf8') }));
