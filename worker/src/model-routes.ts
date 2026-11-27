@@ -24,7 +24,7 @@ const OTHER: Record<string, string> = { kimi: "deepseek", deepseek: "kimi" };   
 /** ROUTES THAT HOLD RECORDS: what these calls send is not just the person's own words. It is stored records (stock lists, order lines with expected prices, open snags and leads, remembered facts), uploaded documents (supplier statements and invoices), the conversation's history (which holds what The Office answered), or a photo. Pierre agreed (2026-11-27) that the person's OWN SENTENCES may go to Moonshot; he has not agreed to these, so by default they stay on Cloudflare (DeepSeek, no fallback to Moonshot), and neither "*" nor a prefix override can send them out: only an override naming the route exactly can. */
 export const RESTRICTED_ROUTES: readonly string[] = [
   "extract.scope_pricing", "extract.goods_received", "extract.supplier_invoice", "extract.variance_disposition", "extract.stock_usage", "extract.stocktake", "extract.snag_resolution", "extract.lead_lost",
-  "extract.supplier_statement", "extract.document_identity", "resolve.follow_up", "classify.topic", "memory.answer", "vision.describe",
+  "extract.supplier_statement", "extract.document_identity", "resolve.follow_up", "classify.topic", "memory.answer", "vision.describe", "converse.reply",
 ];
 export const LOCAL_ROUTE: Route = { primary: "deepseek", fallback: null };
 

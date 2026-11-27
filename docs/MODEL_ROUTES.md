@@ -41,9 +41,10 @@ Pierre agreed that **the person's own sentences** may go to Moonshot. He has not
 | `classify.topic` | ai.ts classifyBusinessTopic | the standing topic of a conversation | **records** (history) |
 | `memory.answer` | ai.ts answerFromMemory | answers from remembered facts | **records** (stored facts) |
 | `vision.describe` | ai.ts describeImage | describes a photo | **records** (a photo) |
+| `converse.reply` | converse.ts tryConverse | the in-Worker reply to a message nothing understood (earlier turns include the Office's own answers) | **records** (history) |
 
 ## Not on the router yet (the ledger in the test: `UNMOVED`)
-`converse.ts` (the in-Worker reply), `debug.ts` (an admin diagnostic), `trial.ts` (a timing probe): each still names the retired Cloudflare Kimi and fails today. The Moonshot front door `converse-moonshot.ts` calls Moonshot directly on its own path (its own tests pin its one fetch). The speech and search models, `@cf/openai/whisper`, `@cf/openai/whisper-large-v3-turbo`, `@cf/baai/bge-base-en-v1.5` and `@cf/baai/bge-reranker-base`, are not chat models and are not on Cloudflare's retirement list; they are called directly.
+`debug.ts` (an admin diagnostic), `trial.ts` (a timing probe): each still names the retired Cloudflare Kimi and fails today. The Moonshot front door `converse-moonshot.ts` calls Moonshot directly on its own path (its own tests pin its one fetch). The speech and search models, `@cf/openai/whisper`, `@cf/openai/whisper-large-v3-turbo`, `@cf/baai/bge-base-en-v1.5` and `@cf/baai/bge-reranker-base`, are not chat models and are not on Cloudflare's retirement list; they are called directly.
 
 ## Proven on staging (2026-11-27)
 - The attention sentences through the `interpret` route, default (run 46036545010): 23 of 23 read by `moonshot:kimi-k2.6`, passed 10/10 and 13/13.

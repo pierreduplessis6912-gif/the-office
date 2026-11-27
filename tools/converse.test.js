@@ -36,7 +36,7 @@ module.exports = async function runConverseTests({ check, srcDir }) {
     check(logOnly(r) && personaCalls(r).length === 1 && r.aiCalls.length === 3, 'it makes exactly one extra model call and writes only the capture and the history line: no business record, no held action (' + Object.keys(r.writes).join(',') + ')');
     check(r.result.body.experience && typeof r.result.body.experience === 'object' && r.result.body.pendingActionId === null, 'the reply still carries the envelope (version 1 reads `message`), so an old APK is unaffected');
     const seen = JSON.parse(personaCalls(r)[0]);
-    check(seen.tools === undefined && seen.functions === undefined && seen.temperature !== undefined && /thinking/.test(JSON.stringify(seen.chat_template_kwargs || {})), 'the model is given no tools and no functions, and runs with thinking off like every other call');
+    check(seen.tools === undefined && seen.functions === undefined && seen.temperature === 0.4 && seen.reasoning_effort === 'none', 'the model is given no tools and no functions, asks at the reply temperature (0.4) and runs with thinking off, through the router (Cloudflare only: the history holds the Office\'s own answers)');
     const sys = seen.messages.find((m) => m.role === 'system').content;
     check(/never (?:state|give|invent|say)[^.]*(?:figure|number|amount)/i.test(sys) && /never say[^.]*(?:recorded|saved|created|sent|confirmed)/i.test(sys) && !/R\s?\d/.test(sys), 'the persona forbids stating figures and claiming that anything was recorded, saved, created, sent or confirmed');
     const last = seen.messages[seen.messages.length - 1];
@@ -132,12 +132,12 @@ module.exports = async function runConverseTests({ check, srcDir }) {
   // ---- 8. converse.ts cannot write, and the routes only ever swap `message` ----------------------------------------------------------------------------------------------------------
   const src = fs.readFileSync(path.join(srcDir, 'converse.ts'), 'utf8'), code = src.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
   const imports = [...code.matchAll(/^\s*import\s+(?:type\s+)?(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+"([^"]+)"/gm)].map((m) => m[1]).sort();
-  check(JSON.stringify(imports) === JSON.stringify(['./ai', './history', './no-intent', './types']), 'converse.ts imports only the retry helper, the history reader, the failure-text constant and types (' + imports.join(', ') + '): nothing that can write a record or hold an action');
+  check(JSON.stringify(imports) === JSON.stringify(['./ai', './history', './model-routes', './no-intent', './types']), 'converse.ts imports only the retry helper, the model router, the history reader, the failure-text constant and types (' + imports.join(', ') + '): nothing that can write a record or hold an action');
   const names = (from) => [...code.matchAll(new RegExp('import\\s+(?:type\\s+)?\\{([^}]*)\\}\\s+from\\s+"' + from.replace(/[./]/g, '\\$&') + '"', 'g'))].flatMap((m) => m[1].split(',').map((x) => x.trim()).filter(Boolean)).sort().join();
   check(names('./ai') === 'withRetry' && names('./history') === 'readHistory' && names('./no-intent') === 'NO_INTENT_MESSAGE' && names('./types') === 'Env', 'and only these names from them: withRetry, readHistory (the reader, never recordInteraction or any writer), the constant, and the Env type (' + [names('./ai'), names('./history')].join(' | ') + ')');
   check(!/\.(?:prepare|exec|batch)\(/.test(code) && !/\b(?:INSERT INTO|UPDATE \w+ SET|DELETE FROM|ALTER TABLE|CREATE TABLE|DROP TABLE|INSERT OR)\b/i.test(code), 'converse.ts has no SQL write and no database call of its own (history comes only through readHistory)');
   check(!/pending_actions|OFFICE_VAULT|CUSTOMER_NOTES|MEMORY|SHARED_DB|OFFICE_DB\.prepare|\.put\(|waitUntil|fetch\(/.test(code), 'converse.ts touches no held action, file store, notes, memory, shared database, network or background work');
-  check((code.match(/env\.AI\.run\(/g) || []).length === 1 && /withRetry\(\s*\(\)\s*=>\s*env\.AI\.run\(/.test(code), 'the one model call is inside withRetry');
+  check(!/env\.AI\.run\(/.test(code) && (code.match(/\bchat\(env, /g) || []).length === 1 && /withRetry\(async \(\) => \{[^}]*chat\(env, "converse\.reply"/.test(code), 'the one model call goes through the router (route converse.reply) and is inside withRetry');
   check(/CONVERSE/.test(code) && /scope:\s*"own"/.test(code) && !/scope:\s*"all"/.test(code), 'it reads the CONVERSE switch and reads history with scope "own" only');
   const index = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8');
   check((index.match(/tryConverse\(/g) || []).length === 2 && /import \{ tryConverse \} from "\.\/converse"/.test(index), 'the two routes (typed message, voice note) call it, once each');

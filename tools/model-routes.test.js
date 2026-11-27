@@ -43,7 +43,7 @@ module.exports = kit.guard('model routes', async ({ check, srcDir }) => {
   check(R('{"extract":"deepseek","extract.intent":"kimi"}', 'extract.intent.deep').primary === 'kimi' && R('{"extract.intent":"kimi","extract":"deepseek"}', 'extract.intent.deep').primary === 'kimi' && R('{"extract.intent":"deepseek","extract":"kimi"}', 'extract.intent.deep').primary === 'deepseek', 'the LONGEST matching prefix wins whatever the order of the keys');
 
   // ---- routes that hold records stay on Cloudflare ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  check(mod.RESTRICTED_ROUTES.length === 14 && ['memory.answer', 'vision.describe', 'classify.topic', 'resolve.follow_up', 'extract.supplier_statement', 'extract.document_identity', 'extract.supplier_invoice', 'extract.stocktake'].every((x) => mod.RESTRICTED_ROUTES.includes(x)) && !mod.RESTRICTED_ROUTES.includes('extract.intent'), 'the routes that hold records, files, history or photos are marked (14), and the person\'s own-words routes are not');
+  check(mod.RESTRICTED_ROUTES.length === 15 && ['memory.answer', 'vision.describe', 'classify.topic', 'resolve.follow_up', 'extract.supplier_statement', 'extract.document_identity', 'extract.supplier_invoice', 'extract.stocktake', 'converse.reply'].every((x) => mod.RESTRICTED_ROUTES.includes(x)) && !mod.RESTRICTED_ROUTES.includes('extract.intent'), 'the routes that hold records, files, history or photos are marked (15), and the person\'s own-words routes are not');
   for (const rt of mod.RESTRICTED_ROUTES) {
     const d = R(undefined, rt), star = R('{"*":"kimi"}', rt), pre = R(`{"${rt.split('.')[0]}":"kimi"}`, rt), exact = R(`{"${rt}":"kimi"}`, rt);
     if (!(d.primary === 'deepseek' && d.fallback === null && star.primary === 'deepseek' && star.fallback === null && pre.primary === 'deepseek' && exact.primary === 'kimi')) check(false, `route ${rt}: Cloudflare only by default, not moved by "*" or a prefix, moved only by an exact override`);
@@ -121,7 +121,7 @@ module.exports = kit.guard('model routes', async ({ check, srcDir }) => {
 
   // ---- the index cannot go stale -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   // No file but the router may name a chat model or call Moonshot. The files still on the retired Cloudflare Kimi are listed in UNMOVED: the list may only SHRINK (an entry that no longer names a model is stale and fails), and a new file can never join it.
-  const UNMOVED = ['converse.ts', 'debug.ts', 'trial.ts'];
+  const UNMOVED = ['debug.ts', 'trial.ts'];
   const OWN_PATH = ['converse-moonshot.ts'];   // the conversation front door, which calls Moonshot directly on its own path (its own tests pin its one fetch)
   const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : e.name.endsWith('.ts') ? [path.join(dir, e.name)] : []));
   const files = walk(srcDir).map((f) => ({ rel: path.relative(srcDir, f).split(path.sep).join('/'), text: fs.readFileSync(f, 'utf8') }));

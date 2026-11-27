@@ -110,3 +110,5 @@ Detail lives in `HANDOFF.md` (the newest notes sit just above its "How to run th
 - 2026-11-27: ai.ts's 26 chat calls moved onto the model router (routes in docs/MODEL_ROUTES.md). 14 routes hold records/files/history/photos and stay on Cloudflare (DeepSeek, no Moonshot) until Pierre agrees otherwise. Still on retired Kimi: converse.ts, debug.ts, trial.ts.
 
 - 2026-11-27: ai.ts extractions moved onto the model router (pushed 1dea802, umbrella 12076/12076). The existing staging model runs only reach /engine/interpret, so a new staging mode extract-model-run (probe POST /debug/extract-probe, pass rule docs/decisions/extract-model-run.md) is built; NOT yet run, waiting for Pierre's word. Still on retired Cloudflare Kimi: converse.ts, debug.ts, trial.ts.
+
+- 2026-11-28: converse.ts moved onto the router (route converse.reply, Cloudflare-only: its history holds the Office's own answers). Ledger now debug.ts, trial.ts. Staging proof of the reply not yet run (no mode reaches tryConverse).
