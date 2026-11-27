@@ -111,6 +111,11 @@ module.exports = kit.guard('engine interpret', async ({ check }) => {
   // ---- a model that cannot be reached, and bad requests -------------------------------------------------------------------------------------------------------------------------------------------------------------------
   r = await interpret('What does Mokoena owe me?', { ai: [] });
   check(status(r) === 503 && body(r).error === 'model_unavailable' && tables(r).length === 0, 'a model that cannot be reached is answered honestly (503) and nothing is written');
+  // WHICH model, and how it is asked (Cloudflare retired Kimi K2.6 on 2026-11-20, error 5028): the interpreter asks the model its INTERPRET_MODEL names, with reasoning off, a short answer, and none of the old Kimi-only settings
+  let seenInput = null;
+  r = await interpret('What does Mokoena owe me?', { ai: [{ match: /^@cf\/deepseek-ai\/deepseek-v4\.1-flash-1017\n/, reply: (input) => { seenInput = input; return call('receivables.query', { customer: 'Mokoena' }); } }] });
+  check(status(r) === 200 && seenInput !== null, 'the interpreter asks @cf/deepseek-ai/deepseek-v4.1-flash-1017');
+  check(seenInput && seenInput.reasoning_effort === 'none' && seenInput.chat_template_kwargs === undefined && seenInput.max_tokens === undefined && seenInput.max_completion_tokens > 0 && seenInput.max_completion_tokens <= 400 && seenInput.temperature === 0, 'it asks with reasoning off, a short answer (max_completion_tokens) and no Kimi-only settings');
   // WHY the model could not be reached is kept: in a rehearsal (staging) the answer names the failure so a run that gets nothing back can be diagnosed; outside one it never does (a production answer is the same plain words either way)
   r = await interpret('What does Mokoena owe me?', { ai: [{ match: /./, reply: () => { const e = new Error('5035: Please upgrade to the Workers Paid plan'); e.name = 'AiError'; throw e; } }] });
   check(status(r) === 503 && body(r).error === 'model_unavailable' && body(r).debug && /AiError/.test(body(r).debug.modelError) && /5035/.test(body(r).debug.modelError), 'in a rehearsal an unreachable model answers with the reason it failed (its error name and message)');

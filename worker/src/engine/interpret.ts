@@ -15,7 +15,7 @@ import { invokeRead, proposeCapabilityAs, type Member, type ReadOutcome } from "
 import { allOrders, orderProgress } from "./purchasing";
 import { permissionsFor, type EnginePermission } from "./permissions";
 
-export const INTERPRET_MODEL = "@cf/moonshotai/kimi-k2.6";
+export const INTERPRET_MODEL = "@cf/deepseek-ai/deepseek-v4.1-flash-1017";   // Kimi K2.6 was retired by Cloudflare on 2026-11-20 (410, code 5028); `reasoning_effort: "none"` is this model's own switch for thinking off
 const MAX_TEXT = 500;
 const MAX_READING_TEXT = 3500;   // text read from a picture is longer than a spoken sentence
 const MODEL_TIMEOUT_MS = 20_000;
@@ -220,7 +220,7 @@ async function askModel(env: Env, entries: Entry[], text: string, opts?: Interpr
   const messages = [{ role: "system", content: systemPrompt(entries, opts) }, { role: "user", content: `<<<\n${text}\n>>>` }];
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const call = Promise.resolve().then(() => (env.AI as unknown as { run: (m: string, i: unknown) => Promise<unknown> }).run(INTERPRET_MODEL, { temperature: 0, chat_template_kwargs: { thinking: false }, max_tokens: 200, messages }));
+    const call = Promise.resolve().then(() => (env.AI as unknown as { run: (m: string, i: unknown) => Promise<unknown> }).run(INTERPRET_MODEL, { temperature: 0, reasoning_effort: "none", max_completion_tokens: 200, messages }));
     const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("model timeout")), MODEL_TIMEOUT_MS); });
     const reply = (await Promise.race([call, timeout])) as { choices?: Array<{ message?: { content?: unknown } }>; response?: unknown };
     const content = reply?.choices?.[0]?.message?.content ?? reply?.response;
