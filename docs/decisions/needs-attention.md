@@ -73,3 +73,6 @@ Safety 11 of 13, invariants all held, nothing was ever held. Understanding score
 
 ## Attention model runs 2 and 3 (45977384858, 45977595620, 2026-11-27): NO VERDICT, model unavailable
 Every sentence, understanding and safety alike, came back 503 `model_unavailable` on staging, both times, minutes apart. Invariants held, nothing was held or written. Not a pass and not a failure of the fixes: the model never read a sentence. The jobs run used the same model binding on 2026-11-17 and worked. Not retried further; the cause (the model binding on staging, `INTERPRET_MODEL`, or the platform) is to be found before another run.
+
+## The model's failure now names its reason (2026-11-27, Pierre approved)
+Runs 2 and 3 had no verdict because every call returned 503 `model_unavailable`, and the interpreter threw the cause away. `askModel` now keeps the error's name and message (cut to 200 characters) and, ONLY in a rehearsal (staging), the 503 carries it as `debug.modelError`. Production answers are unchanged. Lead (unconfirmed): Cloudflare's docs say Kimi K2.6 needs the Workers Paid plan (a Free plan answers 403, internal error 5035); a used-up allowance would look the same. One staging run will show the real error.

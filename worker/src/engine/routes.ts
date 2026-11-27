@@ -210,5 +210,5 @@ export function interpretAnswer(r: Awaited<ReturnType<typeof interpretSentence>>
   if (r.kind === "read") return r.outcome.status === "ok" ? { status: 200, body: { status: "ok", result: r.outcome.result, understood: r.understood } } : r.outcome.status === "ambiguous" ? { status: 200, body: { status: "ambiguous", candidates: r.outcome.candidates, understood: r.understood } } : { status: statusFor(r.outcome.code), body: { error: r.outcome.code, message: r.outcome.message } };
   if (r.kind === "refused") return { status: statusFor(r.code), body: { error: r.code, message: r.message, ...(rehearsal && r.debug ? { debug: { modelReply: r.debug } } : {}) } };
   if (r.kind === "not_understood") return { status: 422, body: { error: "not_understood", message: r.message, ...(rehearsal && r.debug ? { debug: { modelReply: r.debug } } : {}) } };
-  return { status: 503, body: { error: "model_unavailable", message: r.message } };
+  return { status: 503, body: { error: "model_unavailable", message: r.message, ...(rehearsal && r.why ? { debug: { modelError: r.why } } : {}) } };
 }

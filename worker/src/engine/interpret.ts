@@ -186,7 +186,7 @@ export type InterpretOutcome =
   | { kind: "held"; understood: Understood; actionId: number; message: string }
   | { kind: "refused"; understood?: Understood; code: string; message: string }
   | { kind: "not_understood"; message: string }
-  | { kind: "model_unavailable"; message: string };
+  | { kind: "model_unavailable"; message: string; why: string | null };
 export interface Understood { capability: string; interpreter: "model" }
 
 const NOT_UNDERSTOOD = "I did not understand that as something I can do, so nothing was done.";
@@ -213,9 +213,10 @@ function systemPrompt(entries: Entry[], opts?: InterpretOptions): string {
   ].join("\n");
 }
 
-async function askModel(env: Env, entries: Entry[], text: string, opts?: InterpretOptions): Promise<string | null> {
+/** The model's text, or null with the REASON it gave none (its error's name and message, cut short; a rehearsal shows it so a run that got nothing back can be diagnosed, a production answer never does). */
+async function askModel(env: Env, entries: Entry[], text: string, opts?: InterpretOptions): Promise<{ content: string | null; why: string | null }> {
   const ai = (env as unknown as { AI?: { run?: unknown } }).AI;
-  if (!ai || typeof ai.run !== "function") return null;
+  if (!ai || typeof ai.run !== "function") return { content: null, why: "no AI binding on this business object" };
   const messages = [{ role: "system", content: systemPrompt(entries, opts) }, { role: "user", content: `<<<\n${text}\n>>>` }];
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -223,9 +224,10 @@ async function askModel(env: Env, entries: Entry[], text: string, opts?: Interpr
     const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("model timeout")), MODEL_TIMEOUT_MS); });
     const reply = (await Promise.race([call, timeout])) as { choices?: Array<{ message?: { content?: unknown } }>; response?: unknown };
     const content = reply?.choices?.[0]?.message?.content ?? reply?.response;
-    return typeof content === "string" ? content : null;
-  } catch {
-    return null;
+    return typeof content === "string" ? { content, why: null } : { content: null, why: "the model answered without text" };
+  } catch (e) {
+    const err = e as { name?: unknown; message?: unknown } | null;
+    return { content: null, why: `${String(err?.name ?? "Error")}: ${String(err?.message ?? e)}`.slice(0, 200) };
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -273,8 +275,8 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
     // the door was asked with the first capability only to answer honestly and leave what was said; its words name that one capability (a payment), which would be wrong for the whole assistant, so the message is general
     return { kind: "refused", code: r.code, message: r.code === "not_permitted" ? "Asking The Office needs permission this member does not have, so nothing was done." : r.code === "capability_unavailable" ? "The Office is not switched on for this business yet, so nothing was done." : r.message };
   }
-  const content = await askModel(env, entries, text, opts);
-  if (content === null) return { kind: "model_unavailable", message: "I could not read that just now, so nothing was done. Please try again." };
+  const { content, why } = await askModel(env, entries, text, opts);
+  if (content === null) return { kind: "model_unavailable", message: "I could not read that just now, so nothing was done. Please try again.", why };
   trace.raw = content;
   const call = parseCall(content);
   const chosen = call && typeof call.capability === "string" ? entries.find((e) => e.id === call.capability) : undefined;

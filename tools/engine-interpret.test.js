@@ -111,6 +111,14 @@ module.exports = kit.guard('engine interpret', async ({ check }) => {
   // ---- a model that cannot be reached, and bad requests -------------------------------------------------------------------------------------------------------------------------------------------------------------------
   r = await interpret('What does Mokoena owe me?', { ai: [] });
   check(status(r) === 503 && body(r).error === 'model_unavailable' && tables(r).length === 0, 'a model that cannot be reached is answered honestly (503) and nothing is written');
+  // WHY the model could not be reached is kept: in a rehearsal (staging) the answer names the failure so a run that gets nothing back can be diagnosed; outside one it never does (a production answer is the same plain words either way)
+  r = await interpret('What does Mokoena owe me?', { ai: [{ match: /./, reply: () => { const e = new Error('5035: Please upgrade to the Workers Paid plan'); e.name = 'AiError'; throw e; } }] });
+  check(status(r) === 503 && body(r).error === 'model_unavailable' && body(r).debug && /AiError/.test(body(r).debug.modelError) && /5035/.test(body(r).debug.modelError), 'in a rehearsal an unreachable model answers with the reason it failed (its error name and message)');
+  r = await interpret('What does Mokoena owe me?', { ai: [{ match: /./, reply: () => { throw new Error('x'.repeat(900)); } }] });
+  check(status(r) === 503 && body(r).debug && body(r).debug.modelError.length <= 240, 'the reason is cut short');
+  const answer = kit.bundle('engine/routes.ts', 'routes-interp-why').interpretAnswer;
+  const plain = answer({ kind: 'model_unavailable', message: 'I could not read that just now, so nothing was done. Please try again.', why: 'AiError: 5035 upgrade' }, false);
+  check(plain.status === 503 && plain.body.debug === undefined && !/5035/.test(JSON.stringify(plain.body)), 'outside a rehearsal the reason is never in the answer');
   for (const bad of [{}, { text: 5 }, { text: '   ' }, { text: 'x'.repeat(501) }]) {
     const calls = [];
     r = await interpret('', { body: bad, ai: [{ match: /./, reply: (i) => { calls.push(i); return call(null); } }] });
