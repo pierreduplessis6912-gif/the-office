@@ -33,6 +33,7 @@ import { billingHealth, billingStatus, createOrder, pingPayFast, setBillingState
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
 import { trialAi, trialD1, trialDo, trialTx } from "./trial";
+import { extractProbe } from "./extract-probe";
 import { timingsSummary } from "./timing";
 import { Env, Extraction, HistoryTurn, LineItemWithTotal } from "./types";
 import {
@@ -238,6 +239,10 @@ if (url.pathname === "/debug/init-indexes" && request.method === "POST") {
       return Response.json(await applyIndexes(env));
     }
 
+// The extraction probe (extract-probe.ts, docs/decisions/extract-model-run.md): one ai.ts model call, answered with the model that made it. Writes nothing.
+if (url.pathname === "/debug/extract-probe" && request.method === "POST") {
+      return extractProbe(request, env);
+    }
 // The architecture trial (trial.ts): what does it cost to run next to the data? Admin key only; touches no business data.
 if (url.pathname === "/debug/trial-d1" && request.method === "GET") {
       return trialD1(env, url);

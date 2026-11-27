@@ -108,3 +108,5 @@ Detail lives in `HANDOFF.md` (the newest notes sit just above its "How to run th
 - 2026-11-27: model router built (worker/src/model-routes.ts, docs/MODEL_ROUTES.md, Model route workflow, staging only). Interpreter is on it; ai.ts/converse.ts/debug.ts/trial.ts still to move (ledger UNMOVED in tools/model-routes.test.js).
 - 2026-11-27: model switch proven on staging (default 23/23 Kimi, flipped 23/23 DeepSeek, both pass; cleared). Switch = Staging model secrets workflow, route-set/route-clear.
 - 2026-11-27: ai.ts's 26 chat calls moved onto the model router (routes in docs/MODEL_ROUTES.md). 14 routes hold records/files/history/photos and stay on Cloudflare (DeepSeek, no Moonshot) until Pierre agrees otherwise. Still on retired Kimi: converse.ts, debug.ts, trial.ts.
+
+- 2026-11-27: ai.ts extractions moved onto the model router (pushed 1dea802, umbrella 12076/12076). The existing staging model runs only reach /engine/interpret, so a new staging mode extract-model-run (probe POST /debug/extract-probe, pass rule docs/decisions/extract-model-run.md) is built; NOT yet run, waiting for Pierre's word. Still on retired Cloudflare Kimi: converse.ts, debug.ts, trial.ts.

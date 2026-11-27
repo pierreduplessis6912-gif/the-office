@@ -27,9 +27,13 @@ import type {
 } from "./types";
 
 
+/** Which route, which model and (if none answered) why, for the most recent chat call. Read only by the staging extraction probe (extract-probe.ts), which makes one call at a time; nothing else may depend on it. */
+export let lastModelCall: { route: string; via: string | null; why: string | null } | null = null;
+
 /** A chat-model call through the router (model-routes.ts, docs/MODEL_ROUTES.md): the model, its fallback and the switch between them live there. Answers in the same shape the callers always read (`choices[0].message.content`) and THROWS when no model answered, so withRetry and every caller's catch behave exactly as before. */
 async function askChat(env: Env, route: string, req: { messages: unknown[]; maxTokens?: number }): Promise<{ choices: Array<{ message: { content: string } }> }> {
   const r = await chat(env, route, { messages: req.messages, temperature: 0, ...(req.maxTokens !== undefined ? { maxTokens: req.maxTokens } : {}) });
+  lastModelCall = { route, via: r.via ?? null, why: r.content === null ? r.why ?? "no reason given" : null };
   if (r.content === null) throw new Error(`no model answered (${r.why})`);
   return { choices: [{ message: { content: r.content } }] };   // exactly the shape callers (and their recorded raw results) have always had
 }

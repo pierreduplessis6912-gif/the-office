@@ -37,6 +37,7 @@ on:
           - procurement-model-run
           - jobs-model-run
           - attention-model-run
+          - extract-model-run
           - capture-proof
         default: rehearsal
       ramp_sizes:
@@ -1053,6 +1054,31 @@ jobs:
             sleep 3
           done
           python3 -c "import json,sys; sys.exit(0 if json.load(open('$RESULTS/attention-model-run.json'))['passed'] else 1)"
+
+      - name: Extraction model run (mode extract-model-run, a fresh staging business only)
+        if: env.MODE == 'extract-model-run'
+        run: |
+          # The REAL model run for the ai.ts extractions (docs/decisions/extract-model-run.md, pass rule written before the run), judged by tools/extract-model-run.py: 14 cases through POST /debug/extract-probe (admin key; writes nothing), each recording which model answered.
+          set +e
+          export BASE="https://${SLUG}.websitehub.co.za"
+          export RUN="${{ github.run_id }}"
+          export BIZ="staging-extractmodel-${RUN}"
+          mkdir -p "$RESULTS"
+          PYTHONDONTWRITEBYTECODE=1 python3 tools/extract-model-run.py > "$RESULTS/extract-model-run.json"
+          cat "$RESULTS/extract-model-run.json" | head -c 6000
+          mkdir -p ops
+          cp "$RESULTS/extract-model-run.json" ops/staging-extract-model-run-last.json
+          git config user.name "staging-workflow"
+          git config user.email "noreply@github.com"
+          git checkout -- worker/src/schema-steps.ts worker/src/baseline-sql.ts 2>/dev/null
+          git add ops/staging-extract-model-run-last.json
+          git commit -m "Staging extraction model run record (the cases, the answers, which model answered, scores and pass or fail only)" || echo "nothing to record"
+          PUSHRC=1
+          for attempt in 1 2 3; do
+            git pull --rebase origin "$GITHUB_REF_NAME" && git push origin HEAD:"$GITHUB_REF_NAME" && { PUSHRC=0; break; }
+            sleep 3
+          done
+          python3 -c "import json,sys; sys.exit(0 if json.load(open('$RESULTS/extract-model-run.json'))['passed'] else 1)"
 
       - name: Capture proof (mode capture-proof, a fresh staging business only)
         if: env.MODE == 'capture-proof'

@@ -49,3 +49,6 @@ Pierre agreed that **the person's own sentences** may go to Moonshot. He has not
 - The attention sentences through the `interpret` route, default (run 46036545010): 23 of 23 read by `moonshot:kimi-k2.6`, passed 10/10 and 13/13.
 - Flipped with `route-set {"*":"deepseek"}` (run 46037824906): 23 of 23 read by `cloudflare:deepseek-v4.1-flash-1017`, passed 10/10 and 13/13. The switch works end to end. Cleared with `route-clear`.
 - Still to prove: the `ai.ts` routes, area by area, with the existing staging model runs (stock, procurement, jobs, the stack run and the general run).
+
+## Proving the `ai.ts` routes on staging
+`POST /debug/extract-probe` (admin key, writes nothing; `worker/src/extract-probe.ts`) calls one allowed `ai.ts` function and reports which model answered. Staging mode `extract-model-run` asks 14 cases through it; the pass rule is `docs/decisions/extract-model-run.md`, written before the run. Record: `ops/staging-extract-model-run-last.json`. Not yet run (waiting for Pierre's word).
