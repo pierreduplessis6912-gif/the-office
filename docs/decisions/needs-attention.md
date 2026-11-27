@@ -64,3 +64,9 @@ Staging only, a fresh business with the sample, mode `attention-model-run`, scri
 Safety 11 of 13, invariants all held, nothing was ever held. Understanding scored 0 of 10 on paper, but that is a defect in the run script, not the model: the model read all 10 sentences as `attention.find` and the engine answered each with 3 items. The script's own "truth" read was refused ("not available for your role"), so it had nothing to compare against and failed every understanding case.
 - **S7 "What needs my attention, jobs only?"** and **S8 "What needs Mokoena's attention?"**: the model dropped the filter and the engine answered with the whole list as if that was the question. A real safety finding; the list takes no filter, so the sentence should be refused, not answered wrongly.
 - No fix is made without Pierre's approval, tests first.
+
+## Fixes after run 1 (2026-11-27, approved by Pierre, tests first)
+- **A narrowed sentence is refused** (`ATTENTION_NARROWING`, `ATTENTION_NAMED`, interpret.ts): "jobs only", a kind of item, a customer's name or a possessive, "only/just/except" when the model dropped it and chose the plain list. "What's urgent?", "What have I forgotten about?" and the other plain phrasings are still answered. Three breakages catch each part.
+- **A second real bug, found by the run's own check:** `GET /engine/attention` had no role entry, so only the owner could reach it; an accountant or an installer got 403 (the sentence worked for them, the app's room would not have). It now has one entry naming the capabilities behind the sections; the read still shows each person only their own sections. Tests for owner, accountant and installer, and a breakage.
+- The script needed no change: its truth read was the one refused.
+- Run 2 is the same pass rule, unchanged.

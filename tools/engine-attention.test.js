@@ -83,5 +83,17 @@ module.exports = kit.guard('engine attention', async ({ check }) => {
   const bad = capabilities.READS.find((q2) => q2.id === 'attention.find').validate({ asOf: 'tomorrow' });
   check(bad.ok === false, 'a badly written date is refused');
   check(capabilities.READS.find((q2) => q2.id === 'attention.find').validate({ nope: 1 }).ok === false, 'a stray field is refused');
+
+  // ---- the REST door: the list is for any member who may read something on it, not the owner alone (the handler then shows each person only their own sections) ---------------------------------------------------
+  const auth = kit.bundle('auth.ts', 'auth');
+  const AV2 = [...kit.ALL_CAPABILITIES, 'attention.find', 'invoices.find', 'jobs.find', 'quotations.find'];
+  const door = (role) => kit.route({ env: { BUSINESS_ID: 'eng-a' }, seed: kit.seedReceivables(AV2), method: 'GET', path: '/engine/attention', role });
+  const codeOf = (r) => r.result && r.result.status;
+  for (const role of ['owner', 'accountant', 'installer']) {
+    const r = await door(role);
+    check(codeOf(r) === 200, `the attention list answers the ${role} at the REST door (${codeOf(r)})`);
+  }
+  const allowed = new Set(); for (const e of (auth.ROUTE_RULES || [])) if (e.path && e.path.test('/engine/attention')) for (const c of e.anyOf || []) allowed.add(c);
+  check(allowed.size > 0, 'the REST route table names who may ask for the attention list');
 });
 if (require.main === module) kit.standalone(module.exports);

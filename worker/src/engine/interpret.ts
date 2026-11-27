@@ -31,6 +31,9 @@ const saysMethod = (text: string, method: string): boolean => SUPPLIER_PAY_WORDS
 interface Entry { id: string; describes: string; arguments: Record<string, string>; permissions: readonly EnginePermission[]; anyOf?: readonly EnginePermission[]; readingOnly?: true }   // readingOnly: offered ONLY for words read from a picture the person said is that kind of document, never for a typed or spoken sentence
 
 const JOB_DAY_WORDS = ["today", "tomorrow", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+// The attention list takes NO narrowing. A sentence that narrows it (a kind of item, a customer, "only") is not understood even when the model dropped the narrowing and chose the plain list: answering with the whole list would pass for the answer to a question that was not asked. "What's" and "forgotten about" are not narrowing.
+const ATTENTION_NARROWING = /\b(?:only|just|except|excluding|apart from|other than)\b|\b(?!(?:what|that|there|here|who|it|he|she|let)['\u2019]s\b)[a-z]+['\u2019]s\b|\b(?:jobs?|bills?|invoices?|quotes?|quotations?|stock|customers?|suppliers?)\b/i;
+const ATTENTION_NAMED = /\b(?:for|about|from|of|with|on)\s+[A-Z]/;   // a capitalised word after a preposition is a name (case-sensitive on purpose)
 const JOB_DATE_TALK = /\b\d{4}-\d{1,2}-\d{1,2}\b|\b\d{1,2}[\/.]\d{1,2}(?:[\/.]\d{2,4})?\b|\b\d{1,2}(?:st|nd|rd|th)\b|\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b|\bmay\s+\d|\d\s+may\b|\bnext\s+(?:week|month|year)\b/i;
 const JOB_PERIODS = ["this_week", "next_week", "overdue"] as const;
 /** A day WORD becomes a date: today, tomorrow, or the NEXT such weekday after today (a sentence on a Friday that says Friday means next Friday). Worked out here from the business date, never by the model. */
@@ -351,7 +354,7 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
     return { kind: "read", understood, outcome: await invokeRead(env, member, "ledger.bank_reconciliation", { bankAccountId: named.id }) };
   }
   if (chosen.id === "attention.find") {
-    if (Object.keys(args).length > 0) return notUnderstood(env, member, text);
+    if (Object.keys(args).length > 0 || ATTENTION_NARROWING.test(text) || ATTENTION_NAMED.test(text)) return notUnderstood(env, member, text);
     return { kind: "read", understood, outcome: await invokeRead(env, member, "attention.find", { asOf: today }) };
   }
   if (chosen.id === "jobs.find") {

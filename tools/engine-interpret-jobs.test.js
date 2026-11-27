@@ -35,6 +35,15 @@ module.exports = kit.guard('engine interpret (jobs)', async ({ check }) => {
     say(/What is on with a filter\?/, call('jobs.find', { status: 'cancelled' })),
     say(/What needs my attention\?/, call('attention.find', {})),
     say(/What needs my attention with a filter\?/, call('attention.find', { kind: 'job_overdue' })),
+    say(/What needs my attention, jobs only\?/, call('attention.find', {})),
+    say(/What needs Mokoena's attention\?/, call('attention.find', {})),
+    say(/Only the bills that need my attention/, call('attention.find', {})),
+    say(/What's urgent\?/, call('attention.find', {})),
+    say(/Anything I need to deal with right now\?/, call('attention.find', {})),
+    say(/What should I be worried about in the business\?/, call('attention.find', {})),
+    say(/What needs my attention for Patel\?/, call('attention.find', {})),
+    say(/What have I forgotten about\?/, call('attention.find', {})),
+    say(/Is there anything I should look at today\?/, call('attention.find', {})),
   ];
   const WEEKDAY = ['monday'];
   const as = (role, text) => ({ method: 'POST', path: '/engine/interpret', role, body: { text } });
@@ -104,6 +113,11 @@ module.exports = kit.guard('engine interpret (jobs)', async ({ check }) => {
   const items = (res) => ((body(res).result || {}).items || []);
   check(status(r) === 200 && body(r).understood.capability === 'attention.find' && items(r).some((i) => i.kind === 'job_overdue' && /Shopfront/.test(i.title)) && JSON.stringify(tables(r).filter((t) => t === 'pending_actions')) === '[]', 'the attention sentence reads the list (the overdue job is on it) and holds nothing');
   check(NOT(await interpret('What needs my attention with a filter?', 'owner', world)), 'a stray argument on the attention sentence is not understood');
+  // a sentence that NARROWS the list (a kind, a customer, "only") when the model dropped the narrowing: the list takes none, so it is refused, never answered whole as if it had been the question
+  check(NOT(await interpret('What needs my attention, jobs only?', 'owner', world)) && NOT(await interpret("What needs Mokoena's attention?", 'owner', world)) && NOT(await interpret('Only the bills that need my attention', 'owner', world)) && NOT(await interpret('What needs my attention for Patel?', 'owner', world)), 'a narrowed attention sentence the model turned into the whole list is not understood');
+  const PLAIN = ["What's urgent?", 'Anything I need to deal with right now?', 'What should I be worried about in the business?', 'What have I forgotten about?', 'Is there anything I should look at today?'];
+  let plainOk = true; for (const t of PLAIN) { const x = await interpret(t, 'owner', world); if (!(status(x) === 200 && (body(x).understood || {}).capability === 'attention.find')) plainOk = false; }
+  check(plainOk, 'plain ways of asking for the list are still understood');
   r = await interpret('What needs my attention?', 'installer', world);
   check(!items(r).some((i) => i.kind.startsWith('job_')), 'someone who may not read jobs is not shown the job items');
 });

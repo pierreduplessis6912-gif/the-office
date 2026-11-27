@@ -864,6 +864,8 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "GET", path: /^\/engine\/goods-unbilled$/, anyOf: ["can_manage_invoices", "can_know_supplier_balances"] },
   { method: "GET", path: /^\/engine\/supplier-invoices$/, anyOf: ["can_manage_invoices", "can_know_supplier_balances"] },
   { method: "GET", path: /^\/engine\/invoices$/, anyOf: ["can_know_debtors"] },
+  // What needs attention (needs-attention.md): any member who may read at least one kind of thing on the list may ask; the read itself shows each person only the sections their own permissions allow, so this door only keeps out members who could see none of it.
+  { method: "GET", path: /^\/engine\/attention$/, anyOf: ["can_know_debtors", "can_manage_invoices", "can_know_supplier_balances", "can_know_jobs", "can_make_quotes", "can_know_materials"] },
   { method: "GET", path: /^\/engine\/quotations$/, anyOf: ["can_manage_invoices", "can_make_quotes"] },
   // Money — accountant and owner.
   { method: "GET", path: /^\/customers\/\d+\/profitability$/, anyOf: ["can_know_profit"] },
