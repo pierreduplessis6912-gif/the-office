@@ -116,6 +116,35 @@ module.exports = kit.guard('engine interpret', async ({ check }) => {
   r = await interpret('What does Mokoena owe me?', { ai: [{ match: /^@cf\/deepseek-ai\/deepseek-v4\.1-flash-1017\n/, reply: (input) => { seenInput = input; return call('receivables.query', { customer: 'Mokoena' }); } }] });
   check(status(r) === 200 && seenInput !== null, 'the interpreter asks @cf/deepseek-ai/deepseek-v4.1-flash-1017');
   check(seenInput && seenInput.reasoning_effort === 'none' && seenInput.chat_template_kwargs === undefined && seenInput.max_tokens === undefined && seenInput.max_completion_tokens > 0 && seenInput.max_completion_tokens <= 400 && seenInput.temperature === 0, 'it asks with reasoning off, a short answer (max_completion_tokens) and no Kimi-only settings');
+  // KIMI AT MOONSHOT FIRST, Cloudflare's model as the fallback (Pierre's credits are at Moonshot; Cloudflare retired its own Kimi on 2026-11-20): with a MOONSHOT_API_KEY the sentence goes to Moonshot's kimi-k2.6; if that fails in any way it goes to Cloudflare; without the key it never leaves Cloudflare
+  const KEY = 'sk-moon-test-key-123';
+  const withMoonshot = async (handler, text, aiScript, key = KEY) => {
+    const real = globalThis.fetch, calls = [];
+    globalThis.fetch = async (url, init) => { if (String(url).startsWith('https://api.moonshot.ai/')) { calls.push({ url: String(url), body: JSON.parse(init.body), headers: init.headers || {} }); return handler(); } return real(url, init); };
+    try {
+      const out = await kit.route({ env: { ...ENV_A, ...(key ? { MOONSHOT_API_KEY: key } : {}) }, ai: aiScript, before: [SEED], method: 'POST', path: '/engine/interpret', role: 'accountant', body: { text } });
+      return { out, calls };
+    } finally { globalThis.fetch = real; }
+  };
+  const moonOk = (content) => () => new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  const cfSeen = [];
+  const cfScript = [{ match: /^@cf\/deepseek-ai\/deepseek-v4\.1-flash-1017\n/, reply: (input) => { cfSeen.push(input); return call('receivables.query', { customer: 'Mokoena' }); } }];
+  let m = await withMoonshot(moonOk(call('receivables.query', { customer: 'Mokoena' })), 'What does Mokoena owe me?', cfScript);
+  const mb = (m.calls[0] || {}).body || {};
+  check(status(m.out) === 200 && m.calls.length === 1 && cfSeen.length === 0, 'with a key the sentence goes to Moonshot once and Cloudflare is not asked');
+  check(m.calls[0] && m.calls[0].url === 'https://api.moonshot.ai/v1/chat/completions' && mb.model === 'kimi-k2.6' && mb.thinking && mb.thinking.type === 'disabled' && mb.reasoning_effort === undefined && mb.chat_template_kwargs === undefined && mb.max_completion_tokens > 0 && mb.max_completion_tokens <= 400 && (m.calls[0].headers.Authorization || m.calls[0].headers.authorization) === 'Bearer ' + KEY && !JSON.stringify(mb).includes(KEY), 'the Moonshot request: kimi-k2.6, thinking disabled, a short answer, the key only in the Authorization header');
+  check(Array.isArray(mb.messages) && mb.messages.length === 2 && mb.messages[0].role === 'system' && mb.messages[1].role === 'user' && mb.messages[1].content === '<<<\nWhat does Mokoena owe me?\n>>>' && !/Mokoena|Patel/.test(mb.messages[0].content), 'only the capability list and the person\'s own sentence cross to Moonshot: the instructions name no customer and the user turn is exactly the sentence');
+  check(body(m.out).debug && body(m.out).debug.via === 'moonshot:kimi-k2.6', 'a rehearsal says which model read the sentence (moonshot:kimi-k2.6)');
+  for (const [label, handler] of [['an HTTP 500', () => new Response('boom', { status: 500 })], ['an HTTP 402 (no credit left)', () => new Response('{"error":"insufficient balance"}', { status: 402 })], ['a network error', () => { throw new Error('connection reset'); }], ['an empty answer', () => new Response(JSON.stringify({ choices: [] }), { status: 200 })], ['a reply with no text', moonOk(null)], ['a blank reply', moonOk('   ')]]) {
+    cfSeen.length = 0;
+    m = await withMoonshot(handler, 'What does Mokoena owe me?', cfScript);
+    check(status(m.out) === 200 && cfSeen.length === 1 && body(m.out).debug && body(m.out).debug.via === 'cloudflare:deepseek-v4.1-flash-1017', `${label} from Moonshot: the sentence is read by Cloudflare's model instead`);
+  }
+  m = await withMoonshot(() => new Response('boom', { status: 500 }), 'What does Mokoena owe me?', []);
+  check(status(m.out) === 503 && body(m.out).error === 'model_unavailable' && body(m.out).debug && /moonshot/i.test(body(m.out).debug.modelError) && !JSON.stringify(body(m.out)).includes(KEY), 'when both fail the answer is the honest 503 and (in a rehearsal) names both reasons, never the key');
+  cfSeen.length = 0;
+  m = await withMoonshot(moonOk('x'), 'What does Mokoena owe me?', cfScript, null);
+  check(m.calls.length === 0 && cfSeen.length === 1 && status(m.out) === 200, 'without a key nothing goes to Moonshot');
   // WHY the model could not be reached is kept: in a rehearsal (staging) the answer names the failure so a run that gets nothing back can be diagnosed; outside one it never does (a production answer is the same plain words either way)
   r = await interpret('What does Mokoena owe me?', { ai: [{ match: /./, reply: () => { const e = new Error('5035: Please upgrade to the Workers Paid plan'); e.name = 'AiError'; throw e; } }] });
   check(status(r) === 503 && body(r).error === 'model_unavailable' && body(r).debug && /AiError/.test(body(r).debug.modelError) && /5035/.test(body(r).debug.modelError), 'in a rehearsal an unreachable model answers with the reason it failed (its error name and message)');

@@ -213,11 +213,35 @@ function systemPrompt(entries: Entry[], opts?: InterpretOptions): string {
   ].join("\n");
 }
 
-/** The model's text, or null with the REASON it gave none (its error's name and message, cut short; a rehearsal shows it so a run that got nothing back can be diagnosed, a production answer never does). */
-async function askModel(env: Env, entries: Entry[], text: string, opts?: InterpretOptions): Promise<{ content: string | null; why: string | null }> {
+const MOONSHOT_URL = "https://api.moonshot.ai/v1/chat/completions";
+const MOONSHOT_MODEL = "kimi-k2.6";
+const VIA_MOONSHOT = `moonshot:${MOONSHOT_MODEL}`;
+const VIA_CLOUDFLARE = "cloudflare:deepseek-v4.1-flash-1017";
+type Asked = { content: string; why: null } | { content: null; why: string };
+const cut = (e: unknown, n: number): string => { const err = e as { name?: unknown; message?: unknown } | null; return `${String(err?.name ?? "Error")}: ${String(err?.message ?? e)}`.slice(0, n); };
+
+/** Kimi, called DIRECTLY at Moonshot (Pierre's credits are there). What crosses is the capability list and the person's own sentence, nothing else; the key is only ever in the Authorization header. Any failure (network, timeout, HTTP error, no text) comes back as a reason, and the caller falls back to Cloudflare. */
+async function askMoonshot(env: Env, messages: unknown[]): Promise<Asked> {
+  const key = (env as unknown as { MOONSHOT_API_KEY?: string }).MOONSHOT_API_KEY;
+  if (!key) return { content: null, why: "no key" };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+  try {
+    const response = await fetch(MOONSHOT_URL, { method: "POST", signal: controller.signal, headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: MOONSHOT_MODEL, messages, max_completion_tokens: 200, thinking: { type: "disabled" } }) });
+    if (!response.ok) return { content: null, why: `HTTP ${response.status}` };
+    const data = (await response.json()) as { choices?: Array<{ message?: { content?: unknown } }> };
+    const content = data?.choices?.[0]?.message?.content;
+    return typeof content === "string" && content.trim() ? { content, why: null } : { content: null, why: "no text in the answer" };
+  } catch (e) {
+    return { content: null, why: cut(e, 100) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function askCloudflare(env: Env, messages: unknown[]): Promise<Asked> {
   const ai = (env as unknown as { AI?: { run?: unknown } }).AI;
   if (!ai || typeof ai.run !== "function") return { content: null, why: "no AI binding on this business object" };
-  const messages = [{ role: "system", content: systemPrompt(entries, opts) }, { role: "user", content: `<<<\n${text}\n>>>` }];
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const call = Promise.resolve().then(() => (env.AI as unknown as { run: (m: string, i: unknown) => Promise<unknown> }).run(INTERPRET_MODEL, { temperature: 0, reasoning_effort: "none", max_completion_tokens: 200, messages }));
@@ -226,11 +250,20 @@ async function askModel(env: Env, entries: Entry[], text: string, opts?: Interpr
     const content = reply?.choices?.[0]?.message?.content ?? reply?.response;
     return typeof content === "string" ? { content, why: null } : { content: null, why: "the model answered without text" };
   } catch (e) {
-    const err = e as { name?: unknown; message?: unknown } | null;
-    return { content: null, why: `${String(err?.name ?? "Error")}: ${String(err?.message ?? e)}`.slice(0, 200) };
+    return { content: null, why: cut(e, 120) };
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+/** The model's text and WHICH model gave it, or null with the REASONS it gave none (a rehearsal shows them so a run that got nothing back can be diagnosed; a production answer never does). Moonshot's Kimi first when a key is set, Cloudflare's model as the fallback. */
+async function askModel(env: Env, entries: Entry[], text: string, opts?: InterpretOptions): Promise<{ content: string | null; why: string | null; via: string | null }> {
+  const messages = [{ role: "system", content: systemPrompt(entries, opts) }, { role: "user", content: `<<<\n${text}\n>>>` }];
+  const moon = await askMoonshot(env, messages);
+  if (moon.content !== null) return { content: moon.content, why: null, via: VIA_MOONSHOT };
+  const cf = await askCloudflare(env, messages);
+  if (cf.content !== null) return { content: cf.content, why: null, via: VIA_CLOUDFLARE };
+  return { content: null, why: moon.why === "no key" ? cf.why : `moonshot: ${moon.why}; cloudflare: ${cf.why}`, via: null };
 }
 
 /** The first JSON object in the model's text, however it is wrapped (a code fence, a sentence before it). Null when there is none. */
@@ -254,15 +287,15 @@ async function notUnderstood(env: Env, member: Member, text: string): Promise<In
   return { kind: "not_understood", message: NOT_UNDERSTOOD };
 }
 
-export type InterpretResult = InterpretOutcome & { debug: string | null };
+export type InterpretResult = InterpretOutcome & { debug: string | null; via: string | null };
 /** What the real model said, for staging rehearsals only (the route shows it only when ENGINE_REHEARSAL is set): a run judged against a written pass rule needs to see WHY a sentence was not understood. */
 export async function interpretSentence(env: Env, member: Member, rawText: unknown, today: string, opts?: InterpretOptions): Promise<InterpretResult> {
-  const trace: { raw: string | null } = { raw: null };
+  const trace: { raw: string | null; via: string | null } = { raw: null, via: null };
   const out = await interpretCore(env, member, rawText, today, trace, opts);
-  return { ...out, debug: trace.raw === null ? null : trace.raw.slice(0, 400) } as InterpretResult;
+  return { ...out, debug: trace.raw === null ? null : trace.raw.slice(0, 400), via: trace.via } as InterpretResult;
 }
 
-async function interpretCore(env: Env, member: Member, rawText: unknown, today: string, trace: { raw: string | null }, opts?: InterpretOptions): Promise<InterpretOutcome> {
+async function interpretCore(env: Env, member: Member, rawText: unknown, today: string, trace: { raw: string | null; via: string | null }, opts?: InterpretOptions): Promise<InterpretOutcome> {
   const limit = opts?.fromReading ? MAX_READING_TEXT : MAX_TEXT;
   if (typeof rawText !== "string" || !rawText.trim() || rawText.length > limit) return { kind: "refused", code: "invalid_payload", message: `text must be a sentence of up to ${limit} characters.` };
   const text = rawText.trim();
@@ -275,7 +308,8 @@ async function interpretCore(env: Env, member: Member, rawText: unknown, today: 
     // the door was asked with the first capability only to answer honestly and leave what was said; its words name that one capability (a payment), which would be wrong for the whole assistant, so the message is general
     return { kind: "refused", code: r.code, message: r.code === "not_permitted" ? "Asking The Office needs permission this member does not have, so nothing was done." : r.code === "capability_unavailable" ? "The Office is not switched on for this business yet, so nothing was done." : r.message };
   }
-  const { content, why } = await askModel(env, entries, text, opts);
+  const { content, why, via } = await askModel(env, entries, text, opts);
+  trace.via = via;
   if (content === null) return { kind: "model_unavailable", message: "I could not read that just now, so nothing was done. Please try again.", why };
   trace.raw = content;
   const call = parseCall(content);
