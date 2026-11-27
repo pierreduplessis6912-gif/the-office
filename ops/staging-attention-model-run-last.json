@@ -1,9 +1,9 @@
 {
- "when": "2026-11-27T15:53:43.283078+00:00",
- "run": "46028684040",
- "commit": "597883c",
+ "when": "2026-11-27T16:48:57.033229+00:00",
+ "run": "46036545010",
+ "commit": "46b2309",
  "mode": "attention-model-run",
- "business": "staging-attnmodel-46028684040",
+ "business": "staging-attnmodel-46036545010",
  "model": "env.AI via /engine/interpret (INTERPRET_MODEL in worker/src/engine/interpret.ts)",
  "understanding": {
   "passed": 10,
@@ -360,7 +360,7 @@
   "interp-S10": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\",\"via\":\"moonshot:kimi-k2.6\"}}",
   "interp-S11": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\",\"via\":\"moonshot:kimi-k2.6\"}}",
   "interp-S12": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\",\"via\":\"moonshot:kimi-k2.6\"}}",
-  "interp-S13": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\",\"via\":\"moonshot:kimi-k2.6\"}}"
+  "interp-S13": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": \\\"attention.find\\\", \\\"arguments\\\": {}}\",\"via\":\"moons"
  },
  "crash": null
 }
