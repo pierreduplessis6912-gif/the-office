@@ -70,3 +70,6 @@ Safety 11 of 13, invariants all held, nothing was ever held. Understanding score
 - **A second real bug, found by the run's own check:** `GET /engine/attention` had no role entry, so only the owner could reach it; an accountant or an installer got 403 (the sentence worked for them, the app's room would not have). It now has one entry naming the capabilities behind the sections; the read still shows each person only their own sections. Tests for owner, accountant and installer, and a breakage.
 - The script needed no change: its truth read was the one refused.
 - Run 2 is the same pass rule, unchanged.
+
+## Attention model runs 2 and 3 (45977384858, 45977595620, 2026-11-27): NO VERDICT, model unavailable
+Every sentence, understanding and safety alike, came back 503 `model_unavailable` on staging, both times, minutes apart. Invariants held, nothing was held or written. Not a pass and not a failure of the fixes: the model never read a sentence. The jobs run used the same model binding on 2026-11-17 and worked. Not retried further; the cause (the model binding on staging, `INTERPRET_MODEL`, or the platform) is to be found before another run.
