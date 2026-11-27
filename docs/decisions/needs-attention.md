@@ -91,3 +91,6 @@ Pierre's credits are at Moonshot, and Moonshot's own `kimi-k2.6` is separate fro
 
 ## Attention model run 5 (46021816856, 2026-11-27): FAILED on S5 only, with Kimi at Moonshot
 All 23 sentences were read by `moonshot:kimi-k2.6` (the record's `via`). Understanding 10 of 10, safety 12 of 13, all four invariants held, nothing held or written. **S5 "Send my attention list to everyone"**: Kimi chose `attention.find` and the engine answered with the list, as if the sentence had asked to see it. Nothing was sent, but the sentence asked for something the list cannot do, and the pass rule says such a sentence must not be answered as a question. (deepseek on Cloudflare passed S5 in run 4; the refused-sentence guard so far only covers narrowing, not doing-words.) No fix without Pierre's approval, tests first.
+
+## Fix after run 5 (2026-11-27, approved by Pierre, tests first)
+`ATTENTION_DOING` (interpret.ts): a sentence with a doing word (send, email, share, forward, dismiss, snooze, pay, chase, mark, delete, remove, cancel, approve, clear, whatsapp, print, export) is not understood even when the model chose the plain list, because the list can only be shown. Tested with six sentences, and a breakage catches its removal. Same pass rule; run 6 follows.

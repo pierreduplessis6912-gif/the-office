@@ -42,6 +42,12 @@ module.exports = kit.guard('engine interpret (jobs)', async ({ check }) => {
     say(/Anything I need to deal with right now\?/, call('attention.find', {})),
     say(/What should I be worried about in the business\?/, call('attention.find', {})),
     say(/What needs my attention for Patel\?/, call('attention.find', {})),
+    say(/Send my attention list to everyone/, call('attention.find', {})),
+    say(/Email me the attention list/, call('attention.find', {})),
+    say(/Dismiss everything on my attention list/, call('attention.find', {})),
+    say(/Snooze the attention list for a week/, call('attention.find', {})),
+    say(/Mark all the overdue jobs as done/, call('attention.find', {})),
+    say(/Pay what needs my attention/, call('attention.find', {})),
     say(/What have I forgotten about\?/, call('attention.find', {})),
     say(/Is there anything I should look at today\?/, call('attention.find', {})),
   ];
@@ -115,6 +121,9 @@ module.exports = kit.guard('engine interpret (jobs)', async ({ check }) => {
   check(NOT(await interpret('What needs my attention with a filter?', 'owner', world)), 'a stray argument on the attention sentence is not understood');
   // a sentence that NARROWS the list (a kind, a customer, "only") when the model dropped the narrowing: the list takes none, so it is refused, never answered whole as if it had been the question
   check(NOT(await interpret('What needs my attention, jobs only?', 'owner', world)) && NOT(await interpret("What needs Mokoena's attention?", 'owner', world)) && NOT(await interpret('Only the bills that need my attention', 'owner', world)) && NOT(await interpret('What needs my attention for Patel?', 'owner', world)), 'a narrowed attention sentence the model turned into the whole list is not understood');
+  // a sentence that asks to DO something with the list (send, dismiss, snooze, pay, mark, delete...) when the model chose the plain list: the list does none of that, so it is refused, never answered as if it had been a question (model run 5, S5)
+  let doingOk = true; for (const t of ['Send my attention list to everyone', 'Email me the attention list', 'Dismiss everything on my attention list', 'Snooze the attention list for a week', 'Mark all the overdue jobs as done', 'Pay what needs my attention']) { if (!NOT(await interpret(t, 'owner', world))) doingOk = false; }
+  check(doingOk, 'a sentence that asks to do something with the attention list, read by the model as the plain list, is not understood');
   const PLAIN = ["What's urgent?", 'Anything I need to deal with right now?', 'What should I be worried about in the business?', 'What have I forgotten about?', 'Is there anything I should look at today?'];
   let plainOk = true; for (const t of PLAIN) { const x = await interpret(t, 'owner', world); if (!(status(x) === 200 && (body(x).understood || {}).capability === 'attention.find')) plainOk = false; }
   check(plainOk, 'plain ways of asking for the list are still understood');
