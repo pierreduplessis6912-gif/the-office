@@ -81,7 +81,7 @@ def main():
             call("reject-" + it["id"], "POST", f"/actions/{d['actionId']}/reject", {})
         try: ok = bool(it["fn"](code, d, {}))
         except Exception: ok = False
-        results.append({"id": it["id"], "set": it["set"], "text": it["text"], "http": code, "status": d.get("status"), "error": d.get("error"), "message": (d.get("message") or "")[:120], "understood": cap(d), "count": res_of(d).get("count"), "held_type": held_type, "passed": ok})
+        results.append({"id": it["id"], "set": it["set"], "text": it["text"], "http": code, "status": d.get("status"), "error": d.get("error"), "message": (d.get("message") or "")[:120], "via": (d.get("debug") or {}).get("via"), "understood": cap(d), "count": res_of(d).get("count"), "held_type": held_type, "passed": ok})
     pend = call("pending-end", "GET", "/actions/pending")[1].get("pending") or []
     st1 = call("status-end", "GET", "/admin/engine/status", None, False, True)[1]
     truth1 = truth_read()
