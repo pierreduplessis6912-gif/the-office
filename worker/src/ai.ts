@@ -4,6 +4,7 @@
 // prompt. No business logic, no decisions — extract and narrate, per the
 // Constitution.
 
+import { chat } from "./model-routes";
 import type {
   Env,
   Extraction,
@@ -25,6 +26,13 @@ import type {
   HistoryTurn,
 } from "./types";
 
+
+/** A chat-model call through the router (model-routes.ts, docs/MODEL_ROUTES.md): the model, its fallback and the switch between them live there. Answers in the same shape the callers always read (`choices[0].message.content`) and THROWS when no model answered, so withRetry and every caller's catch behave exactly as before. */
+async function askChat(env: Env, route: string, req: { messages: unknown[]; maxTokens?: number }): Promise<{ choices: Array<{ message: { content: string } }> }> {
+  const r = await chat(env, route, { messages: req.messages, temperature: 0, ...(req.maxTokens !== undefined ? { maxTokens: req.maxTokens } : {}) });
+  if (r.content === null) throw new Error(`no model answered (${r.why})`);
+  return { choices: [{ message: { content: r.content } }] };   // exactly the shape callers (and their recorded raw results) have always had
+}
 
 // Real evidence today: multiple genuine, transient AI-call failures,
 // every single one succeeding cleanly on a plain retry seconds later.
@@ -118,10 +126,7 @@ export async function transcribeWithNameHints(
 export async function splitIntoTopics(env: Env, transcript: string): Promise<string[]> {
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "split.topics", { messages: [
           {
             role: "system",
             content:
@@ -179,8 +184,7 @@ export async function splitIntoTopics(env: Env, transcript: string): Promise<str
               '["Quote for Jenny - supply and fit vinyl for R8000, give her 10 percent off that"]',
           },
           { role: "user", content: transcript },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -278,10 +282,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
   let result: unknown = null;
   try {
     result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.intent", { messages: [
           {
             role: "system",
             content:
@@ -633,8 +634,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             'string or null}',
         },
         { role: "user", content: transcript },
-      ],
-    }));
+      ] }));
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     rawText = r.choices?.[0]?.message?.content ?? null;
     const cleaned = (rawText ?? "").replace(/```json|```/g, "").trim();
@@ -658,10 +658,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
 export async function extractLineItems(env: Env, transcript: string): Promise<LineItemExtraction[]> {
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.line_items", { messages: [
           {
             role: "system",
             content:
@@ -694,8 +691,7 @@ export async function extractLineItems(env: Env, transcript: string): Promise<Li
 
         },
         { role: "user", content: transcript },
-      ],
-    }));
+      ] }));
     const r2 = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText2 = r2.choices?.[0]?.message?.content ?? "";
     const cleaned2 = rawText2.replace(/```json|```/g, "").trim();
@@ -724,10 +720,7 @@ export async function extractScopePricing(
     const componentList = components.map((c) => `${c.name}${c.area_sqm != null ? ` (${c.area_sqm} sqm)` : ""}`).join(", ") || "none";
     const taskList = tasks.map((t) => t.description).join(", ") || "none";
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.scope_pricing", { messages: [
           {
             role: "system",
             content:
@@ -766,8 +759,7 @@ export async function extractScopePricing(
             role: "user",
             content: `Components: ${componentList}. Tasks: ${taskList}.\n\nTradesperson said: "${transcript}"`,
           },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -795,10 +787,7 @@ export async function extractGoodsReceived(
     const lineItemList =
       poLineItems.map((i) => `${i.description} (ordered: ${i.quantity_ordered}${i.unit ? " " + i.unit : ""})`).join(", ") || "none";
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.goods_received", { messages: [
           {
             role: "system",
             content:
@@ -836,8 +825,7 @@ export async function extractGoodsReceived(
             role: "user",
             content: `Ordered: ${lineItemList}.\n\nDelivery: "${transcript}"`,
           },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -888,10 +876,7 @@ export async function extractSupplierInvoice(
         )
         .join(", ") || "none";
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.supplier_invoice", { messages: [
           {
             role: "system",
             content:
@@ -932,8 +917,7 @@ export async function extractSupplierInvoice(
             role: "user",
             content: `Ordered: ${lineItemList}.\n\nBill: "${text}"`,
           },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -972,10 +956,7 @@ export async function extractVarianceDisposition(
     const discrepancyList =
       discrepancies.map((d) => `${d.description} (variance: ${d.variance > 0 ? "+" : ""}${d.variance})`).join(", ") || "none";
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.variance_disposition", { messages: [
           {
             role: "system",
             content:
@@ -1005,8 +986,7 @@ export async function extractVarianceDisposition(
             role: "user",
             content: `Known discrepancies: ${discrepancyList}.\n\nMessage: "${transcript}"`,
           },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -1032,10 +1012,7 @@ export async function extractStockItemRegistration(env: Env, transcript: string)
   const empty: StockItemRegistrationExtraction = { name: null, unit: null };
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.stock_item", { messages: [
           {
             role: "system",
             content:
@@ -1047,8 +1024,7 @@ export async function extractStockItemRegistration(env: Env, transcript: string)
               '"track screed as stock, we buy it in bags" -> {"name":"screed","unit":"bags"}',
           },
           { role: "user", content: transcript },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -1073,10 +1049,7 @@ export async function extractUnitConversion(env: Env, transcript: string): Promi
   const empty: UnitConversionExtraction = { item_name: null, from_unit: null, to_unit: null, factor: null };
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.unit_conversion", { messages: [
           {
             role: "system",
             content:
@@ -1090,8 +1063,7 @@ export async function extractUnitConversion(env: Env, transcript: string): Promi
               '"underlay comes 15 square metres to a roll" -> {"item_name":"underlay","from_unit":"roll","to_unit":"square metres","factor":15}',
           },
           { role: "user", content: transcript },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const cleaned = (r.choices?.[0]?.message?.content ?? "").replace(/```json|```/g, "").trim();
@@ -1116,10 +1088,7 @@ export async function extractStockUsage(
   try {
     const itemList = stockItems.map((i) => `${i.name}${i.unit ? ` (${i.unit})` : ""}`).join(", ") || "none";
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.stock_usage", { messages: [
           {
             role: "system",
             content:
@@ -1139,8 +1108,7 @@ export async function extractStockUsage(
               '{"matched_item_name":"screed","quantity_used":5,"unit":"bags","job_customer_name":"Jenny"}',
           },
           { role: "user", content: `Tracked items: ${itemList}.\n\nMessage: "${transcript}"` },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -1171,10 +1139,7 @@ export async function extractStocktake(
   try {
     const itemList = stockItems.map((i) => `${i.name}${i.unit ? ` (${i.unit})` : ""}`).join(", ") || "none";
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.stocktake", { messages: [
           {
             role: "system",
             content:
@@ -1191,8 +1156,7 @@ export async function extractStocktake(
               '{"matched_item_name":"screed","quantity_counted":15,"unit":"bags"}',
           },
           { role: "user", content: `Tracked items: ${itemList}.\n\nMessage: "${transcript}"` },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -1217,10 +1181,7 @@ export async function extractSnag(env: Env, transcript: string): Promise<SnagExt
   const empty: SnagExtraction = { description: null };
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.snag", { messages: [
           {
             role: "system",
             content:
@@ -1231,8 +1192,7 @@ export async function extractSnag(env: Env, transcript: string): Promise<SnagExt
               '"Jenny\'s carpet has a loose seam near the door" -> {"description":"loose seam near the door"}',
           },
           { role: "user", content: transcript },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -1256,10 +1216,7 @@ export async function extractSnagResolution(
   try {
     const snagList = openSnags.map((s) => s.description).join(", ") || "none";
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.snag_resolution", { messages: [
           {
             role: "system",
             content:
@@ -1272,8 +1229,7 @@ export async function extractSnagResolution(
               '{"matched_description":"loose seam near the door"}',
           },
           { role: "user", content: `Open snags: ${snagList}.\n\nMessage: "${transcript}"` },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -1293,10 +1249,7 @@ export async function extractLead(env: Env, transcript: string): Promise<LeadExt
   const empty: LeadExtraction = { name: null, interest: null, source: null };
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.lead", { messages: [
           {
             role: "system",
             content:
@@ -1311,8 +1264,7 @@ export async function extractLead(env: Env, transcript: string): Promise<LeadExt
               '{"name":"Sipho","interest":"carpet for his lounge","source":"referral"}',
           },
           { role: "user", content: transcript },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -1336,10 +1288,7 @@ export async function extractLeadLost(
   try {
     const leadList = openLeads.map((l) => l.name).join(", ") || "none";
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.lead_lost", { messages: [
           {
             role: "system",
             content:
@@ -1351,8 +1300,7 @@ export async function extractLeadLost(
               'Open leads: "Sipho". Message: "lost the Sipho enquiry" -> {"matched_name":"Sipho"}',
           },
           { role: "user", content: `Open leads: ${leadList}.\n\nMessage: "${transcript}"` },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -1373,10 +1321,7 @@ export async function extractSupplierStatement(env: Env, documentText: string): 
   const empty: SupplierStatementExtraction = { claimed_closing_balance: null };
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.supplier_statement", { messages: [
           {
             role: "system",
             content:
@@ -1388,8 +1333,7 @@ export async function extractSupplierStatement(env: Env, documentText: string): 
               '"...Closing Balance: R15,430.00" -> {"claimed_closing_balance":15430}',
           },
           { role: "user", content: documentText },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -1422,10 +1366,7 @@ export async function extractDocumentIdentity(env: Env, documentText: string): P
   const empty: DocumentIdentityExtraction = { document_type: "other", issuer_name: null };
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.document_identity", { messages: [
           {
             role: "system",
             content:
@@ -1448,8 +1389,7 @@ export async function extractDocumentIdentity(env: Env, documentText: string): P
               '"Photo of a lounge floor, tape measure showing 4.2 m" -> {"document_type":"other","issuer_name":null}',
           },
           { role: "user", content: documentText },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -1487,10 +1427,7 @@ export async function extractWorkObservation(env: Env, transcript: string): Prom
   };
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.work_observation", { messages: [
           {
             role: "system",
             content:
@@ -1541,8 +1478,7 @@ export async function extractWorkObservation(env: Env, transcript: string): Prom
             '{"job_description":"carpet installation","components":[{"name":"downstairs","width":null,"length":null,"unit":null,"area_sqm":160},{"name":"upstairs","width":null,"length":null,"unit":null,"area_sqm":56}],"tasks":[],"scheduled_date_raw":null,"installer_name":null}',
         },
         { role: "user", content: transcript },
-      ],
-    }));
+      ] }));
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
     const cleaned = rawText.replace(/```json|```/g, "").trim();
@@ -1570,10 +1506,7 @@ export async function extractPurchaseOrder(env: Env, transcript: string): Promis
   const empty: PurchaseOrderExtraction = { supplier_name: null, description: transcript, line_items: [] };
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "extract.purchase_order", { messages: [
           {
             role: "system",
             content:
@@ -1608,8 +1541,7 @@ export async function extractPurchaseOrder(env: Env, transcript: string): Promis
               "]}",
           },
           { role: "user", content: transcript },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -1642,10 +1574,7 @@ export async function resolveFollowUpEntity(env: Env, history: HistoryTurn[], me
   try {
     const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        chat_template_kwargs: { thinking: false },
-        temperature: 0,
-        messages: [
+      askChat(env, "resolve.follow_up", { messages: [
           {
             role: "system",
             content:
@@ -1662,8 +1591,7 @@ export async function resolveFollowUpEntity(env: Env, history: HistoryTurn[], me
               historyText,
           },
           { role: "user", content: message },
-        ],
-      })
+        ] })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
@@ -1692,11 +1620,7 @@ export async function classifyBusinessTopic(
   try {
     const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        chat_template_kwargs: { thinking: false },
-        temperature: 0,
-        max_tokens: 10,
-        messages: [
+      askChat(env, "classify.topic", { messages: [
           {
             role: "system",
             content:
@@ -1709,8 +1633,7 @@ export async function classifyBusinessTopic(
               historyText,
           },
           { role: "user", content: message },
-        ],
-      })
+        ], maxTokens: 10 })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const answer = r.choices?.[0]?.message?.content?.trim().toUpperCase() ?? "";
@@ -1738,11 +1661,7 @@ export async function classifyExpenseCategory(
 ): Promise<"materials" | "fuel" | "tools" | "subcontractor" | "other"> {
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        chat_template_kwargs: { thinking: false },
-        temperature: 0,
-        max_tokens: 10,
-        messages: [
+      askChat(env, "classify.expense_category", { messages: [
           {
             role: "system",
             content:
@@ -1753,8 +1672,7 @@ export async function classifyExpenseCategory(
               "rent, insurance, admin, wages). Answer with exactly one word.",
           },
           { role: "user", content: description },
-        ],
-      })
+        ], maxTokens: 10 })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const answer = r.choices?.[0]?.message?.content?.trim().toUpperCase() ?? "";
@@ -1786,11 +1704,7 @@ export async function classifyDashboardIntent(
 ): Promise<"financial_snapshot" | "aged_debtors" | "unsure" | "none"> {
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        chat_template_kwargs: { thinking: false },
-        temperature: 0,
-        max_tokens: 10,
-        messages: [
+      askChat(env, "classify.dashboard_intent", { messages: [
           {
             role: "system",
             content:
@@ -1806,8 +1720,7 @@ export async function classifyDashboardIntent(
               '"FINANCIAL_SNAPSHOT", "AGED_DEBTORS", "UNSURE", or "NONE".',
           },
           { role: "user", content: message },
-        ],
-      })
+        ], maxTokens: 10 })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const answer = r.choices?.[0]?.message?.content?.trim().toUpperCase() ?? "";
@@ -1839,11 +1752,7 @@ export async function classifyDashboardIntent(
 export async function containsBackwardReference(env: Env, message: string): Promise<boolean> {
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        chat_template_kwargs: { thinking: false },
-        temperature: 0,
-        max_tokens: 10,
-        messages: [
+      askChat(env, "classify.backward_reference", { messages: [
           {
             role: "system",
             content:
@@ -1859,8 +1768,7 @@ export async function containsBackwardReference(env: Env, message: string): Prom
               'position" — NO. Answer with exactly one word: "YES" or "NO".',
           },
           { role: "user", content: message },
-        ],
-      })
+        ], maxTokens: 10 })
     );
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const answer = r.choices?.[0]?.message?.content?.trim().toUpperCase() ?? "";
@@ -1972,10 +1880,7 @@ export async function answerFromMemory(env: Env, question: string, facts: string
   }
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "memory.answer", { messages: [
           {
             role: "system",
             content:
@@ -2007,8 +1912,7 @@ export async function answerFromMemory(env: Env, question: string, facts: string
               `Facts:\n${facts.map((f) => `- ${f}`).join("\n")}`,
           },
           { role: "user", content: question },
-      ],
-    }));
+      ] }));
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const answer = r.choices?.[0]?.message?.content;
     // Hardened 2026-10-28 (tools/lookup-hardening.test.js). Two things used to leak an UNRELATED business fact: a model that said "I don't have that on file" and then listed the facts it was given
@@ -2038,10 +1942,7 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
 export async function describeImage(env: Env, base64: string, mimeType: string): Promise<string> {
   try {
     const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        temperature: 0,
-        chat_template_kwargs: { thinking: false },
-        messages: [
+      askChat(env, "vision.describe", { messages: [
           {
             role: "user",
             content: [
@@ -2055,8 +1956,7 @@ export async function describeImage(env: Env, base64: string, mimeType: string):
               { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
             ],
           },
-      ],
-    }));
+      ] }));
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     return r.choices?.[0]?.message?.content?.trim() || "[could not describe image]";
   } catch (err) {

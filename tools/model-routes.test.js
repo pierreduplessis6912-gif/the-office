@@ -42,6 +42,20 @@ module.exports = kit.guard('model routes', async ({ check, srcDir }) => {
   check(R('{"extract":"deepseek"}', 'extractor.x').primary === 'kimi' && R('{"extract":"deepseek"}', 'extract').primary === 'deepseek', 'a prefix matches whole dotted parts only ("extract" covers "extract" and "extract.x", not "extractor.x")');
   check(R('{"extract":"deepseek","extract.intent":"kimi"}', 'extract.intent.deep').primary === 'kimi' && R('{"extract.intent":"kimi","extract":"deepseek"}', 'extract.intent.deep').primary === 'kimi' && R('{"extract.intent":"deepseek","extract":"kimi"}', 'extract.intent.deep').primary === 'deepseek', 'the LONGEST matching prefix wins whatever the order of the keys');
 
+  // ---- routes that hold records stay on Cloudflare ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  check(mod.RESTRICTED_ROUTES.length === 14 && ['memory.answer', 'vision.describe', 'classify.topic', 'resolve.follow_up', 'extract.supplier_statement', 'extract.document_identity', 'extract.supplier_invoice', 'extract.stocktake'].every((x) => mod.RESTRICTED_ROUTES.includes(x)) && !mod.RESTRICTED_ROUTES.includes('extract.intent'), 'the routes that hold records, files, history or photos are marked (14), and the person\'s own-words routes are not');
+  for (const rt of mod.RESTRICTED_ROUTES) {
+    const d = R(undefined, rt), star = R('{"*":"kimi"}', rt), pre = R(`{"${rt.split('.')[0]}":"kimi"}`, rt), exact = R(`{"${rt}":"kimi"}`, rt);
+    if (!(d.primary === 'deepseek' && d.fallback === null && star.primary === 'deepseek' && star.fallback === null && pre.primary === 'deepseek' && exact.primary === 'kimi')) check(false, `route ${rt}: Cloudflare only by default, not moved by "*" or a prefix, moved only by an exact override`);
+  }
+  check(R('{"*":"kimi"}', 'extract.intent').primary === 'kimi' && R(undefined, 'extract.intent').primary === 'kimi' && R('{"extract":"deepseek"}', 'extract.supplier_statement').primary === 'deepseek', 'the person\'s own-words routes follow the defaults and every override');
+  let rr = await run({}, 'memory.answer');
+  check(rr.log.moon.length === 0 && rr.out.via === 'cloudflare:deepseek-v4.1-flash-1017', 'a route that holds records never goes to Moonshot by default, even with a key set');
+  rr = await run({ cf: () => new Error('down') }, 'memory.answer');
+  check(rr.log.moon.length === 0 && rr.out.content === null, 'and when Cloudflare fails it does NOT fall back to Moonshot');
+  rr = await run({ routes: '{"memory.answer":"kimi"}' }, 'memory.answer');
+  check(rr.log.moon.length === 1 && rr.out.via === 'moonshot:kimi-k2.6', 'an exact override can send it to Moonshot on purpose');
+
   // ---- calling: Moonshot ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   let r = await run({});
   const mb = (r.log.moon[0] || {}).body || {};
@@ -88,9 +102,26 @@ module.exports = kit.guard('model routes', async ({ check, srcDir }) => {
   r = await run({ routes: '{"interpret":["kimi",null]}', moon: () => new Response('x', { status: 500 }) });
   check(r.out.content === null && r.log.cf.length === 0, 'Kimi with no fallback: a Moonshot failure is not retried at Cloudflare');
 
+  // ---- ai.ts through the router: the real functions, with a stand-in Cloudflare ---------------------------------------------------------------------------------------------------------------------------------------------------
+  const aiMod = kit.bundle('ai.ts', 'ai-via-router-suite');
+  const aiEnv = (reply) => { const seen = []; return { seen, env: { AI: { run: async (model, input) => { seen.push({ model, input }); const x = reply(model, input); if (x instanceof Error) throw x; return x; } } } }; };
+  let ae = aiEnv(() => ({ choices: [{ message: { content: 'INVOICES' } }] }));
+  const topic = await aiMod.classifyBusinessTopic(ae.env, [{ role: 'user', text: 'what does Mokoena owe me' }], 'and Patel?');
+  const si = (ae.seen[0] || {}).input || {};
+  check(topic === 'invoices' && ae.seen.length === 1 && ae.seen[0].model === '@cf/deepseek-ai/deepseek-v4.1-flash-1017' && si.temperature === 0 && si.max_completion_tokens === 10 && si.reasoning_effort === 'none' && si.chat_template_kwargs === undefined && si.max_tokens === undefined && si.messages[0].role === 'system', 'ai.ts classifyBusinessTopic: asked through the router (a records route: Cloudflare only), temperature 0, a 10-token cap, the answer read');
+  ae = aiEnv(() => ({ choices: [{ message: { content: '["I measured the lounge", "buy 5 bags of adhesive"]' } }] }));
+  const parts = await aiMod.splitIntoTopics(ae.env, 'I measured the lounge and buy 5 bags of adhesive');
+  check(Array.isArray(parts) && parts.length === 2 && (ae.seen[0].input.max_completion_tokens === undefined), 'ai.ts splitIntoTopics: the answer is read, and no cap is set where the caller sets none');
+  ae = aiEnv(() => new Error('5028: gone'));
+  const failed = await aiMod.classifyBusinessTopic(ae.env, [{ role: 'user', text: 'x' }], 'y');
+  check(failed === 'general' && ae.seen.length === 3, 'when no model answers, ai.ts still retries three times and then falls back to its own default (the behaviour callers always had)');
+  ae = aiEnv(() => new Error('down'));
+  const described = await aiMod.describeImage(ae.env, 'AAAA', 'image/png');
+  check(/^\[image description failed: no model answered/.test(described), 'ai.ts describeImage: a total failure is reported in its own words, not as an empty description');
+
   // ---- the index cannot go stale -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   // No file but the router may name a chat model or call Moonshot. The files still on the retired Cloudflare Kimi are listed in UNMOVED: the list may only SHRINK (an entry that no longer names a model is stale and fails), and a new file can never join it.
-  const UNMOVED = ['ai.ts', 'converse.ts', 'debug.ts', 'trial.ts'];
+  const UNMOVED = ['converse.ts', 'debug.ts', 'trial.ts'];
   const OWN_PATH = ['converse-moonshot.ts'];   // the conversation front door, which calls Moonshot directly on its own path (its own tests pin its one fetch)
   const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : e.name.endsWith('.ts') ? [path.join(dir, e.name)] : []));
   const files = walk(srcDir).map((f) => ({ rel: path.relative(srcDir, f).split(path.sep).join('/'), text: fs.readFileSync(f, 'utf8') }));
@@ -99,6 +130,15 @@ module.exports = kit.guard('model routes', async ({ check, srcDir }) => {
   check(offenders.length === 0, `no file but the router names a chat model or Moonshot${offenders.length ? ' [OFFENDERS: ' + offenders.map((f) => f.rel).join(', ') + ']' : ''}`);
   const stale = UNMOVED.filter((rel) => { const f = files.find((x) => x.rel === rel); return !f || !/@cf\/moonshotai\//.test(f.text); });
   check(stale.length === 0, `every file in the not-yet-moved list still names the retired model (moved ones come off the list)${stale.length ? ' [STALE: ' + stale.join(', ') + ']' : ''}`);
+  // every route the code asks for is in the index (docs/MODEL_ROUTES.md), and every route that holds records is a route the code really uses
+  const used = new Set(); for (const f of files) for (const m of f.text.matchAll(/(?:askChat|chat)\(env, "([a-z_.]+)"/g)) used.add(m[1]);
+  const indexDoc = fs.readFileSync(path.join(srcDir, '..', '..', 'docs', 'MODEL_ROUTES.md'), 'utf8');
+  const unindexed = [...used].filter((rt) => !indexDoc.includes('`' + rt + '`'));
+  check(used.size >= 26 && unindexed.length === 0, `every route the code asks for is named in docs/MODEL_ROUTES.md (${used.size} routes)${unindexed.length ? ' [MISSING: ' + unindexed.join(', ') + ']' : ''}`);
+  const strayRestricted = mod.RESTRICTED_ROUTES.filter((rt) => !used.has(rt));
+  check(strayRestricted.length === 0, `every route marked as holding records is a route the code really uses${strayRestricted.length ? ' [STRAY: ' + strayRestricted.join(', ') + ']' : ''}`);
+  const aiText = files.find((f) => f.rel === 'ai.ts').text;
+  check(!/env\.AI\.run\(\s*"@cf\/(moonshotai|deepseek-ai)/.test(aiText) && (aiText.match(/askChat\(env, "/g) || []).length === 26, 'ai.ts asks its 26 chat questions only through the router (askChat), none directly');
   const importers = files.filter((f) => /from\s+["'](\.\.?\/)+model-routes["']/.test(f.text)).map((f) => f.rel);
   const engineImporters = importers.filter((rel) => rel.startsWith('engine/'));
   check(JSON.stringify(engineImporters) === JSON.stringify(['engine/interpret.ts']), `of the engine files only the interpreter imports the router [seen: ${engineImporters.join(', ')}]`);
