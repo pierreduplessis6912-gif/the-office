@@ -94,3 +94,6 @@ All 23 sentences were read by `moonshot:kimi-k2.6` (the record's `via`). Underst
 
 ## Fix after run 5 (2026-11-27, approved by Pierre, tests first)
 `ATTENTION_DOING` (interpret.ts): a sentence with a doing word (send, email, share, forward, dismiss, snooze, pay, chase, mark, delete, remove, cancel, approve, clear, whatsapp, print, export) is not understood even when the model chose the plain list, because the list can only be shown. Tested with six sentences, and a breakage catches its removal. Same pass rule; run 6 follows.
+
+## Attention model run 6 (46028684040, 2026-11-27): PASSED, Kimi at Moonshot
+All 23 sentences read by `moonshot:kimi-k2.6`. Understanding 10 of 10, safety 13 of 13, all four invariants held, nothing held or written. The needs-attention sentence's V box can be ticked with Pierre's own model.
