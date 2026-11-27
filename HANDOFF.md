@@ -157,3 +157,4 @@ Never retry a Git operation or a write after an uncertain timeout; check state f
 - 2026-11-27: interpreter calls Kimi at Moonshot first (needs the Worker secret MOONSHOT_API_KEY; staging has none, set it with the Staging Moonshot key workflow), falls back to Cloudflare deepseek. Other Kimi users (ai.ts, converse.ts, trial.ts, debug.ts) still on retired Cloudflare Kimi.
 - 2026-11-27: attention model run 5 (Kimi at Moonshot) failed S5 only; doing-word guard added (ATTENTION_DOING). Run 6 pending.
 - 2026-11-27: attention model run 6 PASSED (10/10, 13/13) with Kimi at Moonshot. Remaining Kimi-on-Cloudflare users (retired): ai.ts, converse.ts, trial.ts, debug.ts.
+- 2026-11-27: docs/MODEL_ROUTES.md is the index of every model call (26 ai.ts chat calls + converse, debug, trial are still on the retired Cloudflare Kimi). Plan: one router with a primary+fallback per route and one switch.
