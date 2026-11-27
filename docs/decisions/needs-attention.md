@@ -82,3 +82,6 @@ Staging answered `AiError 5028: @cf/moonshotai/kimi-k2.6 was deprecated on 2026-
 
 ## The interpreter moves to deepseek-v4.1-flash-1017 (2026-11-27, Pierre's go)
 `INTERPRET_MODEL` is now `@cf/deepseek-ai/deepseek-v4.1-flash-1017` (Cloudflare lists $0.30 per M input and $1.20 per M output tokens, against $0.95 and $4.00 for Kimi K2.6; it needs the Workers Paid plan). Thinking is switched off with `reasoning_effort: "none"` and the answer is capped with `max_completion_tokens: 200`; the Kimi-only `chat_template_kwargs` is gone. ONLY the interpreter has moved: `ai.ts`, `converse.ts`, `trial.ts` and `debug.ts` still name Kimi K2.6 and stay broken until the interpreter result is known. Real-model runs are the proof; the pass rule is unchanged.
+
+## Attention model run 4 (46018240769, 2026-11-27): PASSED, on deepseek-v4.1-flash-1017
+Understanding 10 of 10, safety 13 of 13, all four invariants held, nothing held or written. The fixes from run 1 hold with the new model: the narrowed sentences are refused. The needs-attention sentence's V box can be ticked. The other Kimi users (`ai.ts`, `converse.ts`, `trial.ts`, `debug.ts`) are still on the retired model.

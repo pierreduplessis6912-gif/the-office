@@ -153,3 +153,4 @@ Never retry a Git operation or a write after an uncertain timeout; check state f
 - 2026-11-27: attention model runs 2 and 3 had no verdict (model 503). The interpreter now keeps the failure reason (rehearsal-only debug.modelError). Next: one staging run to read the real error, then the real verdict.
 - 2026-11-27: ROOT CAUSE of the 503s: Cloudflare retired @cf/moonshotai/kimi-k2.6 on 2026-11-20 (410/5028). Used across ai.ts, converse.ts, debug.ts, trial.ts, interpret.ts. Replacement not yet chosen (Pierre's call); see docs/decisions/needs-attention.md.
 - 2026-11-27: interpreter moved to @cf/deepseek-ai/deepseek-v4.1-flash-1017 (reasoning_effort none). Other Kimi users (ai.ts, converse.ts, trial.ts, debug.ts) NOT yet moved. Attention model run to follow.
+- 2026-11-27: attention model run 4 PASSED (10/10, 13/13) on deepseek-v4.1-flash-1017. Remaining Kimi users: ai.ts, converse.ts, trial.ts, debug.ts.
