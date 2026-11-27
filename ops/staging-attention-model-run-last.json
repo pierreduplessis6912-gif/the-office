@@ -1,9 +1,9 @@
 {
- "when": "2026-11-27T09:54:09.584865+00:00",
- "run": "45977384858",
- "commit": "f49a7f7",
+ "when": "2026-11-27T09:55:37.563509+00:00",
+ "run": "45977595620",
+ "commit": "0e16cf1",
  "mode": "attention-model-run",
- "business": "staging-attnmodel-45977384858",
+ "business": "staging-attnmodel-45977595620",
  "model": "env.AI via /engine/interpret (INTERPRET_MODEL in worker/src/engine/interpret.ts)",
  "understanding": {
   "passed": 0,
