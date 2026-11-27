@@ -44,3 +44,8 @@ Of the 26 `ai.ts` chat calls, 21 are `{ temperature: 0, chat_template_kwargs: { 
 
 ## Not yet moved (the ledger in the test: `UNMOVED`)
 `ai.ts` (26 chat calls, plus whisper, bge embedding and rerank which are not retired), `converse.ts`, `debug.ts`, `trial.ts`, and the Moonshot front door `converse-moonshot.ts` (its own path, pinned to one fetch). Each moves to a named route, then comes off the ledger, with a real-model run on staging after each area.
+
+## Proven on staging (2026-11-27)
+- Default route (run 46036545010): the attention sentences, 23 of 23 read by `moonshot:kimi-k2.6`, passed 10/10 and 13/13.
+- Flipped with `route-set {"*":"deepseek"}` (run 46037824906): 23 of 23 read by `cloudflare:deepseek-v4.1-flash-1017`, passed 10/10 and 13/13. The switch works end to end.
+- Cleared with `route-clear`: staging is back on the default route. The switch stays staging only.
