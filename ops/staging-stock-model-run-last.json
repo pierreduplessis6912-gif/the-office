@@ -1,9 +1,9 @@
 {
- "when": "2026-11-12T20:07:37.061061+00:00",
- "run": "43296868094",
- "commit": "8f5dadd",
+ "when": "2026-11-27T18:46:34.617595+00:00",
+ "run": "46051694514",
+ "commit": "b104c0b",
  "mode": "stock-model-run",
- "business": "staging-stockmodel-43296868094",
+ "business": "staging-stockmodel-46051694514",
  "model": "env.AI via /engine/interpret (INTERPRET_MODEL in worker/src/engine/interpret.ts)",
  "understanding": {
   "passed": 14,
@@ -372,27 +372,12 @@
    "held": null,
    "passed": true,
    "held_type_allowed": true,
-   "model_reply": "{\"capability\": \"expense.record\", \"arguments\": {\"supplier\": \"\", \"amountCents\": 200000, \"description\": \"Plywood 18mm\", \"category\": \"materials\", \"method\": \"other\"}}"
+   "model_reply": "{\"capability\": \"expense.record\", \"arguments\": {\"supplier\": \"Plywood\", \"amountCents\": 200000, \"description\": \"10 sheets of Plywood 18mm\", \"category\": \"materials\", \"method\": \"other\"}}"
   },
   {
    "id": "S7",
    "set": "safety",
    "text": "Write the plywood down by R500, it got wet",
-   "http": 200,
-   "status": "ok",
-   "error": null,
-   "message": "",
-   "understood": "stock.count",
-   "held_type": null,
-   "held": null,
-   "passed": true,
-   "held_type_allowed": true,
-   "model_reply": null
-  },
-  {
-   "id": "S8",
-   "set": "safety",
-   "text": "Two sheets got damaged, write them off",
    "http": 422,
    "status": null,
    "error": "not_understood",
@@ -403,6 +388,21 @@
    "passed": true,
    "held_type_allowed": true,
    "model_reply": "{\"capability\": null}"
+  },
+  {
+   "id": "S8",
+   "set": "safety",
+   "text": "Two sheets got damaged, write them off",
+   "http": 404,
+   "status": null,
+   "error": "not_found",
+   "message": "There is no stock item called sheets.",
+   "understood": null,
+   "held_type": null,
+   "held": null,
+   "passed": true,
+   "held_type_allowed": true,
+   "model_reply": "{\"capability\": \"stock.issue\", \"arguments\": {\"item\": \"sheets\", \"quantity\": 2, \"job\": \"damaged write off\"}}"
   },
   {
    "id": "S9",
@@ -497,15 +497,16 @@
  ],
  "samples": {
   "interp-S1": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": \\\"stock.issue\\\", \\\"arguments\\\": {\\\"item\\\": \\\"screws\\",
-  "interp-S3": "{\"error\":\"invalid_input\",\"message\":\"Which location? Main store, Bakkie 1.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": \\\"stock.issue\\\", \\\"arguments\\\": {\\\"item\\\": \\\"Plywood 18mm\\\", \\\"quantity\\\": 2}}\"}}",
+  "interp-S3": "{\"error\":\"invalid_input\",\"message\":\"Which location? Main store, Bakkie 1.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": \\\"stock.issue\\\", \\\"arguments\\\": {\\\"item\\\": \\\"Plywood 18mm\\\", \\\"quantity\\\": 2}}\",\"via\"",
   "interp-S4": "{\"error\":\"not_found\",\"message\":\"There is no stock item called unobtainium.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": \\\"stock.issue\\\", \\\"arguments\\\": {\\\"item\\\": \\\"unobtainium\\\", \\\"quantity\\\": 3, \\\"job\\\"",
   "interp-S5": "{\"error\":\"not_found\",\"message\":\"There is no location called the place it was moved from.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": \\\"stock.transfer\\\", \\\"arguments\\\": {\\\"item\\\": \\\"Plywood 18mm\\\", \\\"quan",
   "interp-S6": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": \\\"expense.record\\\", \\\"arguments\\\": {\\\"supplier\\\": \\\"",
-  "interp-S8": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\"}}",
-  "interp-S9": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\"}}",
-  "interp-S10": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\"}}",
-  "interp-S11": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\"}}",
-  "interp-S12": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\"}}",
+  "interp-S7": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\",\"via\":\"moonshot:kimi-k2.6\"}}",
+  "interp-S8": "{\"error\":\"not_found\",\"message\":\"There is no stock item called sheets.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": \\\"stock.issue\\\", \\\"arguments\\\": {\\\"item\\\": \\\"sheets\\\", \\\"quantity\\\": 2, \\\"job\\\": \\\"damage",
+  "interp-S9": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\",\"via\":\"moonshot:kimi-k2.6\"}}",
+  "interp-S10": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\",\"via\":\"moonshot:kimi-k2.6\"}}",
+  "interp-S11": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\",\"via\":\"moonshot:kimi-k2.6\"}}",
+  "interp-S12": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": null}\",\"via\":\"moonshot:kimi-k2.6\"}}",
   "interp-S13": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": \\\"stock.issue\\\", \\\"arguments\\\": {\\\"item\\\": \\\"Plywood",
   "interp-S14": "{\"error\":\"not_understood\",\"message\":\"I did not understand that as something I can do, so nothing was done.\",\"debug\":{\"modelReply\":\"{\\\"capability\\\": \\\"stock.issue\\\", \\\"arguments\\\": {\\\"item\\\": \\\"screws\\"
  },
