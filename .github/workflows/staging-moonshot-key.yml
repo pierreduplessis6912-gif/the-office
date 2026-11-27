@@ -1,4 +1,4 @@
-name: Staging Moonshot key (set or remove)
+name: Staging model secrets (Moonshot key, and the model route switch)
 
 # Puts the repo secret MOONSHOT_API__KEY into the STAGING Worker (office-staging-api) as a Worker secret named MOONSHOT_API_KEY, or removes it. Never production, never printed. The key must be set BEFORE the staging deploy so the
 # Worker's business objects start with it. Started by hand only.
@@ -6,9 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "set, remove or verify (verify lists only whether the secret NAME is configured on the staging Worker)"
+        description: "set, remove or verify (the Moonshot key; verify lists only whether the secret NAME is configured on the staging Worker) | route-set or route-clear (THE MODEL SWITCH, below)"
         required: true
         default: "set"
+      routes:
+        description: 'route-set only: JSON mapping a route, a route prefix or "*" to kimi or deepseek, e.g. {"*":"deepseek"} (see docs/MODEL_ROUTES.md)'
+        required: false
+        default: '{"*":"kimi"}'
 
 permissions:
   contents: write
@@ -22,6 +26,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       ACTION: ${{ inputs.action }}
+      ROUTES: ${{ inputs.routes }}
     steps:
       - uses: actions/checkout@v4
       - name: Set or remove the staging Worker secret
@@ -30,6 +35,26 @@ jobs:
           import json, os, sys, urllib.request, urllib.error
           act = os.environ["ACTION"]; acct = os.environ["CLOUDFLARE_ACCOUNT_ID"]; tok = os.environ["CLOUDFLARE_API_TOKEN"]
           base = f"https://api.cloudflare.com/client/v4/accounts/{acct}/workers/scripts/office-staging-api/secrets"
+          # THE MODEL SWITCH (worker/src/model-routes.ts, docs/MODEL_ROUTES.md): sets or removes the Worker secret MODEL_ROUTES on the STAGING Worker only. Refused here if the router would not understand it; it takes effect at the next staging deploy. Commits nothing.
+          if act in ("route-set", "route-clear"):
+              MODELS = ["kimi", "deepseek"]
+              if act == "route-set":
+                  raw = os.environ.get("ROUTES", "")
+                  try: spec = json.loads(raw)
+                  except Exception: print("routes is not JSON:", raw[:200]); sys.exit(1)
+                  if not isinstance(spec, dict) or not spec: print("routes must be a JSON object with at least one entry"); sys.exit(1)
+                  for k, v in spec.items():
+                      ok = isinstance(k, str) and k.strip() and ((isinstance(v, str) and v in MODELS) or (isinstance(v, list) and len(v) == 2 and v[0] in MODELS and (v[1] is None or v[1] in MODELS)))
+                      if not ok: print("not understood:", json.dumps({k: v})[:200], "| models are", MODELS); sys.exit(1)
+                  req = urllib.request.Request(base, data=json.dumps({"name": "MODEL_ROUTES", "text": json.dumps(spec, separators=(",", ":")), "type": "secret_text"}).encode(), method="PUT", headers={"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
+                  print("setting MODEL_ROUTES =", json.dumps(spec, separators=(",", ":")))
+              else:
+                  req = urllib.request.Request(base + "/MODEL_ROUTES", method="DELETE", headers={"Authorization": "Bearer " + tok})
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as r: print(act, "status", r.status)
+              except urllib.error.HTTPError as e: print(act, "status", e.code); sys.exit(1)
+              print("takes effect at the next staging deploy")
+              sys.exit(0)
           if act == "verify":
               req = urllib.request.Request(base, method="GET", headers={"Authorization": "Bearer " + tok})
               try:

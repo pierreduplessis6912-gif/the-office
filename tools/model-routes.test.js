@@ -1,5 +1,5 @@
 // THE MODEL ROUTER (docs/MODEL_ROUTES.md): every chat-model call goes through worker/src/model-routes.ts, which has ONE table of routes (a primary model and a fallback each), ONE catalogue of models (each with its own provider settings),
-// and ONE override (the Worker variable MODEL_ROUTES) that the "Model route" workflow sets. Cloudflare retired its Kimi on 2026-11-20 (410, code 5028); this is what makes the next change a one-line switch.
+// and ONE override (the Worker variable MODEL_ROUTES) that the "Staging model secrets" workflow sets. Cloudflare retired its Kimi on 2026-11-20 (410, code 5028); this is what makes the next change a one-line switch.
 const kit = require('./engine-kit.js');
 const fs = require('fs');
 const path = require('path');
@@ -105,11 +105,16 @@ module.exports = kit.guard('model routes', async ({ check, srcDir }) => {
   const interp = files.find((f) => f.rel === 'engine/interpret.ts').text;
   check(!/\.AI\b|MOONSHOT_API_KEY|fetch\(/.test(interp) && /chat\(env, "interpret"/.test(interp), 'the interpreter reaches a model only through the router (route "interpret")');
   // ---- the switch workflow: it can only set what the router understands ------------------------------------------------------------------------------------------------------------------------------------------------------------
-  const wf = path.join(srcDir, '..', '..', '.github', 'workflows', 'model-route.yml');
-  check(fs.existsSync(wf), 'the "Model route" workflow exists');
+  // It lives in the existing staging-secrets workflow because a NEW workflow file cannot be started until it is on the default branch, and nothing here merges to it.
+  const wf = path.join(srcDir, '..', '..', '.github', 'workflows', 'staging-moonshot-key.yml');
+  check(fs.existsSync(wf) && !fs.existsSync(path.join(srcDir, '..', '..', '.github', 'workflows', 'model-route.yml')), 'the model switch lives in the staging-secrets workflow (one file)');
   if (fs.existsSync(wf)) {
     const w = fs.readFileSync(wf, 'utf8');
-    check(Object.keys(mod.MODELS).every((m) => w.includes(`"${m}"`)) && /office-staging-api/.test(w) && !/office-api\b(?!-)/.test(w.replace(/office-staging-api/g, '')) && /workflow_dispatch/.test(w) && !/git push|git commit/.test(w), 'the workflow names every catalogue model, targets only the STAGING Worker, is started by hand, and commits nothing');
+    const model = (w.match(/MODELS = \[([^\]]*)\]/) || [])[1] || '';
+    check(JSON.stringify(model.split(',').map((x) => x.trim().replace(/"/g, '')).sort()) === JSON.stringify(Object.keys(mod.MODELS).sort()), 'the workflow offers exactly the catalogue models (' + model + ')');
+    check(/route-set/.test(w) && /route-clear/.test(w) && /"MODEL_ROUTES"/.test(w) && /office-staging-api/.test(w) && !/office-api\b(?!-)/.test(w.replace(/office-staging-api/g, '')) && /workflow_dispatch/.test(w), 'the workflow sets or clears MODEL_ROUTES, targets only the STAGING Worker, and is started by hand');
+    const routeBlock = w.slice(w.indexOf('if act in ("route-set"'), w.indexOf('if act == "verify"'));
+    check(routeBlock.length > 200 && !/git |commit|push/.test(routeBlock), 'the switch commits nothing');
   }
 });
 if (require.main === module) kit.standalone(module.exports);

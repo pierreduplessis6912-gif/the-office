@@ -2,7 +2,7 @@
 // provider and its own settings (that is the part that differs between providers: Kimi at Moonshot turns thinking off with `thinking: { type: "disabled" }`, DeepSeek on Cloudflare with `reasoning_effort: "none"`).
 // Why this exists: Cloudflare retired its own Kimi on 2026-11-20 (HTTP 410, code 5028) and the name was written in about 30 places. Now a change like that is a one-line switch.
 //
-// THE SWITCH: the Worker variable MODEL_ROUTES (JSON), set from the "Model route" workflow. Keys are a route ("interpret"), a prefix of dotted routes ("extract" covers "extract.intent"), or "*" (everything); the most specific wins.
+// THE SWITCH: the Worker variable MODEL_ROUTES (JSON), set from the "Staging model secrets" workflow. Keys are a route ("interpret"), a prefix of dotted routes ("extract" covers "extract.intent"), or "*" (everything); the most specific wins.
 // A value is a catalogue name ("deepseek": that model first, the other one as the fallback) or an array ["deepseek", "kimi"] / ["deepseek", null] (null = no fallback). An entry the router does not understand is ignored, never fatal: a bad
 // override can only fall back to the default, never break a call.
 //
