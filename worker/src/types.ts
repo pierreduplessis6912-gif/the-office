@@ -45,6 +45,7 @@ export interface Env {
   CONVERSE_MODE?: string;   // "moonshot" turns the conversation front door on (converse-moonshot.ts): a Kimi model called directly at Moonshot decides to talk or to hand the message to the Office. Unset = off.
   CONVERSE_MODEL?: string;   // the Moonshot model; default kimi-k2.6
   CONVERSE_THINKING?: string;   // "on" runs the front door model with thinking on; default off (the fastest, and enough for routing)
+  MODEL_ROUTES?: string;   // the model switch (model-routes.ts, set by the "Model route" workflow): JSON mapping a route, a route prefix or "*" to a catalogue model; absent = the default route (Kimi at Moonshot, DeepSeek on Cloudflare as the fallback)
   MOONSHOT_API_KEY?: string;   // a Worker secret; absent = the front door is off
   ENVIRONMENT?: string;   // "staging" or "production" (a wrangler var); a per-request config header is honoured ONLY where this is "staging"
   NAME_GUARD?: string;   // "off" restores the old silent first-and-last-word customer match (opening.ts); otherwise a near-match customer name is asked about

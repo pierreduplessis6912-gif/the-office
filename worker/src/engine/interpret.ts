@@ -14,8 +14,8 @@ import { accountNamed } from "./bank-accounts";
 import { invokeRead, proposeCapabilityAs, type Member, type ReadOutcome } from "./operations";
 import { allOrders, orderProgress } from "./purchasing";
 import { permissionsFor, type EnginePermission } from "./permissions";
+import { chat } from "../model-routes";
 
-export const INTERPRET_MODEL = "@cf/deepseek-ai/deepseek-v4.1-flash-1017";   // Kimi K2.6 was retired by Cloudflare on 2026-11-20 (410, code 5028); `reasoning_effort: "none"` is this model's own switch for thinking off
 const MAX_TEXT = 500;
 const MAX_READING_TEXT = 3500;   // text read from a picture is longer than a spoken sentence
 const MODEL_TIMEOUT_MS = 20_000;
@@ -215,57 +215,11 @@ function systemPrompt(entries: Entry[], opts?: InterpretOptions): string {
   ].join("\n");
 }
 
-const MOONSHOT_URL = "https://api.moonshot.ai/v1/chat/completions";
-const MOONSHOT_MODEL = "kimi-k2.6";
-const VIA_MOONSHOT = `moonshot:${MOONSHOT_MODEL}`;
-const VIA_CLOUDFLARE = "cloudflare:deepseek-v4.1-flash-1017";
-type Asked = { content: string; why: null } | { content: null; why: string };
-const cut = (e: unknown, n: number): string => { const err = e as { name?: unknown; message?: unknown } | null; return `${String(err?.name ?? "Error")}: ${String(err?.message ?? e)}`.slice(0, n); };
-
-/** Kimi, called DIRECTLY at Moonshot (Pierre's credits are there). What crosses is the capability list and the person's own sentence, nothing else; the key is only ever in the Authorization header. Any failure (network, timeout, HTTP error, no text) comes back as a reason, and the caller falls back to Cloudflare. */
-async function askMoonshot(env: Env, messages: unknown[]): Promise<Asked> {
-  const key = (env as unknown as { MOONSHOT_API_KEY?: string }).MOONSHOT_API_KEY;
-  if (!key) return { content: null, why: "no key" };
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
-  try {
-    const response = await fetch(MOONSHOT_URL, { method: "POST", signal: controller.signal, headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: MOONSHOT_MODEL, messages, max_completion_tokens: 200, thinking: { type: "disabled" } }) });
-    if (!response.ok) return { content: null, why: `HTTP ${response.status}` };
-    const data = (await response.json()) as { choices?: Array<{ message?: { content?: unknown } }> };
-    const content = data?.choices?.[0]?.message?.content;
-    return typeof content === "string" && content.trim() ? { content, why: null } : { content: null, why: "no text in the answer" };
-  } catch (e) {
-    return { content: null, why: cut(e, 100) };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function askCloudflare(env: Env, messages: unknown[]): Promise<Asked> {
-  const ai = (env as unknown as { AI?: { run?: unknown } }).AI;
-  if (!ai || typeof ai.run !== "function") return { content: null, why: "no AI binding on this business object" };
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const call = Promise.resolve().then(() => (env.AI as unknown as { run: (m: string, i: unknown) => Promise<unknown> }).run(INTERPRET_MODEL, { temperature: 0, reasoning_effort: "none", max_completion_tokens: 200, messages }));
-    const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("model timeout")), MODEL_TIMEOUT_MS); });
-    const reply = (await Promise.race([call, timeout])) as { choices?: Array<{ message?: { content?: unknown } }>; response?: unknown };
-    const content = reply?.choices?.[0]?.message?.content ?? reply?.response;
-    return typeof content === "string" ? { content, why: null } : { content: null, why: "the model answered without text" };
-  } catch (e) {
-    return { content: null, why: cut(e, 120) };
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
-/** The model's text and WHICH model gave it, or null with the REASONS it gave none (a rehearsal shows them so a run that got nothing back can be diagnosed; a production answer never does). Moonshot's Kimi first when a key is set, Cloudflare's model as the fallback. */
+/** The model's text and WHICH model gave it, or null with the REASONS it gave none (a rehearsal shows them so a run that got nothing back can be diagnosed; a production answer never does). The model, its fallback and the switch between them live in model-routes.ts (route "interpret"). */
 async function askModel(env: Env, entries: Entry[], text: string, opts?: InterpretOptions): Promise<{ content: string | null; why: string | null; via: string | null }> {
   const messages = [{ role: "system", content: systemPrompt(entries, opts) }, { role: "user", content: `<<<\n${text}\n>>>` }];
-  const moon = await askMoonshot(env, messages);
-  if (moon.content !== null) return { content: moon.content, why: null, via: VIA_MOONSHOT };
-  const cf = await askCloudflare(env, messages);
-  if (cf.content !== null) return { content: cf.content, why: null, via: VIA_CLOUDFLARE };
-  return { content: null, why: moon.why === "no key" ? cf.why : `moonshot: ${moon.why}; cloudflare: ${cf.why}`, via: null };
+  const r = await chat(env, "interpret", { messages, temperature: 0, maxTokens: 200, timeoutMs: MODEL_TIMEOUT_MS });
+  return { content: r.content, why: r.why, via: r.via };
 }
 
 /** The first JSON object in the model's text, however it is wrapped (a code fence, a sentence before it). Null when there is none. */

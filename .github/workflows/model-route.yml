@@ -1,0 +1,59 @@
+name: Model route (switch which model a route uses, STAGING)
+
+# THE SWITCH (docs/MODEL_ROUTES.md, worker/src/model-routes.ts). Sets or clears the Worker secret MODEL_ROUTES on the STAGING Worker (office-staging-api) only; never production, never printed beyond the JSON you typed. Started by hand only. It commits nothing.
+# routes = JSON: a route ("interpret"), a route prefix ("extract" covers "extract.intent") or "*" (everything), each mapped to a catalogue model: "kimi" (Kimi at Moonshot) or "deepseek" (DeepSeek on Cloudflare).
+#   {"*":"deepseek"}                          everything on DeepSeek, Kimi as the fallback
+#   {"interpret":["kimi",null]}               the interpreter on Kimi alone, no fallback
+#   {"extract":"deepseek","interpret":"kimi"} different routes, different models; the most specific key wins
+# Anything the router does not understand is ignored by the Worker, and refused here before it is set. It takes effect at the next STAGING deploy (every staging run deploys). "clear" removes it: the default route applies (Kimi first, DeepSeek as the fallback).
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "set or clear"
+        required: true
+        default: "set"
+      routes:
+        description: 'JSON, e.g. {"*":"deepseek"} (models: kimi, deepseek). Ignored by clear.'
+        required: false
+        default: '{"*":"kimi"}'
+
+permissions:
+  contents: read
+
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      ACTION: ${{ inputs.action }}
+      ROUTES: ${{ inputs.routes }}
+    steps:
+      - name: Set or clear MODEL_ROUTES on the staging Worker
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, urllib.request, urllib.error
+          act = os.environ["ACTION"]; acct = os.environ["CLOUDFLARE_ACCOUNT_ID"]; tok = os.environ["CLOUDFLARE_API_TOKEN"]
+          MODELS = ["kimi", "deepseek"]
+          base = f"https://api.cloudflare.com/client/v4/accounts/{acct}/workers/scripts/office-staging-api/secrets"
+          if act == "set":
+              raw = os.environ.get("ROUTES", "")
+              try: spec = json.loads(raw)
+              except Exception: print("routes is not JSON:", raw[:200]); sys.exit(1)
+              if not isinstance(spec, dict) or not spec: print("routes must be a JSON object with at least one entry"); sys.exit(1)
+              for k, v in spec.items():
+                  ok = isinstance(k, str) and k.strip() and ((isinstance(v, str) and v in MODELS) or (isinstance(v, list) and len(v) == 2 and v[0] in MODELS and (v[1] is None or v[1] in MODELS)))
+                  if not ok: print("not understood:", json.dumps({k: v})[:200], "| models are", MODELS); sys.exit(1)
+              req = urllib.request.Request(base, data=json.dumps({"name": "MODEL_ROUTES", "text": json.dumps(spec, separators=(",", ":")), "type": "secret_text"}).encode(), method="PUT", headers={"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
+              print("setting MODEL_ROUTES =", json.dumps(spec, separators=(",", ":")))
+          elif act == "clear":
+              req = urllib.request.Request(base + "/MODEL_ROUTES", method="DELETE", headers={"Authorization": "Bearer " + tok})
+          else:
+              print("action must be set or clear"); sys.exit(1)
+          try:
+              with urllib.request.urlopen(req, timeout=60) as r: print(act, "status", r.status)
+          except urllib.error.HTTPError as e: print(act, "status", e.code); sys.exit(1)
+          print("takes effect at the next staging deploy")
+          PY

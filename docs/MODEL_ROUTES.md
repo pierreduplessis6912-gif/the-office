@@ -30,8 +30,17 @@ Why this exists: Cloudflare retired `@cf/moonshotai/kimi-k2.6` on 2026-11-20 (HT
 ## Shape of the calls (why one function can serve them all)
 Of the 26 `ai.ts` chat calls, 21 are `{ temperature: 0, chat_template_kwargs: { thinking: false }, messages }`, 1 is the same with the keys swapped, and 4 add `max_tokens: 10`; every one reads `choices[0].message.content`. `chat_template_kwargs` is Kimi-on-Cloudflare only: DeepSeek on Cloudflare uses `reasoning_effort: "none"`, and Kimi at Moonshot uses `thinking: { type: "disabled" }`. That difference is exactly what a router hides.
 
-## Plan
-1. `worker/src/model-routes.ts`: one table of routes, each with a primary and a fallback (`moonshot:kimi-k2.6`, `cloudflare:deepseek-v4.1-flash-1017`, or any other), and one `chat(env, route, { messages, temperature, maxTokens })` that applies each provider's own settings and falls back on any failure.
-2. The switch: an override of the table by a Worker variable (`MODEL_ROUTES`, JSON, e.g. `{"extract":"cloudflare:deepseek-v4.1-flash-1017"}`) set from one GitHub workflow with inputs, like the Moonshot on/off one, so it can be changed from a phone without a code change or a deploy of new code.
-3. A pin test: no file except the router may call `env.AI.run` for chat or fetch Moonshot, so this index cannot go stale.
-4. Move the call sites one area at a time (interpret is done by hand and moves onto the router first), with a real-model run on staging after each area.
+## How it works now (built 2026-11-27)
+- **One door:** `worker/src/model-routes.ts`. `chat(env, "<route>", { messages, temperature?, maxTokens?, timeoutMs? })` returns the text, which model gave it (`via`) or the reasons it failed.
+- **One catalogue:** `kimi` (Kimi `kimi-k2.6` at Moonshot, thinking disabled, needs the Worker secret `MOONSHOT_API_KEY`) and `deepseek` (`@cf/deepseek-ai/deepseek-v4.1-flash-1017` on Cloudflare, `reasoning_effort: "none"`). Adding a model is one entry there plus its name in the workflow.
+- **One default:** Kimi first, DeepSeek as the fallback on ANY failure (network, 20-second timeout, HTTP error such as 402 for no credit, an empty answer). Without the Moonshot key it goes straight to DeepSeek.
+- **One switch:** the Worker secret `MODEL_ROUTES`, set from the **Model route** workflow (GitHub, Actions, run by hand: `action` set or clear, `routes` JSON). Keys are a route, a dotted prefix, or `*`; the most specific wins. `{"*":"deepseek"}` puts everything on DeepSeek; `{"interpret":["kimi",null]}` is Kimi alone for one route. The workflow refuses anything the router would not understand; the Worker ignores a bad entry rather than failing. **STAGING only**: a production version waits for Pierre's word. It takes effect at the next staging deploy.
+- **The index cannot go stale:** `tools/model-routes.test.js` fails if any file but the router names a chat model or Moonshot, apart from the not-yet-moved list below, which can only shrink. Of the engine files only the interpreter may import the router.
+
+## Moved
+| Route | Status |
+|---|---|
+| `interpret` | on the router; real-model run 6 passed (10/10, 13/13) |
+
+## Not yet moved (the ledger in the test: `UNMOVED`)
+`ai.ts` (26 chat calls, plus whisper, bge embedding and rerank which are not retired), `converse.ts`, `debug.ts`, `trial.ts`, and the Moonshot front door `converse-moonshot.ts` (its own path, pinned to one fetch). Each moves to a named route, then comes off the ledger, with a real-model run on staging after each area.

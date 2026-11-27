@@ -75,8 +75,8 @@ module.exports = kit.guard('engine ownership', async ({ check }) => {
   const ENV_SEEN = [...ENV_FIELDS, 'CAPABILITY_CONFIG'];   // CAPABILITY_CONFIG is read through a cast type in availability.ts, not declared in Env
   // __atomic is the transaction helper's boolean re-entry flag (atomic.ts: a wrapped function re-enters itself inside a transaction and checks it); it carries no data and is no binding. Inside that transaction atomic.ts also THROWS if code touches
   // AI, MEMORY, CUSTOMER_NOTES, OFFICE_VAULT, BACKUPS or SHARED_DB (atomic.ts:14), a runtime reinforcement of this rule for every engine write that runs atomically.
-  // interpret.ts may read MOONSHOT_API_KEY (2026-11-27, Pierre's decision): the interpreter calls Kimi at Moonshot first, with Cloudflare's model as the fallback; only the person's sentence and the capability list cross, and no other engine file may touch the key.
-  const R2_ALLOWED = { 'engine/admin.ts': ['OFFICE_DB', 'BUSINESS_ID', 'ENGINE_REHEARSAL'], 'engine/availability.ts': ['BUSINESS_ID', 'CAPABILITY_CONFIG'], 'engine/facts.ts': ['__atomic'], 'engine/drafts.ts': ['__atomic'], 'engine/interpret.ts': ['AI', 'MOONSHOT_API_KEY'], 'engine/routes.ts': ['ENGINE_REHEARSAL'] };   // routes.ts reads ENGINE_REHEARSAL only to say WHAT FAILED on a rehearsal (staging) deployment, never in production (2026-11-09)   // interpret.ts is the ONE engine file that may use the model binding (a model as one more interpreter, approved 2026-11-09): it passes the model a catalogue and a sentence and nothing else, and it never runs inside a transaction (atomic.ts would throw)
+  // interpret.ts reaches a model ONLY through the router (model-routes.ts), so it reads no environment field itself: not AI, not the Moonshot key.
+  const R2_ALLOWED = { 'engine/admin.ts': ['OFFICE_DB', 'BUSINESS_ID', 'ENGINE_REHEARSAL'], 'engine/availability.ts': ['BUSINESS_ID', 'CAPABILITY_CONFIG'], 'engine/facts.ts': ['__atomic'], 'engine/drafts.ts': ['__atomic'], 'engine/interpret.ts': [], 'engine/routes.ts': ['ENGINE_REHEARSAL'] };   // routes.ts reads ENGINE_REHEARSAL only to say WHAT FAILED on a rehearsal (staging) deployment, never in production (2026-11-09)   // interpret.ts is the ONE engine file that may use the model binding (a model as one more interpreter, approved 2026-11-09): it passes the model a catalogue and a sentence and nothing else, and it never runs inside a transaction (atomic.ts would throw)
    // everything else: OFFICE_DB only (the business's OWN database)
   const r2bad = [];
   for (const file of engineFiles) {
@@ -86,7 +86,7 @@ module.exports = kit.guard('engine ownership', async ({ check }) => {
   check(ENV_FIELDS.length >= 40 && ENV_FIELDS.includes('SHARED_DB') && r2bad.length === 0, `R2: no engine file references any environment field outside its allowance (${ENV_FIELDS.length} fields exist, including SHARED_DB, the notes, vault, memory index, backups, AI and the object namespace)${r2bad.length ? ' [VIOLATIONS: ' + r2bad.join('; ') + ']' : ''}`);
 
   // ---- R3: imports leaving the engine ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  const R3_ALLOWED = { '../types': null, '../atomic': null, '../capability-contract': null };   // null = names are pinned below
+  const R3_ALLOWED = { '../types': null, '../atomic': null, '../capability-contract': null, '../model-routes': null };   // ../model-routes (2026-11-27): the ONE door to a model; it imports only ../types, and only the interpreter may use it (pinned below)   // null = names are pinned below
   const r3bad = [], outside = {};
   for (const file of engineFiles) {
     if (facts[file].dynamic) r3bad.push(`${file}: dynamic import or require`);
@@ -96,8 +96,8 @@ module.exports = kit.guard('engine ownership', async ({ check }) => {
       (outside[mod] = outside[mod] || new Set()); for (const n of names) outside[mod].add(n);
     }
   }
-  check(r3bad.length === 0, `R3: engine files import from outside the engine only ../types, ../atomic and ../capability-contract, never a package or any other module${r3bad.length ? ' [VIOLATIONS: ' + r3bad.join('; ') + ']' : ''}`);
-  const PINNED_OUT = { '../atomic': ['atomically'], '../capability-contract': ['CapabilityContract', 'CapabilityRequest', 'CapabilityResult', 'ConfirmedAction'], '../types': ['Env'] };
+  check(r3bad.length === 0, `R3: engine files import from outside the engine only ../types, ../atomic, ../capability-contract and ../model-routes, never a package or any other module${r3bad.length ? ' [VIOLATIONS: ' + r3bad.join('; ') + ']' : ''}`);
+  const PINNED_OUT = { '../atomic': ['atomically'], '../capability-contract': ['CapabilityContract', 'CapabilityRequest', 'CapabilityResult', 'ConfirmedAction'], '../model-routes': ['chat'], '../types': ['Env'] };
   const got = Object.fromEntries(Object.entries(outside).map(([m, s]) => [m, [...s].sort()]));
   check(JSON.stringify(Object.keys(got).sort()) === JSON.stringify(Object.keys(PINNED_OUT).sort()), `R3: the legacy modules the engine depends on are exactly ${Object.keys(PINNED_OUT).join(', ')} [seen: ${JSON.stringify(got)}]`);
 

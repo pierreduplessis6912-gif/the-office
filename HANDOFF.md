@@ -158,3 +158,4 @@ Never retry a Git operation or a write after an uncertain timeout; check state f
 - 2026-11-27: attention model run 5 (Kimi at Moonshot) failed S5 only; doing-word guard added (ATTENTION_DOING). Run 6 pending.
 - 2026-11-27: attention model run 6 PASSED (10/10, 13/13) with Kimi at Moonshot. Remaining Kimi-on-Cloudflare users (retired): ai.ts, converse.ts, trial.ts, debug.ts.
 - 2026-11-27: docs/MODEL_ROUTES.md is the index of every model call (26 ai.ts chat calls + converse, debug, trial are still on the retired Cloudflare Kimi). Plan: one router with a primary+fallback per route and one switch.
+- 2026-11-27: model router built (worker/src/model-routes.ts, docs/MODEL_ROUTES.md, Model route workflow, staging only). Interpreter is on it; ai.ts/converse.ts/debug.ts/trial.ts still to move (ledger UNMOVED in tools/model-routes.test.js).
