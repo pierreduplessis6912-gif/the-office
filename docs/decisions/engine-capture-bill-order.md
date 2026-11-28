@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Engine capture: a supplier bill photo is linked to its purchase order — 2026-11-14
 
 Status: built on Pierre's word ("Do all 3", 2026-11-14). Extends `engine-capture-bill.md` (its stated limit "not linked to an order" is lifted by this note). No deploy, no real-model run.

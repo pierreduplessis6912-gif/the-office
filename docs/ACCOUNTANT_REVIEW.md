@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** a review pack for a South African accountant or tax practitioner, written 2026-11-10 from the research in `docs/decisions/credit-notes.md` and `docs/decisions/credit-note-follow-ups.md`. **It is not a review:** nothing below has been checked by an accountant, and Claude is not one. The point is to make that review short: what The Office does, why, and the exact questions it cannot settle itself. **Verified:** every behaviour listed is covered by the engine's tests (CI), not by staging; none has run on a real business's books.
 
 # The Office: tax documents, credit notes and the VAT summary: questions for an accountant

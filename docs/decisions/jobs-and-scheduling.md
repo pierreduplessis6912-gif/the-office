@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** proposed, waiting for Pierre's "Yes". **Verified:** not yet. **Owns:** the engine's jobs, scheduling, job costing and snags (nothing built yet).
 
 # DECISIONS: jobs and scheduling in the engine (2026-11-17)

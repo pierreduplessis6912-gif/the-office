@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** built and CI-tested on branch `engine-phase1` (2026-11-10): `tools/engine-mcp.test.js` (61 checks) and twelve deliberate breakages. **Not run with a real MCP client on staging**, and no real outside assistant has used it. **Owns:** how an outside assistant (an MCP client such as Claude Desktop) uses an engine business. Box 7 of "done" in `docs/CAPABILITY_MAP.md`.
 
 # The outside-assistant (MCP) door for an engine business

@@ -114,3 +114,5 @@ Detail lives in `HANDOFF.md` (the newest notes sit just above its "How to run th
 - 2026-11-28: converse.ts moved onto the router (route converse.reply, Cloudflare-only: its history holds the Office's own answers). Ledger now debug.ts, trial.ts. Staging proof of the reply not yet run (no mode reaches tryConverse).
 
 - 2026-11-28: debug.ts and trial.ts moved off the retired Cloudflare Kimi; the not-yet-moved ledger is empty (every chat call is on the router). Production on main may still name the retired Kimi (unverified).
+
+- 2026-11-28: main merged into engine-phase1 (115e997); docs gate satisfied (31 engine docs given an "unaudited" banner, DECISIONS.md indexes their headings). The router hotfix is live on production (PRs #1, #2; checked on the web). Next: whatever Pierre chooses; engine-phase1 is still not merged to main.

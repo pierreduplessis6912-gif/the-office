@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** built in the engine, CI-tested and proven on a real staging Durable Object (`quotations-proof`, 14 of 14, run 42811115797, 2026-11-10); **not** read by a real model, **not** wired to the app. **Verified:** by `tools/capability-quotations.test.js` (91 checks) and fourteen deliberate breakages in `tools/engine-breakage.js`. **Owns:** the meaning of "a quotation" in the engine.
 
 # Quotations: create, revise, accept, find

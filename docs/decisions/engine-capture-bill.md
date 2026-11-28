@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Engine capture: a supplier bill photo becomes a HELD supplier invoice — 2026-11-14
 
 Status: written and built in one go on Pierre's instruction ("Go with supplier bill", 2026-11-14). No deploy, no real-model run, no staging proof. Slice 3 of `engine-capture.md`; same rules as `engine-capture-receipt.md`.

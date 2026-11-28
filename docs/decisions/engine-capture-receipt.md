@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Engine capture: a receipt photo becomes a HELD expense — 2026-11-14
 
 Status: written and built in one go on Pierre's instruction ("Write it and implement it", 2026-11-14). No deploy, no real-model run, no staging proof. Slice 2 of `engine-capture.md` (slice 1: `engine-capture-image.md`).

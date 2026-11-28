@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** built in the engine, CI-tested and proven on a real staging Durable Object (`parties-proof`, 13 of 13, 2026-11-10); **not** read by a real model, **not** wired to the app. **Verified:** by `tools/capability-parties.test.js` (82 checks) and ten deliberate breakages in `tools/engine-breakage.js`. **Owns:** the meaning of "a customer or supplier" in the engine.
 
 # Customers and suppliers: create, edit, find

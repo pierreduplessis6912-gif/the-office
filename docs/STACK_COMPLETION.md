@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** plan (2026-11-10), written on Pierre's instruction: "complete what we start and build progressively to a full stack". **Verified:** from `docs/CAPABILITY_MAP.md` and the committed CI and staging records. **Owns:** the ORDER in which the boxes of "done" are closed for what is already built; the board itself stays `docs/CAPABILITY_MAP.md`.
 
 # Completing the stack for what is built, before adding rows

@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** approved 2026-11-16 (Pierre: "Yes"); B1, B2 and B3 built. **Verified:** not yet. **Owns:** none.
 
 # Several bank accounts (current, savings, card)

@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** approved 2026-11-16 (Pierre: one bank account plus cash); G5a, G5b and G5c built. **Verified:** not yet. **Owns:** none.
 
 # DECISIONS: bank-reconciliation (G5)

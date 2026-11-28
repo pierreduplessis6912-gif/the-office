@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** built in the engine and CI-tested on branch `engine-phase1` (2026-11-11): `tools/capability-purchase-orders.test.js` (111 checks) and sixteen deliberate breakages (four first survived and exposed weak checks, now strengthened); **not** run on staging, **not** read by a real model, **not** in the app. The decisions were written BEFORE the build. **Owns:** the meaning of a purchase order and a goods receipt in the engine. First half of the map row "Purchase orders, goods received, supplier invoices and payments, variances" (Procurement): this file covers the order and the receipt; supplier invoices, matching and payment are the second half. Pierre's standing instruction (2026-11-10) is "best practice, researched"; every default is open to change by him.
 
 # Purchase orders and goods received

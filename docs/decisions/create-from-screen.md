@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** approved 2026-11-16 (Pierre: "Yes"); F1, F2 and F3 built. **Verified:** not yet. **Owns:** none.
 
 # Create from the screen: forms that propose, never write

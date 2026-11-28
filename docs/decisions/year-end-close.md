@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** approved 2026-11-16 (Pierre: year-end is a setting defaulting to February; reopening allowed with a reason); P1, P2 and P3 built. **Verified:** not yet. **Owns:** none.
 
 # DECISIONS: year-end-close (periods)

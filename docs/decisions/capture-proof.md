@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Staging proof of capture (voice, photo, receipt, supplier bill) — pass rule written BEFORE the run
 
 Status: written 2026-11-14 on Pierre's word ("Do all 3"). The run itself is dispatched by Pierre by hand (staging mode `capture-proof`); the build chat cannot dispatch workflows from its sandbox. Nothing here touches production or any business but the fresh one the run makes (`staging-capture-<run id>`).

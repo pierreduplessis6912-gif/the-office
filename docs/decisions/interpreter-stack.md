@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** built and CI-tested with a SCRIPTED model on branch `engine-phase1` (2026-11-10): `tools/engine-interpret-stack.test.js` (50 checks) and twelve deliberate breakages. **Real model runs (staging, on Pierre's "run it"): run 1 (42980816181) did NOT pass (understanding 11 of 14, safety 8 of 9, invariants held); run 2 (42988829565, after the prompt fixes) PASSED: understanding 14 of 14, safety 9 of 9, all five invariants held.** See "Run 1" and "Run 2" below. **Owns:** what the model may do with the capabilities built since the first slice, and the written pass rule that a real run will be judged against (box 4 of "done", `docs/CAPABILITY_MAP.md`). Extends `docs/decisions/model-backed-run-scoping.md` (option A, approved 2026-11-09).
 
 # The interpreter, extended to the stack

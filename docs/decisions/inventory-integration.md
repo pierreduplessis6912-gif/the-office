@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** design (2026-11-11), written on Pierre's instruction: "we have to look at stock holistically as it touches procurement, sales, costing etc." **Decided by Pierre 2026-11-11:** the 2026-11-01 restore-drill gate is **waived for now** for additive engine tables on the branch. I took that as **option A** (additive tables; `docs/decisions/inventory.md` section 3), since waiving the drills only matters for a schema change; **say so if that is wrong.** **Owns:** how stock connects to every other domain, the one mechanism that carries an item through a document line, how cost flows end to end, and the order the connections are built in. `docs/decisions/inventory.md` still owns what stock is and its invariants. Built so far: increment 1 of section 6 (the ledger foundation), engine and CI only.
 
 # Stock, holistically

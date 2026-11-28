@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Staging run of the `ai.ts` extractions on real models — pass rule written BEFORE the run
 
 Status: written 2026-11-27 on Pierre's word ("Yes", build a staging mode for the `ai.ts` routes). Nothing here touches production. The run itself is dispatched only on his word (staging mode `extract-model-run`).

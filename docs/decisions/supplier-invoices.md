@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** built in the engine and CI-tested on branch `engine-phase1` (2026-11-11): `tools/capability-supplier-invoices.test.js` (126 checks) and twenty-two deliberate breakages (one first survived and exposed a weak check, now strengthened); **not** run on staging, **not** offered to the model, **not** in the app. The decisions were written BEFORE the build. **Owns:** the meaning of a supplier invoice (a bill), the three-way match, supplier payment and the bill's input tax. Second half of the map row "Purchase orders, goods received, supplier invoices and payments, variances" (Procurement); the first half is `docs/decisions/purchase-orders.md`. Pierre's standing instruction is "best practice, researched"; every default is open to change by him.
 
 # Supplier invoices, the three-way match and supplier payment

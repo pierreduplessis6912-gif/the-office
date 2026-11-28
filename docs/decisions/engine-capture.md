@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** approved by Pierre 2026-11-14 ("Approved", taken as approval with the stated defaults). **Verified:** not yet. **Owns:** none.
 
 # DECISIONS: engine-capture (voice notes, photos and documents into an engine business)

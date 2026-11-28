@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Needs attention (read-only)
 
 **Status: built (engine read, route, MCP description, sentence). App panel: see below.**

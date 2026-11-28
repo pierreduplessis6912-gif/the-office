@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Engine capture: photos and documents, slice 1 — 2026-11-14
 
 Status: built and tested on `engine-phase1`; nothing deployed, no real model run. Follows `engine-capture.md` (approved).

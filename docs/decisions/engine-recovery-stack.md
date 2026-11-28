@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** proven on the HARNESS (2026-11-10): `tools/engine-restore-stack.test.js` (16 checks) and three deliberate breakages. **Not** rehearsed on the real platform. **Owns:** box 8 of "done" (`docs/CAPABILITY_MAP.md`): snapshot and restore still pass with everything built since the first slice.
 
 # Recovery with everything built since the first slice

@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** research and decisions (2026-11-10), written BEFORE the build so each choice is on the record; the build status of each item is in the table at the end and in `docs/CAPABILITY_MAP.md`. **Owns:** the four points left open by `docs/decisions/credit-notes.md`. **Not tax or legal advice:** Claude is not an accountant; the sources are SARS material, a major accounting firm, the public documentation and user forums of Odoo and Xero, and a secondary SA compliance guide (labelled below). Where an ERP's behaviour is described it is from its own documentation or user reports, not from running it.
 
 # The four points, how other ERPs handle them, and what The Office does

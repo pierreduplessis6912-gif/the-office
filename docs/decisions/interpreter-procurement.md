@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 > **Status:** DESIGN, written before the code (tests first), 2026-11-14, after Pierre said to move on to the next phase of the plan (step b of `docs/RESUME.md`). The defaults below are open to him; nothing here has been run with a real model, and a real run needs his explicit word.
 
 # The model as an interpreter: procurement (purchase orders, goods received, supplier bills and payments)

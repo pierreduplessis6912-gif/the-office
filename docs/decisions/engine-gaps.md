@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Engine gaps (step c) — 2026-11-14
 
 Status: built and tested on `engine-phase1`. Nothing deployed.

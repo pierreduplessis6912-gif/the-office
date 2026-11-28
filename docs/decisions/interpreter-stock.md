@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # The model as an interpreter: the stock capabilities (2026-11-11)
 
 **Status:** DESIGN, written before the code (tests first). Extends `interpreter-stack.md`. Defaults below are open to Pierre; nothing here has been run with a real model, and the real run is held until he says "run it".
