@@ -7,6 +7,7 @@
 //                                                             enam...); `name` picks WHICH object (each name is a separate, isolated database); `shared=k` adds k trips from inside the object
 //                                                             to the shared layer (modelled here by the production D1), to show what touching shared data costs.
 // The object keeps only a scratch table of its own, which is why it is safe to run in production.
+import { MODELS } from "./model-routes";
 import type { Env } from "./types";
 
 const HINTS = ["wnam", "enam", "sam", "weur", "eeur", "apac", "oc", "afr", "me"] as const;
@@ -32,11 +33,11 @@ async function askModel(env: Env, n: number, probe: ModelProbe = {}): Promise<{ 
   for (let i = 0; i < n; i++) {
     const started = Date.now();
     const answer = await ai.run(
-      "@cf/moonshotai/kimi-k2.6",
+      MODELS.deepseek.id,   // the Cloudflare-hosted model the router falls back to (model-routes.ts); this probe measures the Cloudflare binding itself, so it calls it directly
       {
         temperature: 0,
-        max_tokens: 5,
-        chat_template_kwargs: { thinking: false },
+        max_completion_tokens: 5,
+        reasoning_effort: "none",
         messages: [
           { role: "system", content: `${filler}\nAnswer with one word.` },
           { role: "user", content: "Say ok." },
