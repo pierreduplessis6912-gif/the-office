@@ -1,3 +1,5 @@
+> **Status:** real. **Verified:** 2026-11-28. **Owns:** `worker/src/model-routes.ts`, `tools/model-routes-hotfix.test.js`.
+
 # Model routes: every place The Office calls a model
 
 Why this exists: Cloudflare retired `@cf/moonshotai/kimi-k2.6` on 2026-11-20 (HTTP 410, code 5028) and the name was written in about 30 places. Now every chat-model call goes through ONE door, and changing a model is a switch, not a hunt. `tools/model-routes.test.js` fails if a route the code asks for is missing from this page, or if any file other than the router names a chat model.

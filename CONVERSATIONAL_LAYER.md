@@ -163,3 +163,6 @@ The harness now verifies every seed (customer link, the date the Office recorded
 2. **Read-only conversation:** Kimi gets the MCP read tools only; numbers verbatim from tool output, shown beside the narrative; working memory for "that customer" from `CONTEXT.md`; never a confirm tool.
 3. **Instructions from the conversation** into `processTranscript`, the human still confirms in the app; add an idempotency key (F-17).
 4. **Onboarding and troubleshooting, suggestions from real capabilities, personalities, multilingual:** each separately measured.
+
+
+> Update 2026-11-28: the in-Worker reply in `converse.ts` now goes through the model router (route `converse.reply`, never sent to Moonshot); see `docs/MODEL_ROUTES.md`.
