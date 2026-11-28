@@ -2484,7 +2484,7 @@
     "pendingActionId": null,
     "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
     "captureId": 1,
-    "description": "[image description failed: model unavailable]",
+    "description": "[image description failed: no model answered (cloudflare: Error: model unavailable)]",
     "subjectHint": null,
     "supplierInvoiceAction": null,
     "goodsReceivedAction": null,
@@ -2530,7 +2530,7 @@
     "added": [
      {
       "id": 1,
-      "raw_text": "[image description failed: model unavailable]",
+      "raw_text": "[image description failed: no model answered (cloudflare: Error: model unavailable)]",
       "source": "document",
       "subject_hint": null,
       "extraction_status": "processed",
@@ -3815,7 +3815,7 @@
     "pendingActionId": null,
     "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
     "captureId": 1,
-    "description": "[image description failed: model unavailable]",
+    "description": "[image description failed: no model answered (cloudflare: Error: model unavailable)]",
     "subjectHint": null,
     "supplierInvoiceAction": null,
     "goodsReceivedAction": null,
@@ -3861,7 +3861,7 @@
     "added": [
      {
       "id": 1,
-      "raw_text": "[image description failed: model unavailable]",
+      "raw_text": "[image description failed: no model answered (cloudflare: Error: model unavailable)]",
       "source": "photo",
       "subject_hint": null,
       "extraction_status": "processed",

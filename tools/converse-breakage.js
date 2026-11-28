@@ -12,7 +12,7 @@ const originals = Object.fromEntries(Object.entries(files).map(([k, f]) => [k, f
 const run = require('./converse.test.js');
 const MUTATIONS = [
   // the model's words reach a write (the doctrine's one hard line)
-  ['conv', 'a model reply is written to a held action', 'return shown(r.choices?.[0]?.message?.content);', 'await env.OFFICE_DB.prepare("INSERT INTO pending_actions (type, payload, source_transcript, status) VALUES (\'invoice\', ?, \'x\', \'pending\')").bind(String(r.choices?.[0]?.message?.content)).run();\n    return shown(r.choices?.[0]?.message?.content);'],
+  ['conv', 'a model reply is written to a held action', 'return shown(asked);', 'await env.OFFICE_DB.prepare("INSERT INTO pending_actions (type, payload, source_transcript, status) VALUES (\'invoice\', ?, \'x\', \'pending\')").bind(String(asked)).run();\n    return shown(asked);'],
   ['conv', 'a writer is imported beside the history reader', 'import { readHistory } from "./history";', 'import { readHistory, recordInteraction } from "./history";'],
   ['conv', 'a second module is imported', 'import { withRetry } from "./ai";', 'import { withRetry } from "./ai";\nimport { logCapture } from "./memory";'],
   // when it may run
@@ -30,8 +30,8 @@ const MUTATIONS = [
   ['conv', 'a failure of the model is not caught', '  } catch {\n    return null;\n  }\n}\n', '  } finally {\n  }\n}\n'],
   // what the model is given
   ['conv', 'history is read for everyone, not only the caller', 'scope: "own"', 'scope: "all"'],
-  ['conv', 'the model call is not retried', 'await withRetry(() => env.AI.run(', 'await Promise.resolve().then(() => env.AI.run('],
-  ['conv', 'the model is given tools', 'temperature: 0.4, chat_template_kwargs', 'tools: [{ type: "function" }], temperature: 0.4, chat_template_kwargs'],
+  ['conv', 'the model call is not retried', 'const asked = await withRetry(async () => {', 'const asked = await Promise.resolve().then(async () => {'],
+  ['conv', 'the reply asks at the wrong temperature (the router takes no tools, so this replaces the old "given tools" line)', 'temperature: 0.4 });', 'temperature: 0 });'],
   ['conv', 'a capability that is only designed is offered', '  { feature: "Customers",', '  { feature: "Warranty Tracking", says: "track warranties on finished jobs" },\n  { feature: "Customers",'],
   ['conv', 'a capability is described to someone without the permission', '.filter((c) => !c.needs || capabilities.includes(c.needs))', '.filter(() => true)'],
   ['conv', 'the persona stops forbidding claims of having recorded anything', '"- Never say that anything was recorded, saved, created, sent, scheduled, updated, paid or confirmed. Nothing happens in this conversation.",', ''],

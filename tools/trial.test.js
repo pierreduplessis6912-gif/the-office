@@ -16,7 +16,7 @@ async function trialTests({ check, srcDir }) {
   const ask = async (query) => { calls.length = 0; const res = await trialAi(env, new URL('https://x/debug/trial-ai?' + query)); return { res, body: await res.json() }; };
 
   const plain = await ask('n=3');
-  check(plain.body.callsMs.length === 3 && calls.length === 3 && calls.every((c) => c.model === '@cf/moonshotai/kimi-k2.6' && c.input.chat_template_kwargs.thinking === false && c.input.max_tokens === 5 && c.options === undefined), 'with no options the probe makes the application\'s own call (Kimi, thinking off, a five-token answer) and sends no extra headers');
+  check(plain.body.callsMs.length === 3 && calls.length === 3 && calls.every((c) => c.model === '@cf/deepseek-ai/deepseek-v4.1-flash-1017' && c.input.reasoning_effort === 'none' && c.input.max_completion_tokens === 5 && c.options === undefined), 'with no options the probe makes the router\'s Cloudflare call (DeepSeek, thinking off, a five-token answer) and sends no extra headers');
   const padded = await ask('n=4&chars=2000&salt=cold-1');
   const systems = calls.map((c) => c.input.messages[0].content);
   check(systems.every((s) => s === systems[0]) && systems[0].startsWith('[cold-1] The Office keeps') && systems[0].length >= 2000 && systems[0].length <= 2030 && systems[0].endsWith('Answer with one word.'), 'the padding is at the START of the instructions, identical on every call (prompt caching matches the exact token sequence from the start), begins with the salt that makes the prefix cold, and is about the size asked for');

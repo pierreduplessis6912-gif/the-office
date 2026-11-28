@@ -10,6 +10,7 @@
 //  - the model has no tools and sees no business data: only the persona, the capabilities listed below, and the member's own last few turns from their own history (scope "own", their own business's database)
 //  - what the model says passes a deterministic check before anyone sees it: no digit (so no figure, amount, date or count) and no claim that anything was recorded, saved, created, sent, confirmed... Failing it returns null: the old message stands
 //  - any failure anywhere (the model, the history, the check) returns null, never throws; CONVERSE=off returns null before anything else
+import { chat } from "./model-routes";
 import { withRetry } from "./ai";
 import { readHistory } from "./history";
 import { NO_INTENT_MESSAGE } from "./no-intent";
@@ -111,9 +112,9 @@ export async function tryConverse(env: Env, text: string, processed: Understood,
     if (!nothingUnderstood(processed)) return null;
     const turns = await lastTurns(env, who.email);
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [{ role: "system", content: personaFor(who.capabilities) }, ...turns, { role: "user", content: text.slice(0, TEXT_CHARS) }];
-    const result = await withRetry(() => env.AI.run("@cf/moonshotai/kimi-k2.6", { temperature: 0.4, chat_template_kwargs: { thinking: false }, messages } as never));   // `thinking` is missing from the binding's types (the other Kimi calls are in the typecheck baseline for the same reason); `as never` keeps the call itself typed
-    const r = result as { choices?: Array<{ message?: { content?: unknown } }> };
-    return shown(r.choices?.[0]?.message?.content);
+    // Through the router (model-routes.ts, route "converse.reply"): a records route, because the earlier turns held here include The Office's own answers (figures, names), so it never goes to Moonshot.
+    const asked = await withRetry(async () => { const r = await chat(env, "converse.reply", { messages, temperature: 0.4 }); if (r.content === null) throw new Error(r.why); return r.content; });
+    return shown(asked);
   } catch {
     return null;
   }

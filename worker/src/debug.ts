@@ -32,6 +32,7 @@ import { billingHealth, billingStatus, createOrder, pingPayFast, setBillingState
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
 import { trialAi, trialD1, trialDo, trialTx } from "./trial";
+import { chat } from "./model-routes";
 import { timingsSummary } from "./timing";
 import { Env, Extraction, HistoryTurn, LineItemWithTotal } from "./types";
 import {
@@ -1536,25 +1537,9 @@ if (url.pathname === "/debug/rewrite-thinking-test" && request.method === "GET")
         "rewritten message, nothing else — no explanation, no quotes.\n\nConversation history:\n" +
         historyText;
 
-      const runOnce = async (thinking: boolean) => {
-        const result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
-          chat_template_kwargs: { thinking },
-          temperature: 0,
-          max_tokens: thinking ? 600 : undefined,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: message },
-          ],
-        });
-        const r = result as { choices?: Array<{ message?: { content?: string; reasoning_content?: string } }> };
-        return {
-          content: r.choices?.[0]?.message?.content ?? null,
-          reasoning: r.choices?.[0]?.message?.reasoning_content ?? null,
-        };
-      };
-
-      const [thinkingOff, thinkingOn] = await Promise.all([runOnce(false), runOnce(true)]);
-      return Response.json({ thinkingOff, thinkingOn });
+      // Through the router (route "debug.rewrite", the default route). The old thinking on/off comparison measured the retired Cloudflare Kimi and no longer applies: one answer, and which model gave it.
+      const asked = await chat(env, "debug.rewrite", { messages: [{ role: "system", content: systemPrompt }, { role: "user", content: message }], temperature: 0 });
+      return Response.json({ answer: asked.content, why: asked.why, via: asked.via });
     }
 
 if (url.pathname === "/debug/characters-list" && request.method === "GET") {
